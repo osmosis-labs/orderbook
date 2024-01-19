@@ -56,19 +56,25 @@ pub fn execute(
         // With `Response` type, it is possible to dispatch message to invoke external logic.
         // See: https://github.com/CosmWasm/cosmwasm/blob/main/SEMANTICS.md#dispatching-messages
 
-        // === Example ===
-        ExecuteMsg::TestMsg { address } => {
-            // do something
-            Ok(Response::new().add_attribute("method", "test"))
-        }
-
         // === Orderbook ===
 
-        // placeLimit
+        // Places limit order on given market
+        ExecuteMsg::PlaceLimit => {
+            // TODO: call place_limit here
+            Ok(Response::new().add_attribute("method", "placeLimit"))
+        }
 
-        // placeMarket
+        // Places a market order on the passed in market
+        ExecuteMsg::PlaceMarket => {
+            // TODO: call place_market here
+            Ok(Response::new().add_attribute("method", "placeMarket"))
+        }
 
-        // cancelLimit
+        // Cancels limit order with given ID
+        ExecuteMsg::CancelLimit => {
+            // TODO: call cancel_limit here      
+            Ok(Response::new().add_attribute("method", "cancelLimit"))
+        }
 
 
         // === Margin ===

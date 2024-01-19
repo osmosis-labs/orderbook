@@ -7,8 +7,12 @@ pub struct InstantiateMsg {}
 /// Message type for `execute` entry_point
 #[cw_serde]
 pub enum ExecuteMsg {
-    /// Test execute msg.
-    TestMsg { address: String },
+
+    // === Orderbook ===
+
+    PlaceLimit,
+    CancelLimit,
+    PlaceMarket,
 }
 
 /// Message type for `migrate` entry_point

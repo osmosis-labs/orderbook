@@ -6,6 +6,8 @@ use cw2::set_contract_version;
 use crate::error::ContractError;
 use crate::msg::{ExecuteMsg, InstantiateMsg, MigrateMsg, QueryMsg};
 
+use crate::orderbook::{limit, market};
+
 // version info for migration info
 const CONTRACT_NAME: &str = "crates.io:perpetuals";
 const CONTRACT_VERSION: &str = env!("CARGO_PKG_VERSION");
@@ -51,30 +53,16 @@ pub fn execute(
     msg: ExecuteMsg,
 ) -> Result<Response, ContractError> {
     match msg {
-        // Find matched incoming message variant and execute them with your custom logic.
-        //
-        // With `Response` type, it is possible to dispatch message to invoke external logic.
-        // See: https://github.com/CosmWasm/cosmwasm/blob/main/SEMANTICS.md#dispatching-messages
-
         // === Orderbook ===
 
         // Places limit order on given market
-        ExecuteMsg::PlaceLimit => {
-            // TODO: call place_limit here
-            Ok(Response::new().add_attribute("method", "placeLimit"))
-        }
-
-        // Places a market order on the passed in market
-        ExecuteMsg::PlaceMarket => {
-            // TODO: call place_market here
-            Ok(Response::new().add_attribute("method", "placeMarket"))
-        }
+        ExecuteMsg::PlaceLimit => limit::place_limit(_deps, _env, _info),
 
         // Cancels limit order with given ID
-        ExecuteMsg::CancelLimit => {
-            // TODO: call cancel_limit here      
-            Ok(Response::new().add_attribute("method", "cancelLimit"))
-        }
+        ExecuteMsg::CancelLimit => limit::cancel_limit(_deps, _env, _info),
+
+        // Places a market order on the passed in market
+        ExecuteMsg::PlaceMarket => market::place_market(_deps, _env, _info),
 
 
         // === Margin ===

@@ -6,7 +6,7 @@ use cw2::set_contract_version;
 use crate::error::ContractError;
 use crate::msg::{ExecuteMsg, InstantiateMsg, MigrateMsg, QueryMsg};
 
-use crate::orderbook::{limit, market};
+use crate::orderbook;
 
 // version info for migration info
 const CONTRACT_NAME: &str = "crates.io:perpetuals";
@@ -55,14 +55,26 @@ pub fn execute(
     match msg {
         // === Orderbook ===
 
+        // Creates a new orderbook
+        ExecuteMsg::CreateOrderbook {
+            quote_denom,
+            base_denom,
+        } => orderbook::create_orderbook(
+            _deps,
+            _env,
+            _info,
+            quote_denom,
+            base_denom,
+        ),
+
         // Places limit order on given market
-        ExecuteMsg::PlaceLimit => limit::place_limit(_deps, _env, _info),
+        ExecuteMsg::PlaceLimit => orderbook::place_limit(_deps, _env, _info),
 
         // Cancels limit order with given ID
-        ExecuteMsg::CancelLimit => limit::cancel_limit(_deps, _env, _info),
+        ExecuteMsg::CancelLimit => orderbook::cancel_limit(_deps, _env, _info),
 
         // Places a market order on the passed in market
-        ExecuteMsg::PlaceMarket => market::place_market(_deps, _env, _info),
+        ExecuteMsg::PlaceMarket => orderbook::place_market(_deps, _env, _info),
 
 
         // === Margin ===

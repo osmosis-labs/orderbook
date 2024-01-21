@@ -10,6 +10,10 @@ pub enum ExecuteMsg {
 
     // === Orderbook ===
 
+    CreateOrderbook{
+        quote_denom: String,
+        base_denom: String,
+    },
     PlaceLimit,
     CancelLimit,
     PlaceMarket,

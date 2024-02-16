@@ -1,5 +1,5 @@
 {
-  "name": "perpetuals-sdk",
+  "name": "orderbook-sdk",
   "version": " 0.0.1",
   "description": "",
   "cdn": "dist/index.umd.js",

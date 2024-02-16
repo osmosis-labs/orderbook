@@ -1,16 +1,18 @@
-use cosmwasm_std::{DepsMut, Env, MessageInfo, Response};
 use crate::error::ContractError;
 use crate::orderbook::types::Orderbook;
+use crate::state::new_order_book_id;
+use cosmwasm_std::{DepsMut, Env, MessageInfo, Response};
 
 pub fn create_orderbook(
-    _deps: DepsMut,
+    deps: DepsMut,
     _env: Env,
     _info: MessageInfo,
     quote_denom: String,
     base_denom: String,
 ) -> Result<Response, ContractError> {
+    let book_id = new_order_book_id(deps.storage).unwrap();
     let _book = Orderbook {
-        book_id: 0,
+        book_id,
         quote_denom,
         base_denom,
         current_tick: 0,
@@ -18,6 +20,5 @@ pub fn create_orderbook(
         next_ask_tick: 1,
     };
 
-    Ok(Response::new()
-        .add_attribute("method", "createOrderbook"))
+    Ok(Response::new().add_attribute("method", "createOrderbook"))
 }

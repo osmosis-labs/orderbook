@@ -42,7 +42,7 @@ mod test {
     use rand::{thread_rng, Rng};
 
     #[test]
-    fn new_order_book_id_works() {
+    fn test_new_order_book_id() {
         let mut storage = MockStorage::new();
         let id = new_order_book_id(&mut storage).unwrap();
         assert_eq!(id, 0);
@@ -51,7 +51,7 @@ mod test {
     }
 
     #[test]
-    fn new_order_id_works() {
+    fn test_order_id_works() {
         let mut storage = MockStorage::new();
         let id = new_order_id(&mut storage).unwrap();
         assert_eq!(id, 0);

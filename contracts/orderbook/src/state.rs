@@ -3,6 +3,7 @@ use cw_storage_plus::{Map, Item};
 use crate::ContractError;
 use crate::orderbook::types::{LimitOrder, Orderbook};
 
+// TODO: Maybe unnecessary
 pub const OWNER: Item<Addr> = Item::new("owner");
 pub const ORDER_BOOKS: Map<u64, Orderbook> = Map::new("order_books");
 // Key: (order_book_id, tick)
@@ -39,7 +40,7 @@ mod test {
     use cosmwasm_std::{Order};
     use super::*;
     use cosmwasm_std::testing::MockStorage;
-    use rand::{thread_rng, Rng};
+    use crate::orderbook::types::OrderDirection;
 
     #[test]
     fn test_new_order_book_id() {
@@ -82,14 +83,15 @@ mod test {
         let order_amount = 50;
         let book_id = new_order_book_id(&mut storage).unwrap();
         let tick = 0;
-        let mut rng = thread_rng();
         for i in 0..order_amount {
             let order_id = new_order_id(&mut storage).unwrap();
             let order = LimitOrder {
+                tick_id: tick,
+                book_id,
                 order_id,
-                maker: Addr::unchecked(format!("maker{}", i)),
-                amount: Uint128::new(rng.gen::<u128>()),
-                side: true,
+                owner: Addr::unchecked(format!("maker{}", i)),
+                quantity: i,
+                order_direction: OrderDirection::Ask,
             };
             ORDERS.save(&mut storage, (book_id, tick, i), &order).unwrap();
         }

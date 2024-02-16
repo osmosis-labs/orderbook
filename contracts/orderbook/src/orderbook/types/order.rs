@@ -1,7 +1,7 @@
 use cosmwasm_schema::cw_serde;
 use cosmwasm_std::{Addr, Uint128};
 
-#[derive(PartialEq, Copy, Clone, Debug)]
+#[cw_serde]
 pub enum OrderDirection {
     Bid,
     Ask,
@@ -14,12 +14,18 @@ pub struct LimitOrder {
     pub order_id: u64,
     pub order_direction: OrderDirection,
     pub owner: Addr,
-    // TODO: Can this be Uint128? To match Coin amount type
-    pub quantity: u64,
+    pub quantity: Uint128,
 }
 
 impl LimitOrder {
-    pub fn new(book_id: u64, tick_id: i64, order_id: u64, order_direction: OrderDirection, owner: Addr, quantity: u64) -> Self {
+    pub fn new(
+        book_id: u64,
+        tick_id: i64,
+        order_id: u64,
+        order_direction: OrderDirection,
+        owner: Addr,
+        quantity: Uint128,
+    ) -> Self {
         LimitOrder {
             book_id,
             tick_id,

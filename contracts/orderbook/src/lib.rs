@@ -1,9 +1,12 @@
 pub mod contract;
 mod error;
 pub mod msg;
-pub mod types;
-pub mod state;
-mod orderbook;
 mod order;
+mod orderbook;
+pub mod state;
+pub mod types;
+
+#[cfg(test)]
+pub mod tests;
 
 pub use crate::error::ContractError;

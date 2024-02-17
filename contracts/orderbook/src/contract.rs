@@ -6,8 +6,8 @@ use cw2::set_contract_version;
 use crate::error::ContractError;
 use crate::msg::{ExecuteMsg, InstantiateMsg, MigrateMsg, QueryMsg};
 
-use crate::orderbook;
 use crate::order;
+use crate::orderbook;
 
 // version info for migration info
 const CONTRACT_NAME: &str = "crates.io:orderbook";
@@ -60,13 +60,7 @@ pub fn execute(
         ExecuteMsg::CreateOrderbook {
             quote_denom,
             base_denom,
-        } => orderbook::create_orderbook(
-            _deps,
-            _env,
-            _info,
-            quote_denom,
-            base_denom,
-        ),
+        } => orderbook::create_orderbook(_deps, _env, _info, quote_denom, base_denom),
 
         // Places limit order on given market
         ExecuteMsg::PlaceLimit => order::place_limit(_deps, _env, _info),

@@ -1,6 +1,6 @@
 use crate::error::ContractError;
+use crate::state::{new_orderbook_id, MAX_TICK, MIN_TICK, ORDERBOOKS};
 use crate::types::Orderbook;
-use crate::state::{new_orderbook_id, ORDERBOOKS, MIN_TICK, MAX_TICK};
 use cosmwasm_std::{DepsMut, Env, MessageInfo, Response};
 
 pub fn create_orderbook(
@@ -25,7 +25,9 @@ pub fn create_orderbook(
 
     ORDERBOOKS.save(deps.storage, &book_id, &_book)?;
 
-    Ok(Response::new().add_attribute("method", "createOrderbook").add_attribute("book_id", &book_id.to_string()))
+    Ok(Response::new()
+        .add_attribute("method", "createOrderbook")
+        .add_attribute("book_id", book_id.to_string()))
 }
 
 #[cfg(test)]
@@ -42,15 +44,27 @@ mod tests {
         // Attempt to create an orderbook
         let quote_denom = "quote".to_string();
         let base_denom = "base".to_string();
-        let create_response = create_orderbook(deps.as_mut(), env, info, quote_denom.clone(), base_denom.clone()).unwrap();
-        
+        let create_response = create_orderbook(
+            deps.as_mut(),
+            env,
+            info,
+            quote_denom.clone(),
+            base_denom.clone(),
+        )
+        .unwrap();
+
         // Verify response
         let expected_book_id: u64 = 0;
         assert_eq!(create_response.attributes[0], ("method", "createOrderbook"));
-        assert_eq!(create_response.attributes[1], ("book_id", &expected_book_id.to_string()));
+        assert_eq!(
+            create_response.attributes[1],
+            ("book_id", &expected_book_id.to_string())
+        );
 
         // Verify orderbook is saved correctly
-        let orderbook = ORDERBOOKS.load(deps.as_ref().storage, &expected_book_id).unwrap();
+        let orderbook = ORDERBOOKS
+            .load(deps.as_ref().storage, &expected_book_id)
+            .unwrap();
         assert_eq!(orderbook.quote_denom, quote_denom);
         assert_eq!(orderbook.base_denom, base_denom);
         assert_eq!(orderbook.current_tick, 0);

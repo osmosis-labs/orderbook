@@ -11,6 +11,7 @@ pub fn create_orderbook(
     base_denom: String,
 ) -> Result<Response, ContractError> {
     // TODO: add necessary validation logic
+    // https://github.com/osmosis-labs/orderbook/issues/26
 
     let book_id = new_orderbook_id(deps.storage)?;
     let _book = Orderbook {

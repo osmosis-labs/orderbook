@@ -39,6 +39,7 @@ impl LimitOrder {
 
 // TODO: Unnecessary if finite queries not required
 /// Defines the different way an owners orders can be filtered, all enums filter by owner with each getting more finite
+#[derive(Clone)]
 pub enum FilterOwnerOrders {
     All(Addr),
     ByBook(u64, Addr),

@@ -7,9 +7,10 @@ use crate::error::ContractError;
 use crate::msg::{ExecuteMsg, InstantiateMsg, MigrateMsg, QueryMsg};
 
 use crate::orderbook;
+use crate::order;
 
 // version info for migration info
-const CONTRACT_NAME: &str = "crates.io:perpetuals";
+const CONTRACT_NAME: &str = "crates.io:orderbook";
 const CONTRACT_VERSION: &str = env!("CARGO_PKG_VERSION");
 
 /// Handling contract instantiation
@@ -68,55 +69,13 @@ pub fn execute(
         ),
 
         // Places limit order on given market
-        ExecuteMsg::PlaceLimit => orderbook::place_limit(_deps, _env, _info),
+        ExecuteMsg::PlaceLimit => order::place_limit(_deps, _env, _info),
 
         // Cancels limit order with given ID
-        ExecuteMsg::CancelLimit => orderbook::cancel_limit(_deps, _env, _info),
+        ExecuteMsg::CancelLimit => order::cancel_limit(_deps, _env, _info),
 
         // Places a market order on the passed in market
-        ExecuteMsg::PlaceMarket => orderbook::place_market(_deps, _env, _info),
-
-
-        // === Margin ===
-
-        // depositCollateral
-
-        // withdrawCollateral: withdraw collateral from account if initial margin satisfied
-
-        // collateralizationCheckForOrder: check if the passed in order pushes the account passed initial margin requirements
-
-        // syntheticBorrow: borrow synthetic assets for accounting purposes (add to assets & liabilities)
-        // TODO: is this necessary?
-
-        // isLiquidatable: check if an account is liquidatable
-
-        // liquidate: liquidate an account
-
-
-        // === Funding ===
-
-        // settleFundingForAccount: settle funding accumulators for all markets
-
-
-        // === Risk ===
-
-        // updateRiskParamsForMarket
-
-
-        // === Emergency ===
-
-        // depositToInsuranceFund: deposit collateral to insurance fund
-        
-        // pauseMarket: freeze trading on a specific market
-
-        // deleverMarket: settle highest leverage positions against profitable positions to lower market leverage
-
-        // initiateInsuranceFund
-        // TODO: this should likely be governance-gated
-
-
-        // === Oracle ===
-        // TODO: mock oracle until slinky interface is known/ready
+        ExecuteMsg::PlaceMarket => order::place_market(_deps, _env, _info),
     }
 }
 

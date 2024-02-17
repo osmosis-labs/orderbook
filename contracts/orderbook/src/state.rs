@@ -1,21 +1,21 @@
-use crate::orderbook::types::{LimitOrder, Orderbook};
+use crate::types::{LimitOrder, Orderbook};
 use crate::ContractError;
 use cosmwasm_std::{Storage, Uint128};
 use cw_storage_plus::{Item, Map};
 
-pub const ORDER_BOOKS: Map<&u64, Orderbook> = Map::new("order_books");
-/// Key: (order_book_id, tick)
+pub const ORDERBOOKS: Map<&u64, Orderbook> = Map::new("orderbooks");
+/// Key: (orderbook_id, tick)
 pub const TICK_LIQUIDITY: Map<&(u64, i64), Uint128> = Map::new("tick_liquidity");
-/// Key: (order_book_id, tick, order_id)
+/// Key: (orderbook_id, tick, order_id)
 pub const ORDERS: Map<&(u64, i64, u64), LimitOrder> = Map::new("tick_orders");
 
 // Counters for ID tracking
 pub const ORDER_ID: Item<u64> = Item::new("order_id");
-pub const ORDER_BOOK_ID: Item<u64> = Item::new("order_book_id");
+pub const ORDERBOOK_ID: Item<u64> = Item::new("orderbook_id");
 
-pub fn new_order_book_id(storage: &mut dyn Storage) -> Result<u64, ContractError> {
-    let id = ORDER_BOOK_ID.load(storage).unwrap_or_default();
-    ORDER_BOOK_ID.save(storage, &(id + 1))?;
+pub fn new_orderbook_id(storage: &mut dyn Storage) -> Result<u64, ContractError> {
+    let id = ORDERBOOK_ID.load(storage).unwrap_or_default();
+    ORDERBOOK_ID.save(storage, &(id + 1))?;
     Ok(id)
 }
 
@@ -28,16 +28,16 @@ pub fn new_order_id(storage: &mut dyn Storage) -> Result<u64, ContractError> {
 #[cfg(test)]
 mod test {
     use super::*;
-    use crate::orderbook::types::OrderDirection;
+    use crate::types::OrderDirection;
     use cosmwasm_std::testing::MockStorage;
     use cosmwasm_std::{Addr, Order};
 
     #[test]
-    fn test_new_order_book_id() {
+    fn test_new_orderbook_id() {
         let mut storage = MockStorage::new();
-        let id = new_order_book_id(&mut storage).unwrap();
+        let id = new_orderbook_id(&mut storage).unwrap();
         assert_eq!(id, 0);
-        let id = new_order_book_id(&mut storage).unwrap();
+        let id = new_orderbook_id(&mut storage).unwrap();
         assert_eq!(id, 1);
     }
 
@@ -53,7 +53,7 @@ mod test {
     #[test]
     fn test_tick_iteration() {
         let mut storage = MockStorage::new();
-        let book_id = new_order_book_id(&mut storage).unwrap();
+        let book_id = new_orderbook_id(&mut storage).unwrap();
         let tick_amount = 50;
         for i in -tick_amount..tick_amount {
             TICK_LIQUIDITY
@@ -79,7 +79,7 @@ mod test {
     fn test_order_iteration() {
         let mut storage = MockStorage::new();
         let order_amount = 50;
-        let book_id = new_order_book_id(&mut storage).unwrap();
+        let book_id = new_orderbook_id(&mut storage).unwrap();
         let tick = 0;
         for i in 0..order_amount {
             let order_id = new_order_id(&mut storage).unwrap();

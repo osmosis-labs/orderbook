@@ -1,7 +1,7 @@
 use crate::types::{FilterOwnerOrders, LimitOrder, Orderbook};
 use crate::ContractError;
 use cosmwasm_std::{Addr, Order, StdResult, Storage, Uint128};
-use cw_storage_plus::{Index, IndexList, IndexedMap, Item, Map, MultiIndex};
+use cw_storage_plus::{Bound, Index, IndexList, IndexedMap, Item, Map, MultiIndex};
 
 pub const MIN_TICK: i64 = -108000000;
 pub const MAX_TICK: i64 = 342000000;
@@ -71,36 +71,55 @@ pub fn new_order_id(storage: &mut dyn Storage) -> Result<u64, ContractError> {
 // TODO: Add pagination
 // TODO: How finite do we need queries?
 
+const MAX_PAGE_SIZE: u8 = 100;
+const DEFAULT_PAGE_SIZE: u8 = 50;
+
 /// Retrieves a list of `LimitOrder` filtered by the specified `FilterOwnerOrders`.
+///
+/// This function allows for filtering orders based on the owner's address, optionally further
+/// filtering by book ID or tick ID. It supports pagination through `min`, `max`, and `page_size` parameters.
+///
+/// ## Arguments
+///
+/// * `storage` - CosmWasm Storage struct
+/// * `filter` - Specifies how to filter orders based on the owner. Can be by all orders of the owner,
+/// by a specific book, or by a specific tick within a book.
+/// * `min` - An optional minimum bound (exclusive) for the order key (orderbook_id, tick, order_id) to start the query.
+/// * `max` - An optional maximum bound (exclusive) for the order key to end the query.
+/// * `page_size` - An optional maximum number of orders to return. Limited by `MAX_PAGE_SIZE = 100` defaults to `DEFAULT_PAGE_SIZE = 50`.
+///
+/// ## Returns
+///
+/// A result containing either a vector of `LimitOrder` matching the criteria or an error.
 pub fn get_orders_by_owner(
     storage: &dyn Storage,
     filter: FilterOwnerOrders,
+    min: Option<(u64, i64, u64)>,
+    max: Option<(u64, i64, u64)>,
+    page_size: Option<u8>,
 ) -> StdResult<Vec<LimitOrder>> {
-    let orders: Vec<LimitOrder> = match filter {
-        FilterOwnerOrders::All(owner) => orders()
-            .idx
-            .owner
-            .prefix(owner)
-            .range(storage, None, None, Order::Ascending)
-            .filter_map(|item| item.ok())
-            .map(|(_, order)| order)
-            .collect(),
-        FilterOwnerOrders::ByBook(book_id, owner) => orders()
-            .idx
-            .book_and_owner
-            .prefix((book_id, owner))
-            .range(storage, None, None, Order::Ascending)
-            .filter_map(|item| item.ok())
-            .map(|(_, order)| order)
-            .collect(),
+    let page_size = page_size.unwrap_or(DEFAULT_PAGE_SIZE).min(MAX_PAGE_SIZE) as usize;
+    let min = min.map(Bound::exclusive);
+    let max = max.map(Bound::exclusive);
+
+    // Define the prefix iterator based on the filter
+    let iter = match filter {
+        FilterOwnerOrders::All(owner) => orders().idx.owner.prefix(owner),
+        FilterOwnerOrders::ByBook(book_id, owner) => {
+            orders().idx.book_and_owner.prefix((book_id, owner))
+        }
         FilterOwnerOrders::ByTick(book_id, tick_id, owner) => orders()
             .idx
             .tick_and_owner
-            .prefix((book_id, tick_id, owner))
-            .range(storage, None, None, Order::Ascending)
-            .filter_map(|item| item.ok())
-            .map(|(_, order)| order)
-            .collect(),
+            .prefix((book_id, tick_id, owner)),
     };
+
+    // Get orders based on pagination
+    let orders: Vec<LimitOrder> = iter
+        .range(storage, min, max, Order::Ascending)
+        .take(page_size)
+        .filter_map(|item| item.ok())
+        .map(|(_, order)| order)
+        .collect();
     Ok(orders)
 }

@@ -109,8 +109,14 @@ fn test_get_orders_by_owner_all() {
             .unwrap();
     });
 
-    let owner_orders: Vec<LimitOrder> =
-        get_orders_by_owner(&storage, FilterOwnerOrders::All(Addr::unchecked(owner))).unwrap();
+    let owner_orders: Vec<LimitOrder> = get_orders_by_owner(
+        &storage,
+        FilterOwnerOrders::All(Addr::unchecked(owner)),
+        None,
+        None,
+        None,
+    )
+    .unwrap();
 
     assert_eq!(owner_orders.len(), order_amount / 2 + 1);
     owner_orders.iter().for_each(|order| {
@@ -152,6 +158,9 @@ fn test_get_orders_by_owner_by_book() {
         let owner_orders = get_orders_by_owner(
             &storage,
             FilterOwnerOrders::ByBook(book_id, Addr::unchecked(owner)),
+            None,
+            None,
+            None,
         )
         .unwrap();
         assert!(!owner_orders.is_empty());
@@ -193,6 +202,9 @@ fn test_get_orders_by_owner_by_tick() {
         let owner_orders = get_orders_by_owner(
             &storage,
             FilterOwnerOrders::ByTick(book_id, tick, Addr::unchecked(owner)),
+            None,
+            None,
+            None,
         )
         .unwrap();
         assert!(!owner_orders.is_empty());
@@ -201,4 +213,69 @@ fn test_get_orders_by_owner_by_tick() {
             assert_eq!(order.tick_id, tick);
         });
     });
+}
+
+#[test]
+fn test_get_orders_by_owner_with_pagination() {
+    let mut storage = MockStorage::new();
+    let order_amount = 100;
+    let ticks = [0, 1, 2];
+    let owner = "owner1";
+    let book_id = new_orderbook_id(&mut storage).unwrap();
+
+    // Create orders for a single owner across different ticks
+    (0..order_amount).for_each(|i| {
+        let order_id = new_order_id(&mut storage).unwrap();
+        let tick = ticks[i % 3];
+        let order = LimitOrder::new(
+            book_id,
+            tick,
+            order_id,
+            OrderDirection::Ask,
+            Addr::unchecked(owner),
+            Uint128::new(i as u128),
+        );
+        orders()
+            .save(&mut storage, &(book_id, tick, i as u64), &order)
+            .unwrap();
+    });
+
+    // Test pagination by fetching orders in batches
+    let mut start_after = None;
+    let page_size = 8;
+    let mut fetched_orders = 0;
+    let mut total_pages = 0;
+
+    loop {
+        let owner_orders = get_orders_by_owner(
+            &storage,
+            FilterOwnerOrders::All(Addr::unchecked(owner)),
+            start_after,
+            None,
+            Some(page_size),
+        )
+        .unwrap();
+
+        let orders_count = owner_orders.len() as u64;
+
+        fetched_orders += orders_count;
+        if orders_count == 0 {
+            break;
+        }
+
+        total_pages += 1;
+
+        start_after = Some(
+            owner_orders
+                .last()
+                .map(|order| (order.book_id, order.tick_id, order.order_id))
+                .unwrap(),
+        );
+    }
+
+    assert_eq!(fetched_orders, order_amount as u64);
+    assert_eq!(
+        total_pages,
+        (order_amount as f64 / page_size as f64).ceil() as u64
+    );
 }

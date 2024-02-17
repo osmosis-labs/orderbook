@@ -6,6 +6,14 @@ use cw_storage_plus::{Bound, Index, IndexList, IndexedMap, Item, Map, MultiIndex
 pub const MIN_TICK: i64 = -108000000;
 pub const MAX_TICK: i64 = 342000000;
 
+// Counters for ID tracking
+pub const ORDER_ID: Item<u64> = Item::new("order_id");
+pub const ORDERBOOK_ID: Item<u64> = Item::new("orderbook_id");
+
+// Pagination constants for queries
+const MAX_PAGE_SIZE: u8 = 100;
+const DEFAULT_PAGE_SIZE: u8 = 50;
+
 pub const ORDERBOOKS: Map<&u64, Orderbook> = Map::new("orderbooks");
 /// Key: (orderbook_id, tick)
 pub const TICK_LIQUIDITY: Map<&(u64, i64), Uint128> = Map::new("tick_liquidity");
@@ -52,10 +60,6 @@ pub fn orders() -> IndexedMap<'static, &'static (u64, i64, u64), LimitOrder, Ord
     )
 }
 
-// Counters for ID tracking
-pub const ORDER_ID: Item<u64> = Item::new("order_id");
-pub const ORDERBOOK_ID: Item<u64> = Item::new("orderbook_id");
-
 pub fn new_orderbook_id(storage: &mut dyn Storage) -> Result<u64, ContractError> {
     let id = ORDERBOOK_ID.load(storage).unwrap_or_default();
     ORDERBOOK_ID.save(storage, &(id + 1))?;
@@ -67,12 +71,6 @@ pub fn new_order_id(storage: &mut dyn Storage) -> Result<u64, ContractError> {
     ORDER_ID.save(storage, &(id + 1))?;
     Ok(id)
 }
-
-// TODO: Add pagination
-// TODO: How finite do we need queries?
-
-const MAX_PAGE_SIZE: u8 = 100;
-const DEFAULT_PAGE_SIZE: u8 = 50;
 
 /// Retrieves a list of `LimitOrder` filtered by the specified `FilterOwnerOrders`.
 ///

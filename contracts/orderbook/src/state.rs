@@ -70,7 +70,6 @@ pub fn new_order_id(storage: &mut dyn Storage) -> Result<u64, ContractError> {
 
 // TODO: Add pagination
 // TODO: How finite do we need queries?
-
 /// Retrieves a list of `LimitOrder` filtered by the specified `FilterOwnerOrders`.
 pub fn get_orders_by_owner(
     storage: &dyn Storage,

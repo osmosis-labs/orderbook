@@ -3,6 +3,10 @@ use crate::ContractError;
 use cosmwasm_std::{Storage, Uint128};
 use cw_storage_plus::{Item, Map};
 
+pub const MIN_TICK: i64 = -108000000;
+pub const MAX_TICK: i64 = 342000000;
+
+
 pub const ORDERBOOKS: Map<&u64, Orderbook> = Map::new("orderbooks");
 /// Key: (orderbook_id, tick)
 pub const TICK_LIQUIDITY: Map<&(u64, i64), Uint128> = Map::new("tick_liquidity");

@@ -12,7 +12,7 @@ pub fn create_orderbook(
 ) -> Result<Response, ContractError> {
     // TODO: add necessary validation logic
 
-    let book_id = new_orderbook_id(deps.storage).unwrap();
+    let book_id = new_orderbook_id(deps.storage)?;
     let _book = Orderbook {
         book_id,
         quote_denom,
@@ -24,7 +24,7 @@ pub fn create_orderbook(
 
     ORDERBOOKS.save(deps.storage, &book_id, &_book)?;
 
-    Ok(Response::new().add_attribute("method", "createOrderbook"))
+    Ok(Response::new().add_attribute("method", "createOrderbook").add_attribute("book_id", &book_id.to_string()))
 }
 
 #[cfg(test)]
@@ -42,12 +42,14 @@ mod tests {
         let quote_denom = "quote".to_string();
         let base_denom = "base".to_string();
         let create_response = create_orderbook(deps.as_mut(), env, info, quote_denom.clone(), base_denom.clone()).unwrap();
-
+        
         // Verify response
+        let expected_book_id: u64 = 0;
         assert_eq!(create_response.attributes[0], ("method", "createOrderbook"));
+        assert_eq!(create_response.attributes[1], ("book_id", &expected_book_id.to_string()));
 
         // Verify orderbook is saved correctly
-        let orderbook = ORDERBOOKS.load(deps.as_ref().storage, &1).unwrap();
+        let orderbook = ORDERBOOKS.load(deps.as_ref().storage, &expected_book_id).unwrap();
         assert_eq!(orderbook.quote_denom, quote_denom);
         assert_eq!(orderbook.base_denom, base_denom);
         assert_eq!(orderbook.current_tick, 0);

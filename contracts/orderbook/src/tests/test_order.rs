@@ -16,6 +16,7 @@ struct PlaceLimitTestCase {
     expected_error: Option<ContractError>,
 }
 
+#[allow(clippy::uninlined_format_args)]
 fn format_test_name(name: &str) -> String {
     format!("\n\nTest case failed: {}\n", name)
 }

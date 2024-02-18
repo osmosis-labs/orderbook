@@ -2,9 +2,10 @@ use crate::error::ContractError;
 use crate::state::*;
 use crate::state::{MAX_TICK, MIN_TICK, ORDERBOOKS};
 use crate::types::{LimitOrder, OrderDirection};
-use cosmwasm_std::{coin, BankMsg, DepsMut, Env, MessageInfo, Response, Uint128};
+use cosmwasm_std::{coin, ensure, BankMsg, DepsMut, Env, MessageInfo, Response, Uint128};
 use cw_utils::must_pay;
 
+#[allow(clippy::manual_range_contains, clippy::uninlined_format_args)]
 pub fn place_limit(
     deps: DepsMut,
     env: Env,
@@ -20,14 +21,16 @@ pub fn place_limit(
         .map_err(|_| ContractError::InvalidBookId { book_id })?;
 
     // Validate tick_id is within valid range
-    if tick_id < MIN_TICK || tick_id > MAX_TICK {
-        return Err(ContractError::InvalidTickId { tick_id });
-    }
+    ensure!(
+        tick_id >= MIN_TICK && tick_id <= MAX_TICK,
+        ContractError::InvalidTickId { tick_id }
+    );
 
-    // Validate order_quantity is positive
-    if quantity <= Uint128::zero() {
-        return Err(ContractError::InvalidQuantity { quantity });
-    }
+    // Ensure order_quantity is positive
+    ensure!(
+        quantity > Uint128::zero(),
+        ContractError::InvalidQuantity { quantity }
+    );
 
     // Determine the correct denom based on order direction
     let expected_denom = match order_direction {
@@ -38,12 +41,13 @@ pub fn place_limit(
     // Verify the funds sent with the message match the `quantity` for the correct denom
     // We reject any quantity that is not exactly equal to the amount in the limit order being placed
     let received = must_pay(&info, &expected_denom)?;
-    if received != quantity {
-        return Err(ContractError::InsufficientFunds {
+    ensure!(
+        received == quantity,
+        ContractError::InsufficientFunds {
             sent: received,
             required: quantity,
-        });
-    }
+        }
+    );
 
     // Generate a new order ID
     let order_id = new_order_id(deps.storage)?;
@@ -53,7 +57,7 @@ pub fn place_limit(
         book_id,
         tick_id,
         order_id,
-        order_direction.clone(),
+        order_direction,
         info.sender.clone(),
         quantity,
     );

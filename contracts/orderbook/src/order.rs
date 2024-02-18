@@ -124,11 +124,10 @@ pub fn cancel_limit(
 
     // Generate refund
     let expected_denom = orderbook.get_expected_denom_for_direction(&order.order_direction);
-    let coin_to_send = coin(order.quantity.u128(), expected_denom);
     let refund_msg = SubMsg::reply_on_error(
         BankMsg::Send {
             to_address: order.owner.to_string(),
-            amount: vec![coin_to_send],
+            amount: vec![coin(order.quantity.u128(), expected_denom)],
         },
         REPLY_ID_REFUND,
     );

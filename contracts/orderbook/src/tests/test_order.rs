@@ -196,6 +196,12 @@ fn test_place_limit() {
                 .may_load(&deps.storage, &(test.book_id, test.tick_id, 0))
                 .unwrap();
             assert!(order_result.is_none(), "{}", format_test_name(test.name));
+
+            // Verifiy liquidity was not updated
+            let liquidity = TICK_LIQUIDITY
+                .load(&deps.storage, &(test.book_id, test.tick_id))
+                .unwrap_or_default();
+            assert!(liquidity.is_zero(), "{}", format_test_name(test.name));
             continue;
         }
 
@@ -280,6 +286,12 @@ fn test_place_limit() {
             "{}",
             format_test_name(test.name)
         );
+
+        // Validate liquidity updated as intended
+        let liquidity = TICK_LIQUIDITY
+            .load(&deps.storage, &(test.book_id, test.tick_id))
+            .unwrap();
+        assert_eq!(liquidity, test.quantity, "{}", format_test_name(test.name));
     }
 }
 
@@ -395,6 +407,18 @@ fn test_cancel_limit() {
                     ),
                 )
                 .unwrap();
+            // Update tick liquidity
+            TICK_LIQUIDITY
+                .update(
+                    deps.as_mut().storage,
+                    &(test.book_id, test.tick_id),
+                    |liquidity| {
+                        Ok::<Uint128, ContractError>(
+                            liquidity.unwrap_or_default().checked_add(test.quantity)?,
+                        )
+                    },
+                )
+                .unwrap();
         }
 
         // --- System under test ---
@@ -428,6 +452,16 @@ fn test_cancel_limit() {
                 "{}",
                 format_test_name(test.name)
             );
+
+            // Verify Liqudity was updated as intended
+            let liquidity = TICK_LIQUIDITY
+                .load(deps.as_ref().storage, &(test.book_id, test.tick_id))
+                .unwrap_or_default();
+            if test.place_order {
+                assert_eq!(liquidity, test.quantity, "{}", format_test_name(test.name));
+            } else {
+                assert!(liquidity.is_zero(), "{}", format_test_name(test.name));
+            }
             continue;
         }
 
@@ -500,5 +534,12 @@ fn test_cancel_limit() {
 
         // Verify the order's fields
         assert!(order.is_none(), "{}", format_test_name(test.name));
+
+        // Validate liquidity updated as intended
+        let liquidity = TICK_LIQUIDITY
+            .load(deps.as_ref().storage, &(test.book_id, test.tick_id))
+            .unwrap_or_default();
+
+        assert!(liquidity.is_zero(), "{}", format_test_name(test.name));
     }
 }

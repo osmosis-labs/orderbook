@@ -20,7 +20,11 @@ pub enum ExecuteMsg {
         order_direction: OrderDirection,
         quantity: Uint128,
     },
-    CancelLimit,
+    CancelLimit {
+        book_id: u64,
+        tick_id: i64,
+        order_id: u64,
+    },
     PlaceMarket,
 }
 

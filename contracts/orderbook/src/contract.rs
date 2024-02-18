@@ -71,7 +71,11 @@ pub fn execute(
         } => order::place_limit(deps, env, info, book_id, tick_id, order_direction, quantity),
 
         // Cancels limit order with given ID
-        ExecuteMsg::CancelLimit => order::cancel_limit(deps, env, info),
+        ExecuteMsg::CancelLimit {
+            book_id,
+            tick_id,
+            order_id,
+        } => order::cancel_limit(deps, env, info, book_id, tick_id, order_id),
 
         // Places a market order on the passed in market
         ExecuteMsg::PlaceMarket => order::place_market(deps, env, info),
@@ -93,9 +97,14 @@ pub fn query(_deps: Deps, _env: Env, msg: QueryMsg) -> StdResult<Binary> {
 /// Handling submessage reply.
 /// For more info on submessage and reply, see https://github.com/CosmWasm/cosmwasm/blob/main/SEMANTICS.md#submessages
 #[cfg_attr(not(feature = "library"), entry_point)]
-pub fn reply(_deps: DepsMut, _env: Env, _msg: Reply) -> Result<Response, ContractError> {
+pub fn reply(_deps: DepsMut, _env: Env, msg: Reply) -> Result<Response, ContractError> {
     // With `Response` type, it is still possible to dispatch message to invoke external logic.
     // See: https://github.com/CosmWasm/cosmwasm/blob/main/SEMANTICS.md#dispatching-messages
-
+    if msg.result.is_err() {
+        return Err(ContractError::ReplyError {
+            id: msg.id,
+            error: msg.result.unwrap_err(),
+        });
+    }
     todo!()
 }

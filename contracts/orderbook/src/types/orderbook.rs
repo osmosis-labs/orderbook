@@ -36,7 +36,7 @@ impl Orderbook {
 
     /// Get the expected denomination for a given order direction.
     #[inline]
-    pub fn get_expected_denom_for_direction(&self, order_direction: &OrderDirection) -> String {
+    pub fn get_expected_denom(&self, order_direction: &OrderDirection) -> String {
         match order_direction {
             OrderDirection::Bid => self.quote_denom.clone(),
             OrderDirection::Ask => self.base_denom.clone(),

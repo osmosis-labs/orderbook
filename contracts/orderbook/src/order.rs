@@ -35,7 +35,7 @@ pub fn place_limit(
     );
 
     // Determine the correct denom based on order direction
-    let expected_denom = orderbook.get_expected_denom_for_direction(&order_direction);
+    let expected_denom = orderbook.get_expected_denom(&order_direction);
 
     // Verify the funds sent with the message match the `quantity` for the correct denom
     // We reject any quantity that is not exactly equal to the amount in the limit order being placed
@@ -123,7 +123,7 @@ pub fn cancel_limit(
             })?;
 
     // Generate refund
-    let expected_denom = orderbook.get_expected_denom_for_direction(&order.order_direction);
+    let expected_denom = orderbook.get_expected_denom(&order.order_direction);
     let refund_msg = SubMsg::reply_on_error(
         BankMsg::Send {
             to_address: order.owner.to_string(),

@@ -45,6 +45,7 @@ cosmwasm-std = {version = "1.5.0", features = [
   "cosmwasm_1_3", # "cosmwasm_1_4" # <- Enable this if you only deploy to chains that have CosmWasm 1.4 or higher
 ]}
 cw-storage-plus = "1.1.0"
+cw-utils = "1.0.3"
 cw2 = "1.1.1"
 schemars = "0.8.15"
 serde = {version = "1.0.189", default-features = false, features = ["derive"]}

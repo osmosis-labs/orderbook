@@ -1,5 +1,7 @@
 use cosmwasm_schema::cw_serde;
-use cosmwasm_std::{Addr, Uint128};
+use cosmwasm_std::{coin, Addr, BankMsg, Decimal, Uint128};
+
+use crate::ContractError;
 
 #[cw_serde]
 #[derive(Copy)]
@@ -34,6 +36,43 @@ impl LimitOrder {
             order_direction,
             owner,
             quantity,
+        }
+    }
+
+    // Transfers the specified quantity of the order's asset to the owner
+    pub fn fulfil(
+        &mut self,
+        denom: impl Into<String>,
+        quantity: Uint128,
+        price: Decimal,
+    ) -> Result<BankMsg, ContractError> {
+        self.quantity = self.quantity.checked_sub(quantity.min(self.quantity))?;
+        Ok(BankMsg::Send {
+            to_address: self.owner.to_string(),
+            amount: vec![coin(
+                // TODO: Add From for error
+                quantity.checked_mul_floor(price).unwrap().u128(),
+                denom.into(),
+            )],
+        })
+    }
+}
+
+#[cw_serde]
+pub struct MarketOrder {
+    pub book_id: u64,
+    pub quantity: Uint128,
+    pub order_direction: OrderDirection,
+    pub owner: Addr,
+}
+
+impl From<LimitOrder> for MarketOrder {
+    fn from(limit_order: LimitOrder) -> Self {
+        MarketOrder {
+            book_id: limit_order.book_id,
+            quantity: limit_order.quantity,
+            order_direction: limit_order.order_direction,
+            owner: limit_order.owner,
         }
     }
 }

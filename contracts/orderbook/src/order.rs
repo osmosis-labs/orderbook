@@ -1,10 +1,12 @@
 use crate::error::ContractError;
 use crate::state::*;
 use crate::state::{MAX_TICK, MIN_TICK, ORDERBOOKS};
-use crate::types::{LimitOrder, OrderDirection, REPLY_ID_REFUND};
+use crate::types::{Fulfilment, LimitOrder, MarketOrder, OrderDirection, REPLY_ID_REFUND};
 use cosmwasm_std::{
-    coin, ensure, ensure_eq, BankMsg, DepsMut, Env, MessageInfo, Response, SubMsg, Uint128,
+    coin, ensure, ensure_eq, BankMsg, Decimal, DepsMut, Env, MessageInfo, Order, Response, Storage,
+    SubMsg, Uint128,
 };
+use cw_storage_plus::Bound;
 use cw_utils::{must_pay, nonpayable};
 
 #[allow(clippy::manual_range_contains)]
@@ -149,4 +151,154 @@ pub fn place_market(
     Ok(Response::new()
         .add_attribute("method", "placeMarket")
         .add_attribute("owner", info.sender))
+}
+
+pub fn run_limit_order(
+    storage: &mut dyn Storage,
+    order: &mut LimitOrder,
+) -> Result<Vec<BankMsg>, ContractError> {
+    let mut market_order: MarketOrder = order.clone().into();
+    let (fulfilments, order_fulfilment_msg) =
+        run_market_order(storage, &mut market_order, Some(order.tick_id))?;
+    let mut fulfilment_msgs = resolve_fulfilments(storage, fulfilments)?;
+    fulfilment_msgs.push(order_fulfilment_msg);
+
+    order.quantity = market_order.quantity;
+
+    Ok(fulfilment_msgs)
+}
+
+// TODO: Finish making this generic
+pub fn run_market_order(
+    storage: &mut dyn Storage,
+    order: &mut MarketOrder,
+    max_tick: Option<i64>,
+) -> Result<(Vec<Fulfilment>, BankMsg), ContractError> {
+    let mut fulfilments: Vec<Fulfilment> = vec![];
+    let mut amount_fulfiled: Uint128 = Uint128::zero();
+    let orderbook = ORDERBOOKS.load(storage, &order.book_id)?;
+    let first_tick = orderbook.next_bid_tick;
+    let bid_denom = orderbook.get_expected_denom(&order.order_direction);
+    let max_tick_bound = max_tick.map(Bound::inclusive);
+
+    // Create ticks iterator between first tick and requested tick
+    let ticks = TICK_LIQUIDITY
+        .prefix(order.book_id)
+        .range(
+            storage,
+            Some(Bound::inclusive(first_tick)),
+            max_tick_bound,
+            Order::Ascending,
+        )
+        .filter_map(|x| x.ok())
+        .map(|(id, _)| id);
+
+    for current_tick in ticks {
+        // Create orders iterator for all orders on current tick
+        let tick_orders = orders()
+            .prefix((order.book_id, current_tick))
+            .range(storage, None, None, Order::Ascending)
+            .filter_map(|r| r.ok())
+            .map(|(_, order)| order);
+
+        for current_order in tick_orders {
+            let fill_quantity = order.quantity.min(current_order.quantity);
+            // Add to total amount fulfiled from placed order
+            amount_fulfiled = amount_fulfiled.checked_add(fill_quantity)?;
+            // Generate fulfilment for current order
+            let fulfilment = Fulfilment::new(current_order, fill_quantity);
+            fulfilments.push(fulfilment);
+
+            // TODO: Price detection
+            if order.quantity.is_zero() {
+                order.quantity -= amount_fulfiled;
+                return Ok((
+                    fulfilments,
+                    BankMsg::Send {
+                        to_address: order.owner.to_string(),
+                        amount: vec![coin(amount_fulfiled.u128(), bid_denom)],
+                    },
+                ));
+            }
+        }
+
+        // TODO: Price detection
+        if order.quantity.is_zero() {
+            order.quantity -= amount_fulfiled;
+            return Ok((
+                fulfilments,
+                BankMsg::Send {
+                    to_address: order.owner.to_string(),
+                    amount: vec![coin(amount_fulfiled.u128(), bid_denom)],
+                },
+            ));
+        }
+    }
+
+    order.quantity -= amount_fulfiled;
+
+    // TODO: Price detection
+    Ok((
+        fulfilments,
+        BankMsg::Send {
+            to_address: order.owner.to_string(),
+            amount: vec![coin(amount_fulfiled.u128(), bid_denom)],
+        },
+    ))
+}
+
+pub fn run_market_ask() -> Result<(Vec<Fulfilment>, BankMsg), ContractError> {
+    todo!()
+}
+
+pub fn resolve_fulfilments(
+    storage: &mut dyn Storage,
+    fulfilments: Vec<Fulfilment>,
+) -> Result<Vec<BankMsg>, ContractError> {
+    let mut msgs: Vec<BankMsg> = vec![];
+    let orderbook = ORDERBOOKS.load(storage, &fulfilments[0].order.book_id)?;
+    for mut fulfilment in fulfilments {
+        ensure_eq!(
+            fulfilment.order.book_id,
+            orderbook.book_id,
+            // TODO: Error not expressive
+            ContractError::InvalidBookId {
+                book_id: fulfilment.order.book_id
+            }
+        );
+        let denom = orderbook.get_expected_denom(&fulfilment.order.order_direction);
+        // TODO: Add price detection for tick
+        let msg = fulfilment
+            .order
+            .fulfil(&denom, fulfilment.amount, Decimal::one())?;
+        msgs.push(msg);
+        if fulfilment.order.quantity.is_zero() {
+            orders().remove(
+                storage,
+                &(
+                    fulfilment.order.book_id,
+                    fulfilment.order.tick_id,
+                    fulfilment.order.order_id,
+                ),
+            )?;
+        } else {
+            orders().save(
+                storage,
+                &(
+                    fulfilment.order.book_id,
+                    fulfilment.order.tick_id,
+                    fulfilment.order.order_id,
+                ),
+                &fulfilment.order,
+            )?;
+        }
+        // TODO: possible optimization by grouping tick/liquidity and calling this once per tick?
+        reduce_tick_liquidity(
+            storage,
+            fulfilment.order.book_id,
+            fulfilment.order.tick_id,
+            fulfilment.amount,
+        )?;
+    }
+    Ok(msgs)
 }

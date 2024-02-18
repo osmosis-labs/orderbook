@@ -16,8 +16,8 @@ pub enum ContractError {
     #[error("Invalid quantity: {quantity:?}")]
     InvalidQuantity { quantity: Uint128 },
 
-    #[error("Insufficient funds. Balance: {balance:?}, Required: {required:?}")]
-    InsufficientFunds { balance: Uint128, required: Uint128 },
+    #[error("Insufficient funds. Sent: {sent:?}, Required: {required:?}")]
+    InsufficientFunds { sent: Uint128, required: Uint128 },
 
     #[error("Invalid book ID: {book_id:?}")]
     InvalidBookId { book_id: u64 },

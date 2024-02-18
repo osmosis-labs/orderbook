@@ -15,6 +15,10 @@ struct PlaceLimitTestCase {
     expected_error: Option<ContractError>,
 }
 
+fn format_test_name(name: &str) -> String {
+    format!("\n\nTest case failed: {}\n", name)
+}
+
 #[test]
 fn test_place_limit_variations() {
     let valid_book_id = 0;
@@ -33,7 +37,7 @@ fn test_place_limit_variations() {
             book_id: invalid_book_id,
             tick_id: 1,
             quantity: Uint128::new(100),
-            sent: Uint128::new(1000),
+            sent: Uint128::new(100),
             expected_error: Some(ContractError::InvalidBookId {
                 book_id: invalid_book_id,
             }),
@@ -43,7 +47,7 @@ fn test_place_limit_variations() {
             book_id: valid_book_id,
             tick_id: MAX_TICK + 1,
             quantity: Uint128::new(100),
-            sent: Uint128::new(1000),
+            sent: Uint128::new(100),
             expected_error: Some(ContractError::InvalidTickId {
                 tick_id: MAX_TICK + 1,
             }),
@@ -65,18 +69,23 @@ fn test_place_limit_variations() {
             quantity: Uint128::new(1000),
             sent: Uint128::new(500),
             expected_error: Some(ContractError::InsufficientFunds {
-                balance: Uint128::new(500),
+                sent: Uint128::new(500),
                 required: Uint128::new(1000),
             }),
         },
     ];
 
     for test in test_cases {
+        // --- Setup ---
+
+        // Create a mock environment and info
         let coin_vec = vec![coin(test.sent.u128(), "base")];
         let balances = [("creator", coin_vec.as_slice())];
         let mut deps = mock_dependencies_with_balances(&balances);
         let env = mock_env();
         let info = mock_info("creator", &coin_vec);
+
+        // Create an orderbook to operate on
         let quote_denom = "quote".to_string();
         let base_denom = "base".to_string();
         let _create_response = create_orderbook(
@@ -88,6 +97,8 @@ fn test_place_limit_variations() {
         )
         .unwrap();
 
+        // --- System under test ---
+
         let response = place_limit(
             deps.as_mut(),
             env.clone(),
@@ -98,37 +109,58 @@ fn test_place_limit_variations() {
             test.quantity,
         );
 
-        // Assert error if applicable
+        // --- Assertions ---
+
+        // Error case assertions if applicable
         if let Some(expected_error) = &test.expected_error {
-            assert_eq!(response.unwrap_err(), *expected_error);
+            assert_eq!(
+                response.unwrap_err(),
+                *expected_error,
+                "{}",
+                format_test_name(test.name)
+            );
 
             // Verify that the order was not put in state
             let order_result = orders()
                 .may_load(&deps.storage, &(test.book_id, test.tick_id, 0))
                 .unwrap();
-            assert!(
-                order_result.is_none(),
-                "Order should not exist in state for failed case: {}",
-                test.name
-            );
-            return;
+            assert!(order_result.is_none(), "{}", format_test_name(test.name));
+            continue;
         }
 
+        // Assert no error and retrieve response contents
         let response = response.unwrap();
+
         // Assertions on the response for a valid order
-        assert_eq!(response.attributes[0], ("method", "placeLimit"));
-        assert_eq!(response.attributes[1], ("owner", "creator"));
+        assert_eq!(
+            response.attributes[0],
+            ("method", "placeLimit"),
+            "{}",
+            format_test_name(test.name)
+        );
+        assert_eq!(
+            response.attributes[1],
+            ("owner", "creator"),
+            "{}",
+            format_test_name(test.name)
+        );
         assert_eq!(
             response.attributes[2],
-            ("book_id", test.book_id.to_string())
+            ("book_id", test.book_id.to_string()),
+            "{}",
+            format_test_name(test.name)
         );
         assert_eq!(
             response.attributes[3],
-            ("tick_id", test.tick_id.to_string())
+            ("tick_id", test.tick_id.to_string()),
+            "{}",
+            format_test_name(test.name)
         );
         assert_eq!(
             response.attributes[6],
-            ("quantity", test.quantity.to_string())
+            ("quantity", test.quantity.to_string()),
+            "{}",
+            format_test_name(test.name)
         );
 
         // Retrieve the order from storage to verify it was saved correctly
@@ -141,11 +173,41 @@ fn test_place_limit_variations() {
             .unwrap();
 
         // Verify the order's fields
-        assert_eq!(order.book_id, test.book_id);
-        assert_eq!(order.tick_id, test.tick_id);
-        assert_eq!(order.order_id, expected_order_id);
-        assert_eq!(order.order_direction, OrderDirection::Ask);
-        assert_eq!(order.owner, Addr::unchecked("creator"));
-        assert_eq!(order.quantity, test.quantity);
+        assert_eq!(
+            order.book_id,
+            test.book_id,
+            "{}",
+            format_test_name(test.name)
+        );
+        assert_eq!(
+            order.tick_id,
+            test.tick_id,
+            "{}",
+            format_test_name(test.name)
+        );
+        assert_eq!(
+            order.order_id,
+            expected_order_id,
+            "{}",
+            format_test_name(test.name)
+        );
+        assert_eq!(
+            order.order_direction,
+            OrderDirection::Ask,
+            "{}",
+            format_test_name(test.name)
+        );
+        assert_eq!(
+            order.owner,
+            Addr::unchecked("creator"),
+            "{}",
+            format_test_name(test.name)
+        );
+        assert_eq!(
+            order.quantity,
+            test.quantity,
+            "{}",
+            format_test_name(test.name)
+        );
     }
 }

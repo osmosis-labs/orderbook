@@ -40,7 +40,7 @@ pub fn place_limit(
     let received = must_pay(&info, &expected_denom)?;
     if received != quantity {
         return Err(ContractError::InsufficientFunds {
-            balance: received,
+            sent: received,
             required: quantity,
         });
     }
@@ -48,6 +48,7 @@ pub fn place_limit(
     // Generate a new order ID
     let order_id = new_order_id(deps.storage)?;
 
+    // Build limit order
     let limit_order = LimitOrder::new(
         book_id,
         tick_id,

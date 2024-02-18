@@ -1,6 +1,6 @@
 #[cfg(not(feature = "library"))]
 use cosmwasm_std::entry_point;
-use cosmwasm_std::{Binary, Deps, DepsMut, Env, MessageInfo, Reply, Response, StdResult};
+use cosmwasm_std::{ensure, Binary, Deps, DepsMut, Env, MessageInfo, Reply, Response, StdResult};
 use cw2::set_contract_version;
 
 use crate::error::ContractError;
@@ -100,11 +100,12 @@ pub fn query(_deps: Deps, _env: Env, msg: QueryMsg) -> StdResult<Binary> {
 pub fn reply(_deps: DepsMut, _env: Env, msg: Reply) -> Result<Response, ContractError> {
     // With `Response` type, it is still possible to dispatch message to invoke external logic.
     // See: https://github.com/CosmWasm/cosmwasm/blob/main/SEMANTICS.md#dispatching-messages
-    if msg.result.is_err() {
-        return Err(ContractError::ReplyError {
+    ensure!(
+        msg.result.is_ok(),
+        ContractError::ReplyError {
             id: msg.id,
             error: msg.result.unwrap_err(),
-        });
-    }
+        }
+    );
     todo!()
 }

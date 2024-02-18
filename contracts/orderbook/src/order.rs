@@ -110,9 +110,7 @@ pub fn cancel_limit(
     orders().remove(deps.storage, &key)?;
 
     // Update tick liquidity
-    TICK_LIQUIDITY.update(deps.storage, &(book_id, tick_id), |liquidity| {
-        Ok::<Uint128, ContractError>(liquidity.unwrap_or_default().checked_sub(order.quantity)?)
-    })?;
+    reduce_tick_liquidity(deps.storage, book_id, tick_id, order.quantity)?;
 
     // Get orderbook info for correct denomination
     let orderbook =

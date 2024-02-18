@@ -14,16 +14,9 @@ pub fn create_orderbook(
     // https://github.com/osmosis-labs/orderbook/issues/26
 
     let book_id = new_orderbook_id(deps.storage)?;
-    let _book = Orderbook {
-        book_id,
-        quote_denom,
-        base_denom,
-        current_tick: 0,
-        next_bid_tick: MIN_TICK,
-        next_ask_tick: MAX_TICK,
-    };
+    let book = Orderbook::new(book_id, quote_denom, base_denom, 0, MIN_TICK, MAX_TICK);
 
-    ORDERBOOKS.save(deps.storage, &book_id, &_book)?;
+    ORDERBOOKS.save(deps.storage, &book_id, &book)?;
 
     Ok(Response::new()
         .add_attribute("method", "createOrderbook")

@@ -4,6 +4,7 @@ pub mod msg;
 mod order;
 mod orderbook;
 pub mod state;
+pub mod tick_math;
 pub mod types;
 
 #[cfg(test)]

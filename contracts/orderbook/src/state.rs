@@ -14,6 +14,10 @@ pub const ORDERBOOK_ID: Item<u64> = Item::new("orderbook_id");
 const MAX_PAGE_SIZE: u8 = 100;
 const DEFAULT_PAGE_SIZE: u8 = 50;
 
+// Tick math constants
+pub const EXPONENT_AT_PRICE_ONE: i32 = -6;
+pub const GEOMETRIC_EXPONENT_INCREMENT_DISTANCE_IN_TICKS: i64 = 9_000_000;
+
 pub const ORDERBOOKS: Map<&u64, Orderbook> = Map::new("orderbooks");
 /// Key: (orderbook_id, tick)
 pub const TICK_LIQUIDITY: Map<&(u64, i64), Uint128> = Map::new("tick_liquidity");
@@ -119,6 +123,6 @@ pub fn get_orders_by_owner(
         .filter_map(|item| item.ok())
         .map(|(_, order)| order)
         .collect();
-  
+
     Ok(orders)
 }

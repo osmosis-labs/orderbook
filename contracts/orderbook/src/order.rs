@@ -2,22 +2,8 @@ use crate::error::ContractError;
 use crate::state::*;
 use crate::state::{MAX_TICK, MIN_TICK, ORDERBOOKS};
 use crate::types::{LimitOrder, OrderDirection};
-use cosmwasm_std::{
-    coin, Addr, BalanceResponse, BankMsg, BankQuery, Coin, DepsMut, Env, MessageInfo,
-    QuerierWrapper, QueryRequest, Response, StdResult, Uint128,
-};
-
-// TODO: move this into a balance helper file
-pub fn query_balance(querier: &QuerierWrapper, addr: &Addr, denom: &str) -> StdResult<Coin> {
-    let res: BalanceResponse = querier.query(&QueryRequest::Bank(BankQuery::Balance {
-        address: addr.to_string(),
-        denom: denom.to_string(),
-    }))?;
-    Ok(Coin {
-        denom: denom.to_string(),
-        amount: res.amount.amount,
-    })
-}
+use cosmwasm_std::{coin, BankMsg, DepsMut, Env, MessageInfo, Response, Uint128};
+use cw_utils::must_pay;
 
 pub fn place_limit(
     deps: DepsMut,
@@ -38,20 +24,23 @@ pub fn place_limit(
         return Err(ContractError::InvalidTickId { tick_id });
     }
 
-    // Validate order_quantity is > 0
-    if quantity.is_zero() {
+    // Validate order_quantity is positive
+    if quantity <= Uint128::zero() {
         return Err(ContractError::InvalidQuantity { quantity });
     }
 
-    // Verify the sender has `quantity` balance of the correct denom
-    let denom = match order_direction {
+    // Determine the correct denom based on order direction
+    let expected_denom = match order_direction {
         OrderDirection::Bid => orderbook.quote_denom,
         OrderDirection::Ask => orderbook.base_denom,
     };
-    let balance = query_balance(&deps.querier, &info.sender, &denom)?.amount;
-    if balance < quantity {
+
+    // Verify the funds sent with the message match the `quantity` for the correct denom
+    // We reject any quantity that is not exactly equal to the amount in the limit order being placed
+    let received = must_pay(&info, &expected_denom)?;
+    if received != quantity {
         return Err(ContractError::InsufficientFunds {
-            balance,
+            balance: received,
             required: quantity,
         });
     }
@@ -74,7 +63,7 @@ pub fn place_limit(
     Ok(Response::new()
         .add_message(BankMsg::Send {
             to_address: env.contract.address.to_string(),
-            amount: vec![coin(quantity.u128(), denom)],
+            amount: vec![coin(quantity.u128(), expected_denom)],
         })
         .add_attribute("method", "placeLimit")
         .add_attribute("owner", info.sender.to_string())

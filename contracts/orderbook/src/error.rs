@@ -1,4 +1,5 @@
-use cosmwasm_std::{StdError, Uint128};
+use cosmwasm_std::{CoinsError, StdError, Uint128};
+use cw_utils::PaymentError;
 use thiserror::Error;
 
 #[derive(Error, Debug, PartialEq)]
@@ -20,4 +21,10 @@ pub enum ContractError {
 
     #[error("Invalid book ID: {book_id:?}")]
     InvalidBookId { book_id: u64 },
+
+    #[error(transparent)]
+    Coins(#[from] CoinsError),
+
+    #[error(transparent)]
+    PaymentError(#[from] PaymentError),
 }

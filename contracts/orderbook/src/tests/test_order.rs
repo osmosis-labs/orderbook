@@ -1,5 +1,5 @@
 use crate::error::ContractError;
-use crate::order::place_limit;
+use crate::order::*;
 use crate::orderbook::*;
 use crate::state::*;
 use crate::types::OrderDirection;
@@ -11,7 +11,7 @@ struct PlaceLimitTestCase {
     book_id: u64,
     tick_id: i64,
     quantity: Uint128,
-    balance: Uint128,
+    sent: Uint128,
     expected_error: Option<ContractError>,
 }
 
@@ -25,7 +25,7 @@ fn test_place_limit_variations() {
             book_id: valid_book_id,
             tick_id: 1,
             quantity: Uint128::new(100),
-            balance: Uint128::new(1000),
+            sent: Uint128::new(100),
             expected_error: None,
         },
         PlaceLimitTestCase {
@@ -33,7 +33,7 @@ fn test_place_limit_variations() {
             book_id: invalid_book_id,
             tick_id: 1,
             quantity: Uint128::new(100),
-            balance: Uint128::new(1000),
+            sent: Uint128::new(1000),
             expected_error: Some(ContractError::InvalidBookId {
                 book_id: invalid_book_id,
             }),
@@ -43,7 +43,7 @@ fn test_place_limit_variations() {
             book_id: valid_book_id,
             tick_id: MAX_TICK + 1,
             quantity: Uint128::new(100),
-            balance: Uint128::new(1000),
+            sent: Uint128::new(1000),
             expected_error: Some(ContractError::InvalidTickId {
                 tick_id: MAX_TICK + 1,
             }),
@@ -53,7 +53,7 @@ fn test_place_limit_variations() {
             book_id: valid_book_id,
             tick_id: 1,
             quantity: Uint128::zero(),
-            balance: Uint128::new(1000),
+            sent: Uint128::new(1000),
             expected_error: Some(ContractError::InvalidQuantity {
                 quantity: Uint128::zero(),
             }),
@@ -63,7 +63,7 @@ fn test_place_limit_variations() {
             book_id: valid_book_id,
             tick_id: 1,
             quantity: Uint128::new(1000),
-            balance: Uint128::new(500),
+            sent: Uint128::new(500),
             expected_error: Some(ContractError::InsufficientFunds {
                 balance: Uint128::new(500),
                 required: Uint128::new(1000),
@@ -72,11 +72,11 @@ fn test_place_limit_variations() {
     ];
 
     for test in test_cases {
-        let coin_vec = vec![coin(test.balance.u128(), "base")];
+        let coin_vec = vec![coin(test.sent.u128(), "base")];
         let balances = [("creator", coin_vec.as_slice())];
         let mut deps = mock_dependencies_with_balances(&balances);
         let env = mock_env();
-        let info = mock_info("creator", &[]);
+        let info = mock_info("creator", &coin_vec);
         let quote_denom = "quote".to_string();
         let base_denom = "base".to_string();
         let _create_response = create_orderbook(

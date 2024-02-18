@@ -74,7 +74,7 @@ fn test_place_limit() {
             }),
         },
         PlaceLimitTestCase {
-            name: "invalid tick id",
+            name: "invalid tick id (max)",
             book_id: valid_book_id,
             tick_id: MAX_TICK + 1,
             quantity: Uint128::new(100),
@@ -82,6 +82,17 @@ fn test_place_limit() {
             order_direction: OrderDirection::Ask,
             expected_error: Some(ContractError::InvalidTickId {
                 tick_id: MAX_TICK + 1,
+            }),
+        },
+        PlaceLimitTestCase {
+            name: "invalid tick id (min)",
+            book_id: valid_book_id,
+            tick_id: MIN_TICK - 1,
+            quantity: Uint128::new(100),
+            sent: Uint128::new(100),
+            order_direction: OrderDirection::Ask,
+            expected_error: Some(ContractError::InvalidTickId {
+                tick_id: MIN_TICK - 1,
             }),
         },
         PlaceLimitTestCase {
@@ -105,6 +116,18 @@ fn test_place_limit() {
             expected_error: Some(ContractError::InsufficientFunds {
                 sent: Uint128::new(500),
                 required: Uint128::new(1000),
+            }),
+        },
+        PlaceLimitTestCase {
+            name: "excessive funds",
+            book_id: valid_book_id,
+            tick_id: 1,
+            quantity: Uint128::new(100),
+            sent: Uint128::new(500),
+            order_direction: OrderDirection::Ask,
+            expected_error: Some(ContractError::InsufficientFunds {
+                sent: Uint128::new(500),
+                required: Uint128::new(100),
             }),
         },
     ];

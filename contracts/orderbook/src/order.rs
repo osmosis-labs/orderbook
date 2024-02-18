@@ -5,7 +5,7 @@ use crate::types::{LimitOrder, OrderDirection};
 use cosmwasm_std::{coin, ensure, BankMsg, DepsMut, Env, MessageInfo, Response, Uint128};
 use cw_utils::must_pay;
 
-#[allow(clippy::manual_range_contains, clippy::uninlined_format_args)]
+#[allow(clippy::manual_range_contains)]
 pub fn place_limit(
     deps: DepsMut,
     env: Env,
@@ -75,7 +75,7 @@ pub fn place_limit(
         .add_attribute("book_id", book_id.to_string())
         .add_attribute("tick_id", tick_id.to_string())
         .add_attribute("order_id", order_id.to_string())
-        .add_attribute("order_direction", format!("{:?}", order_direction))
+        .add_attribute("order_direction", format!("{order_direction:?}"))
         .add_attribute("quantity", quantity.to_string()))
 }
 

@@ -2,15 +2,9 @@ use crate::error::ContractError;
 use crate::order::*;
 use crate::orderbook::*;
 use crate::state::*;
-use crate::types::LimitOrder;
-use crate::types::OrderDirection;
-use crate::types::REPLY_ID_REFUND;
+use crate::types::{LimitOrder, OrderDirection, REPLY_ID_REFUND};
 use cosmwasm_std::testing::{mock_dependencies_with_balances, mock_env, mock_info};
-use cosmwasm_std::BankMsg;
-use cosmwasm_std::Coin;
-use cosmwasm_std::Empty;
-use cosmwasm_std::SubMsg;
-use cosmwasm_std::{coin, Addr, Uint128};
+use cosmwasm_std::{coin, Addr, BankMsg, Coin, Empty, SubMsg, Uint128};
 use cw_utils::PaymentError;
 
 #[allow(clippy::uninlined_format_args)]
@@ -407,6 +401,7 @@ fn test_cancel_limit() {
                     ),
                 )
                 .unwrap();
+
             // Update tick liquidity
             TICK_LIQUIDITY
                 .update(

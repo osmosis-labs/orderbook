@@ -12,6 +12,7 @@ struct PlaceLimitTestCase {
     tick_id: i64,
     quantity: Uint128,
     sent: Uint128,
+    order_direction: OrderDirection,
     expected_error: Option<ContractError>,
 }
 
@@ -20,16 +21,44 @@ fn format_test_name(name: &str) -> String {
 }
 
 #[test]
-fn test_place_limit_variations() {
+fn test_place_limit() {
     let valid_book_id = 0;
     let invalid_book_id = valid_book_id + 1;
     let test_cases = vec![
         PlaceLimitTestCase {
-            name: "valid order",
+            name: "valid order with positive tick id",
             book_id: valid_book_id,
-            tick_id: 1,
+            tick_id: 10,
             quantity: Uint128::new(100),
             sent: Uint128::new(100),
+            order_direction: OrderDirection::Ask,
+            expected_error: None,
+        },
+        PlaceLimitTestCase {
+            name: "valid order with zero tick id",
+            book_id: valid_book_id,
+            tick_id: 0,
+            quantity: Uint128::new(34321),
+            sent: Uint128::new(34321),
+            order_direction: OrderDirection::Bid,
+            expected_error: None,
+        },
+        PlaceLimitTestCase {
+            name: "valid order with negative tick id",
+            book_id: valid_book_id,
+            tick_id: -5,
+            quantity: Uint128::new(100),
+            sent: Uint128::new(100),
+            order_direction: OrderDirection::Bid,
+            expected_error: None,
+        },
+        PlaceLimitTestCase {
+            name: "valid order with large quantity",
+            book_id: valid_book_id,
+            tick_id: 3,
+            quantity: Uint128::new(34321),
+            sent: Uint128::new(34321),
+            order_direction: OrderDirection::Ask,
             expected_error: None,
         },
         PlaceLimitTestCase {
@@ -38,6 +67,7 @@ fn test_place_limit_variations() {
             tick_id: 1,
             quantity: Uint128::new(100),
             sent: Uint128::new(100),
+            order_direction: OrderDirection::Ask,
             expected_error: Some(ContractError::InvalidBookId {
                 book_id: invalid_book_id,
             }),
@@ -48,6 +78,7 @@ fn test_place_limit_variations() {
             tick_id: MAX_TICK + 1,
             quantity: Uint128::new(100),
             sent: Uint128::new(100),
+            order_direction: OrderDirection::Ask,
             expected_error: Some(ContractError::InvalidTickId {
                 tick_id: MAX_TICK + 1,
             }),
@@ -58,6 +89,7 @@ fn test_place_limit_variations() {
             tick_id: 1,
             quantity: Uint128::zero(),
             sent: Uint128::new(1000),
+            order_direction: OrderDirection::Ask,
             expected_error: Some(ContractError::InvalidQuantity {
                 quantity: Uint128::zero(),
             }),
@@ -68,6 +100,7 @@ fn test_place_limit_variations() {
             tick_id: 1,
             quantity: Uint128::new(1000),
             sent: Uint128::new(500),
+            order_direction: OrderDirection::Ask,
             expected_error: Some(ContractError::InsufficientFunds {
                 sent: Uint128::new(500),
                 required: Uint128::new(1000),
@@ -79,7 +112,14 @@ fn test_place_limit_variations() {
         // --- Setup ---
 
         // Create a mock environment and info
-        let coin_vec = vec![coin(test.sent.u128(), "base")];
+        let coin_vec = vec![coin(
+            test.sent.u128(),
+            if test.order_direction == OrderDirection::Ask {
+                "base"
+            } else {
+                "quote"
+            },
+        )];
         let balances = [("creator", coin_vec.as_slice())];
         let mut deps = mock_dependencies_with_balances(&balances);
         let env = mock_env();
@@ -105,7 +145,7 @@ fn test_place_limit_variations() {
             info.clone(),
             test.book_id,
             test.tick_id,
-            OrderDirection::Ask,
+            test.order_direction,
             test.quantity,
         );
 
@@ -193,7 +233,7 @@ fn test_place_limit_variations() {
         );
         assert_eq!(
             order.order_direction,
-            OrderDirection::Ask,
+            test.order_direction,
             "{}",
             format_test_name(test.name)
         );

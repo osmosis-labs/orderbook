@@ -1,4 +1,6 @@
+use crate::types::OrderDirection;
 use cosmwasm_schema::{cw_serde, QueryResponses};
+use cosmwasm_std::Uint128;
 
 /// Message type for `instantiate` entry_point
 #[cw_serde]
@@ -7,14 +9,17 @@ pub struct InstantiateMsg {}
 /// Message type for `execute` entry_point
 #[cw_serde]
 pub enum ExecuteMsg {
-
     // === Orderbook ===
-
-    CreateOrderbook{
+    CreateOrderbook {
         quote_denom: String,
         base_denom: String,
     },
-    PlaceLimit,
+    PlaceLimit {
+        book_id: u64,
+        tick_id: i64,
+        order_direction: OrderDirection,
+        quantity: Uint128,
+    },
     CancelLimit,
     PlaceMarket,
 }

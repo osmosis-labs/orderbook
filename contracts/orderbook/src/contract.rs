@@ -48,9 +48,9 @@ pub fn migrate(_deps: DepsMut, _env: Env, msg: MigrateMsg) -> Result<Response, C
 /// Handling contract execution
 #[cfg_attr(not(feature = "library"), entry_point)]
 pub fn execute(
-    _deps: DepsMut,
-    _env: Env,
-    _info: MessageInfo,
+    deps: DepsMut,
+    env: Env,
+    info: MessageInfo,
     msg: ExecuteMsg,
 ) -> Result<Response, ContractError> {
     match msg {
@@ -60,16 +60,21 @@ pub fn execute(
         ExecuteMsg::CreateOrderbook {
             quote_denom,
             base_denom,
-        } => orderbook::create_orderbook(_deps, _env, _info, quote_denom, base_denom),
+        } => orderbook::create_orderbook(deps, env, info, quote_denom, base_denom),
 
         // Places limit order on given market
-        ExecuteMsg::PlaceLimit => order::place_limit(_deps, _env, _info),
+        ExecuteMsg::PlaceLimit {
+            book_id,
+            tick_id,
+            order_direction,
+            quantity,
+        } => order::place_limit(deps, env, info, book_id, tick_id, order_direction, quantity),
 
         // Cancels limit order with given ID
-        ExecuteMsg::CancelLimit => order::cancel_limit(_deps, _env, _info),
+        ExecuteMsg::CancelLimit => order::cancel_limit(deps, env, info),
 
         // Places a market order on the passed in market
-        ExecuteMsg::PlaceMarket => order::place_market(_deps, _env, _info),
+        ExecuteMsg::PlaceMarket => order::place_market(deps, env, info),
     }
 }
 

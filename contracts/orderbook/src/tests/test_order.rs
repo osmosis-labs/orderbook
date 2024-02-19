@@ -4,6 +4,7 @@ use crate::orderbook::*;
 use crate::state::*;
 use crate::types::Fulfilment;
 use crate::types::LimitOrder;
+use crate::types::MarketOrder;
 use crate::types::OrderDirection;
 use crate::types::REPLY_ID_REFUND;
 use cosmwasm_std::testing::{mock_dependencies_with_balances, mock_env, mock_info};
@@ -557,7 +558,7 @@ struct ResolveFulfilmentsTestCase {
 }
 
 #[test]
-fn test_run_resolve_fulfilments() {
+fn test_resolve_fulfilments() {
     let valid_book_id = 0;
     let test_cases: Vec<ResolveFulfilmentsTestCase> = vec![
         ResolveFulfilmentsTestCase {
@@ -731,8 +732,7 @@ fn test_run_resolve_fulfilments() {
     ];
 
     for test in test_cases {
-        let balances = [];
-        let mut deps = mock_dependencies_with_balances(&balances);
+        let mut deps = mock_dependencies_with_balances(&[]);
         let env = mock_env();
         let info = mock_info("maker", &[]);
 
@@ -778,9 +778,12 @@ fn test_run_resolve_fulfilments() {
 
         let response = resolve_fulfilments(deps.as_mut().storage, fulfilments);
 
+        // -- POST STATE --
+
         if let Some(expected_error) = &test.expected_error {
             let err = response.unwrap_err();
             assert_eq!(err, *expected_error, "{}", format_test_name(test.name));
+            // NOTE: We cannot check if orders/tick liquidity were unaltered as changes are made in a for loop that is not rolled back upon error
 
             continue;
         }
@@ -811,6 +814,7 @@ fn test_run_resolve_fulfilments() {
             .unwrap();
 
         let response = response.unwrap();
+
         for (idx, (Fulfilment { order, amount }, removed)) in test.fulfilments.iter().enumerate() {
             let saved_order = orders()
                 .may_load(
@@ -841,6 +845,121 @@ fn test_run_resolve_fulfilments() {
             let msg = order.fulfil(denom, *amount, Decimal::one()).unwrap();
 
             assert_eq!(response[idx], msg, "{}", format_test_name(test.name));
+        }
+    }
+}
+
+struct RunMarketOrderTestCase {
+    pub name: &'static str,
+    pub placed_order: MarketOrder,
+    pub tick_bound: Option<i64>,
+    pub expected_fulfilments: Vec<Fulfilment>,
+    pub expected_error: Option<ContractError>,
+}
+
+#[test]
+fn test_run_market_order() {
+    let valid_book_id = 0;
+    let test_cases: Vec<RunMarketOrderTestCase> = vec![RunMarketOrderTestCase {
+        name: "standard market order (single tick)",
+        placed_order: MarketOrder::new(
+            valid_book_id,
+            Uint128::from(100u128),
+            OrderDirection::Ask,
+            Addr::unchecked("creator"),
+        ),
+        tick_bound: None,
+        expected_fulfilments: vec![
+            Fulfilment::new(
+                LimitOrder::new(
+                    valid_book_id,
+                    -1,
+                    0,
+                    OrderDirection::Bid,
+                    Addr::unchecked("creator"),
+                    Uint128::from(50u128),
+                ),
+                Uint128::from(50u128),
+            ),
+            Fulfilment::new(
+                LimitOrder::new(
+                    valid_book_id,
+                    -1,
+                    1,
+                    OrderDirection::Bid,
+                    Addr::unchecked("creator"),
+                    Uint128::from(150u128),
+                ),
+                Uint128::from(50u128),
+            ),
+        ],
+        expected_error: None,
+    }];
+
+    for test in test_cases {
+        let mut deps = mock_dependencies_with_balances(&[]);
+        let env = mock_env();
+        let info = mock_info("maker", &[]);
+
+        // Create an orderbook to operate on
+        let quote_denom = "quote".to_string();
+        let base_denom = "base".to_string();
+        create_orderbook(
+            deps.as_mut(),
+            env.clone(),
+            info.clone(),
+            quote_denom.clone(),
+            base_denom.clone(),
+        )
+        .unwrap();
+
+        let fulfilments = test.expected_fulfilments.to_vec();
+
+        // Add orders to state
+        for Fulfilment { order, .. } in fulfilments.clone() {
+            orders()
+                .save(
+                    deps.as_mut().storage,
+                    &(order.book_id, order.tick_id, order.order_id),
+                    &order,
+                )
+                .unwrap();
+            TICK_LIQUIDITY
+                .update(
+                    deps.as_mut().storage,
+                    &(order.book_id, order.tick_id),
+                    |l| {
+                        Ok::<Uint128, ContractError>(
+                            l.unwrap_or_default().checked_add(order.quantity).unwrap(),
+                        )
+                    },
+                )
+                .unwrap();
+        }
+
+        let mut market_order = test.placed_order.clone();
+        let response = run_market_order(deps.as_mut().storage, &mut market_order, test.tick_bound);
+
+        // -- POST STATE --
+
+        if let Some(expected_error) = &test.expected_error {
+            let err = response.unwrap_err();
+            assert_eq!(err, *expected_error, "{}", format_test_name(test.name));
+            // NOTE: We cannot check if orders/tick liquidity were unaltered as changes are made in a for loop that is not rolled back upon error
+
+            continue;
+        }
+
+        let response = response.unwrap();
+
+        for (idx, fulfilment) in test.expected_fulfilments.iter().enumerate() {
+            // Check message is generated as expected
+            assert_eq!(
+                response.0[idx],
+                *fulfilment,
+                "{}",
+                format_test_name(test.name)
+            );
         }
     }
 }

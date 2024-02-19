@@ -76,6 +76,22 @@ pub struct MarketOrder {
     pub owner: Addr,
 }
 
+impl MarketOrder {
+    pub fn new(
+        book_id: u64,
+        quantity: Uint128,
+        order_direction: OrderDirection,
+        owner: Addr,
+    ) -> Self {
+        MarketOrder {
+            book_id,
+            quantity,
+            order_direction,
+            owner,
+        }
+    }
+}
+
 impl From<LimitOrder> for MarketOrder {
     fn from(limit_order: LimitOrder) -> Self {
         MarketOrder {

@@ -177,15 +177,15 @@ pub fn run_market_order(
     let mut fulfilments: Vec<Fulfilment> = vec![];
     let mut amount_fulfiled: Uint128 = Uint128::zero();
     let orderbook = ORDERBOOKS.load(storage, &order.book_id)?;
-    let first_tick = orderbook.next_bid_tick;
     let placed_order_denom = orderbook.get_expected_denom(&order.order_direction);
 
     let (min_tick, max_tick, ordering) = match order.order_direction {
-        OrderDirection::Bid => (Some(first_tick), tick_bound, Order::Ascending),
-        OrderDirection::Ask => (tick_bound, Some(first_tick), Order::Descending),
+        OrderDirection::Ask => (Some(orderbook.next_bid_tick), tick_bound, Order::Ascending),
+        OrderDirection::Bid => (tick_bound, Some(orderbook.next_ask_tick), Order::Descending),
     };
 
     // Create ticks iterator between first tick and requested tick
+    // TODO: Remove filter map and map
     let ticks = TICK_LIQUIDITY
         .prefix(order.book_id)
         .range(
@@ -213,9 +213,9 @@ pub fn run_market_order(
             let fulfilment = Fulfilment::new(current_order, fill_quantity);
             fulfilments.push(fulfilment);
 
+            order.quantity = order.quantity.checked_sub(fill_quantity)?;
             // TODO: Price detection
             if order.quantity.is_zero() {
-                order.quantity -= amount_fulfiled;
                 return Ok((
                     fulfilments,
                     BankMsg::Send {
@@ -239,7 +239,7 @@ pub fn run_market_order(
         }
     }
 
-    order.quantity -= amount_fulfiled;
+    order.quantity = order.quantity.checked_sub(amount_fulfiled)?;
 
     // TODO: Price detection
     Ok((

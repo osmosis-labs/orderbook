@@ -76,6 +76,25 @@ pub fn new_order_id(storage: &mut dyn Storage) -> Result<u64, ContractError> {
     Ok(id)
 }
 
+/// Reduces the liquidity of a tick by the specified amount and removes it if no liquidity remains.
+pub fn reduce_tick_liquidity(
+    storage: &mut dyn Storage,
+    book_id: u64,
+    tick_id: i64,
+    amount: Uint128,
+) -> Result<(), ContractError> {
+    let tick_liquidity = TICK_LIQUIDITY
+        .may_load(storage, &(book_id, tick_id))?
+        .ok_or(ContractError::InvalidTickId { tick_id })?;
+    let new_liquidity = tick_liquidity.checked_sub(amount)?;
+    if new_liquidity.is_zero() {
+        TICK_LIQUIDITY.remove(storage, &(book_id, tick_id));
+    } else {
+        TICK_LIQUIDITY.save(storage, &(book_id, tick_id), &new_liquidity)?;
+    }
+    Ok(())
+}
+
 /// Retrieves a list of `LimitOrder` filtered by the specified `FilterOwnerOrders`.
 ///
 /// This function allows for filtering orders based on the owner's address, optionally further

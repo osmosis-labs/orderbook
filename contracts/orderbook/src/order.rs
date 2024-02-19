@@ -172,23 +172,27 @@ pub fn run_limit_order(
 pub fn run_market_order(
     storage: &mut dyn Storage,
     order: &mut MarketOrder,
-    max_tick: Option<i64>,
+    tick_bound: Option<i64>,
 ) -> Result<(Vec<Fulfilment>, BankMsg), ContractError> {
     let mut fulfilments: Vec<Fulfilment> = vec![];
     let mut amount_fulfiled: Uint128 = Uint128::zero();
     let orderbook = ORDERBOOKS.load(storage, &order.book_id)?;
     let first_tick = orderbook.next_bid_tick;
-    let bid_denom = orderbook.get_expected_denom(&order.order_direction);
-    let max_tick_bound = max_tick.map(Bound::inclusive);
+    let placed_order_denom = orderbook.get_expected_denom(&order.order_direction);
+
+    let (min_tick, max_tick, ordering) = match order.order_direction {
+        OrderDirection::Bid => (Some(first_tick), tick_bound, Order::Ascending),
+        OrderDirection::Ask => (tick_bound, Some(first_tick), Order::Descending),
+    };
 
     // Create ticks iterator between first tick and requested tick
     let ticks = TICK_LIQUIDITY
         .prefix(order.book_id)
         .range(
             storage,
-            Some(Bound::inclusive(first_tick)),
-            max_tick_bound,
-            Order::Ascending,
+            min_tick.map(Bound::inclusive),
+            max_tick.map(Bound::inclusive),
+            ordering,
         )
         .filter_map(|x| x.ok())
         .map(|(id, _)| id);
@@ -216,7 +220,7 @@ pub fn run_market_order(
                     fulfilments,
                     BankMsg::Send {
                         to_address: order.owner.to_string(),
-                        amount: vec![coin(amount_fulfiled.u128(), bid_denom)],
+                        amount: vec![coin(amount_fulfiled.u128(), placed_order_denom)],
                     },
                 ));
             }
@@ -229,7 +233,7 @@ pub fn run_market_order(
                 fulfilments,
                 BankMsg::Send {
                     to_address: order.owner.to_string(),
-                    amount: vec![coin(amount_fulfiled.u128(), bid_denom)],
+                    amount: vec![coin(amount_fulfiled.u128(), placed_order_denom)],
                 },
             ));
         }
@@ -242,13 +246,9 @@ pub fn run_market_order(
         fulfilments,
         BankMsg::Send {
             to_address: order.owner.to_string(),
-            amount: vec![coin(amount_fulfiled.u128(), bid_denom)],
+            amount: vec![coin(amount_fulfiled.u128(), placed_order_denom)],
         },
     ))
-}
-
-pub fn run_market_ask() -> Result<(Vec<Fulfilment>, BankMsg), ContractError> {
-    todo!()
 }
 
 pub fn resolve_fulfilments(
@@ -262,8 +262,12 @@ pub fn resolve_fulfilments(
             fulfilment.order.book_id,
             orderbook.book_id,
             // TODO: Error not expressive
-            ContractError::InvalidBookId {
-                book_id: fulfilment.order.book_id
+            ContractError::InvalidFulfilment {
+                order_id: fulfilment.order.order_id,
+                book_id: fulfilment.order.book_id,
+                amount_required: fulfilment.amount,
+                amount_remaining: fulfilment.order.quantity,
+                reason: Some("Fulfilment is part of another order book".to_string()),
             }
         );
         let denom = orderbook.get_expected_denom(&fulfilment.order.order_direction);

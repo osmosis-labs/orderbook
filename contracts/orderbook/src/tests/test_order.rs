@@ -2,12 +2,14 @@ use crate::error::ContractError;
 use crate::order::*;
 use crate::orderbook::*;
 use crate::state::*;
+use crate::types::Fulfilment;
 use crate::types::LimitOrder;
 use crate::types::OrderDirection;
 use crate::types::REPLY_ID_REFUND;
 use cosmwasm_std::testing::{mock_dependencies_with_balances, mock_env, mock_info};
 use cosmwasm_std::BankMsg;
 use cosmwasm_std::Coin;
+use cosmwasm_std::Decimal;
 use cosmwasm_std::Empty;
 use cosmwasm_std::SubMsg;
 use cosmwasm_std::{coin, Addr, Uint128};
@@ -541,5 +543,304 @@ fn test_cancel_limit() {
             .unwrap_or_default();
 
         assert!(liquidity.is_zero(), "{}", format_test_name(test.name));
+    }
+}
+
+struct ResolveFulfilmentsTestCase {
+    pub name: &'static str,
+    pub book_id: u64,
+    /// bool represents if order is removed
+    pub fulfilments: Vec<(Fulfilment, bool)>,
+    // (tick_id, liquidity)
+    pub expected_liquidity: Vec<(i64, Uint128)>,
+    pub expected_error: Option<ContractError>,
+}
+
+#[test]
+fn test_run_resolve_fulfilments() {
+    let valid_book_id = 0;
+    let test_cases: Vec<ResolveFulfilmentsTestCase> = vec![
+        ResolveFulfilmentsTestCase {
+            name: "standard fulfilments (single tick)",
+            book_id: valid_book_id,
+            fulfilments: vec![
+                (
+                    Fulfilment::new(
+                        LimitOrder::new(
+                            0,
+                            1,
+                            0,
+                            OrderDirection::Ask,
+                            Addr::unchecked("creator"),
+                            Uint128::from(100u128),
+                        ),
+                        Uint128::from(100u128),
+                    ),
+                    true,
+                ),
+                (
+                    Fulfilment::new(
+                        LimitOrder::new(
+                            0,
+                            1,
+                            1,
+                            OrderDirection::Bid,
+                            Addr::unchecked("creator"),
+                            Uint128::from(100u128),
+                        ),
+                        Uint128::from(50u128),
+                    ),
+                    false,
+                ),
+            ],
+            expected_liquidity: vec![(1, Uint128::from(50u128))],
+            expected_error: None,
+        },
+        ResolveFulfilmentsTestCase {
+            name: "standard fulfilments (multi tick)",
+            book_id: valid_book_id,
+            fulfilments: vec![
+                (
+                    Fulfilment::new(
+                        LimitOrder::new(
+                            0,
+                            1,
+                            0,
+                            OrderDirection::Bid,
+                            Addr::unchecked("creator"),
+                            Uint128::from(100u128),
+                        ),
+                        Uint128::from(100u128),
+                    ),
+                    true,
+                ),
+                (
+                    Fulfilment::new(
+                        LimitOrder::new(
+                            0,
+                            1,
+                            1,
+                            OrderDirection::Bid,
+                            Addr::unchecked("creator"),
+                            Uint128::from(100u128),
+                        ),
+                        Uint128::from(100u128),
+                    ),
+                    true,
+                ),
+                (
+                    Fulfilment::new(
+                        LimitOrder::new(
+                            0,
+                            2,
+                            3,
+                            OrderDirection::Bid,
+                            Addr::unchecked("creator"),
+                            Uint128::from(100u128),
+                        ),
+                        Uint128::from(100u128),
+                    ),
+                    true,
+                ),
+                (
+                    Fulfilment::new(
+                        LimitOrder::new(
+                            0,
+                            2,
+                            4,
+                            OrderDirection::Bid,
+                            Addr::unchecked("creator"),
+                            Uint128::from(100u128),
+                        ),
+                        Uint128::from(50u128),
+                    ),
+                    false,
+                ),
+            ],
+            expected_liquidity: vec![(1, Uint128::zero()), (2, Uint128::from(50u128))],
+            expected_error: None,
+        },
+        ResolveFulfilmentsTestCase {
+            name: "Wrong order book",
+            book_id: valid_book_id,
+            fulfilments: vec![
+                (
+                    Fulfilment::new(
+                        LimitOrder::new(
+                            0,
+                            1,
+                            0,
+                            OrderDirection::Ask,
+                            Addr::unchecked("creator"),
+                            Uint128::from(100u128),
+                        ),
+                        Uint128::from(100u128),
+                    ),
+                    true,
+                ),
+                (
+                    Fulfilment::new(
+                        LimitOrder::new(
+                            1,
+                            1,
+                            1,
+                            OrderDirection::Bid,
+                            Addr::unchecked("creator"),
+                            Uint128::from(100u128),
+                        ),
+                        Uint128::from(100u128),
+                    ),
+                    true,
+                ),
+            ],
+            expected_liquidity: vec![(1, Uint128::zero())],
+            expected_error: Some(ContractError::InvalidFulfilment {
+                order_id: 1,
+                book_id: 1,
+                amount_required: Uint128::from(100u128),
+                amount_remaining: Uint128::from(100u128),
+                reason: Some("Fulfilment is part of another order book".to_string()),
+            }),
+        },
+        ResolveFulfilmentsTestCase {
+            name: "Invalid fulfilment (insufficient funds)",
+            book_id: valid_book_id,
+            fulfilments: vec![(
+                Fulfilment::new(
+                    LimitOrder::new(
+                        0,
+                        0,
+                        0,
+                        OrderDirection::Ask,
+                        Addr::unchecked("creator"),
+                        Uint128::from(100u128),
+                    ),
+                    Uint128::from(200u128),
+                ),
+                true,
+            )],
+            expected_liquidity: vec![(1, Uint128::zero())],
+            expected_error: Some(ContractError::InvalidFulfilment {
+                order_id: 0,
+                book_id: 0,
+                amount_required: Uint128::from(200u128),
+                amount_remaining: Uint128::from(100u128),
+                reason: Some("Order does not have enough funds".to_string()),
+            }),
+        },
+    ];
+
+    for test in test_cases {
+        let balances = [];
+        let mut deps = mock_dependencies_with_balances(&balances);
+        let env = mock_env();
+        let info = mock_info("maker", &[]);
+
+        // Create an orderbook to operate on
+        let quote_denom = "quote".to_string();
+        let base_denom = "base".to_string();
+        create_orderbook(
+            deps.as_mut(),
+            env.clone(),
+            info.clone(),
+            quote_denom.clone(),
+            base_denom.clone(),
+        )
+        .unwrap();
+
+        let fulfilments = test
+            .fulfilments
+            .iter()
+            .map(|f| f.clone().0)
+            .collect::<Vec<Fulfilment>>();
+
+        // Add orders to state
+        for Fulfilment { order, .. } in fulfilments.clone() {
+            orders()
+                .save(
+                    deps.as_mut().storage,
+                    &(order.book_id, order.tick_id, order.order_id),
+                    &order,
+                )
+                .unwrap();
+            TICK_LIQUIDITY
+                .update(
+                    deps.as_mut().storage,
+                    &(order.book_id, order.tick_id),
+                    |l| {
+                        Ok::<Uint128, ContractError>(
+                            l.unwrap_or_default().checked_add(order.quantity).unwrap(),
+                        )
+                    },
+                )
+                .unwrap();
+        }
+
+        let response = resolve_fulfilments(deps.as_mut().storage, fulfilments);
+
+        if let Some(expected_error) = &test.expected_error {
+            let err = response.unwrap_err();
+            assert_eq!(err, *expected_error, "{}", format_test_name(test.name));
+
+            continue;
+        }
+
+        // Check tick liquidity updated as expected
+        for (tick_id, expected_liquidity) in test.expected_liquidity {
+            let liquidity = TICK_LIQUIDITY
+                .may_load(deps.as_ref().storage, &(test.book_id, tick_id))
+                .unwrap();
+            assert_eq!(
+                liquidity.is_none(),
+                expected_liquidity.is_zero(),
+                "{}",
+                format_test_name(test.name)
+            );
+            if let Some(post_liquidity) = liquidity {
+                assert_eq!(
+                    post_liquidity,
+                    expected_liquidity,
+                    "{}",
+                    format_test_name(test.name)
+                );
+            }
+        }
+
+        let orderbook = ORDERBOOKS
+            .load(deps.as_ref().storage, &valid_book_id)
+            .unwrap();
+
+        let response = response.unwrap();
+        for (idx, (Fulfilment { order, amount }, removed)) in test.fulfilments.iter().enumerate() {
+            let saved_order = orders()
+                .may_load(
+                    deps.as_ref().storage,
+                    &(order.book_id, order.tick_id, order.order_id),
+                )
+                .unwrap();
+            // Check order is updated as expected
+            assert_eq!(
+                saved_order.is_none(),
+                *removed,
+                "{}",
+                format_test_name(test.name)
+            );
+            // If not removed check quantity updated
+            if !removed {
+                assert_eq!(
+                    saved_order.unwrap().quantity,
+                    order.quantity.checked_sub(*amount).unwrap(),
+                    "{}",
+                    format_test_name(test.name)
+                );
+            }
+
+            // Check message is generated as expected
+            let mut order = order.clone();
+            let denom = orderbook.get_expected_denom(&order.order_direction);
+            let msg = order.fulfil(denom, *amount, Decimal::one()).unwrap();
+
+            assert_eq!(response[idx], msg, "{}", format_test_name(test.name));
+        }
     }
 }

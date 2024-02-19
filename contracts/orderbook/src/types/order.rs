@@ -1,5 +1,5 @@
 use cosmwasm_schema::cw_serde;
-use cosmwasm_std::{coin, Addr, BankMsg, Decimal, Uint128};
+use cosmwasm_std::{coin, ensure, Addr, BankMsg, Decimal, Uint128};
 
 use crate::ContractError;
 
@@ -46,6 +46,16 @@ impl LimitOrder {
         quantity: Uint128,
         price: Decimal,
     ) -> Result<BankMsg, ContractError> {
+        ensure!(
+            self.quantity >= quantity,
+            ContractError::InvalidFulfilment {
+                order_id: self.order_id,
+                book_id: self.book_id,
+                amount_required: quantity,
+                amount_remaining: self.quantity,
+                reason: Some("Order does not have enough funds".to_string())
+            }
+        );
         self.quantity = self.quantity.checked_sub(quantity.min(self.quantity))?;
         Ok(BankMsg::Send {
             to_address: self.owner.to_string(),

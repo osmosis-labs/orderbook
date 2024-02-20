@@ -562,7 +562,7 @@ fn test_resolve_fulfilments() {
     let valid_book_id = 0;
     let test_cases: Vec<ResolveFulfilmentsTestCase> = vec![
         ResolveFulfilmentsTestCase {
-            name: "standard fulfilments (single tick)",
+            name: "standard fulfilments (single tick) ",
             book_id: valid_book_id,
             fulfilments: vec![
                 (
@@ -853,24 +853,159 @@ struct RunMarketOrderTestCase {
     pub name: &'static str,
     pub placed_order: MarketOrder,
     pub tick_bound: Option<i64>,
+    pub extra_orders: Vec<LimitOrder>,
     pub expected_fulfilments: Vec<Fulfilment>,
+    pub expected_remainder: Uint128,
     pub expected_error: Option<ContractError>,
 }
 
 #[test]
 fn test_run_market_order() {
     let valid_book_id = 0;
-    let test_cases: Vec<RunMarketOrderTestCase> = vec![RunMarketOrderTestCase {
-        name: "standard market order (single tick)",
-        placed_order: MarketOrder::new(
-            valid_book_id,
-            Uint128::from(100u128),
-            OrderDirection::Ask,
-            Addr::unchecked("creator"),
-        ),
-        tick_bound: None,
-        expected_fulfilments: vec![
-            Fulfilment::new(
+    let test_cases: Vec<RunMarketOrderTestCase> = vec![
+        RunMarketOrderTestCase {
+            name: "standard market order (single tick) ASK",
+            placed_order: MarketOrder::new(
+                valid_book_id,
+                Uint128::from(100u128),
+                OrderDirection::Ask,
+                Addr::unchecked("creator"),
+            ),
+            tick_bound: None,
+            extra_orders: vec![],
+            expected_fulfilments: vec![
+                Fulfilment::new(
+                    LimitOrder::new(
+                        valid_book_id,
+                        -1,
+                        0,
+                        OrderDirection::Bid,
+                        Addr::unchecked("creator"),
+                        Uint128::from(50u128),
+                    ),
+                    Uint128::from(50u128),
+                ),
+                Fulfilment::new(
+                    LimitOrder::new(
+                        valid_book_id,
+                        -1,
+                        1,
+                        OrderDirection::Bid,
+                        Addr::unchecked("creator"),
+                        Uint128::from(150u128),
+                    ),
+                    Uint128::from(50u128),
+                ),
+            ],
+            expected_remainder: Uint128::zero(),
+            expected_error: None,
+        },
+        RunMarketOrderTestCase {
+            name: "standard market order (multi tick) ASK",
+            placed_order: MarketOrder::new(
+                valid_book_id,
+                Uint128::from(100u128),
+                OrderDirection::Ask,
+                Addr::unchecked("creator"),
+            ),
+            tick_bound: None,
+            extra_orders: vec![],
+            expected_fulfilments: vec![
+                Fulfilment::new(
+                    LimitOrder::new(
+                        valid_book_id,
+                        -1,
+                        0,
+                        OrderDirection::Bid,
+                        Addr::unchecked("creator"),
+                        Uint128::from(50u128),
+                    ),
+                    Uint128::from(50u128),
+                ),
+                Fulfilment::new(
+                    LimitOrder::new(
+                        valid_book_id,
+                        -2,
+                        1,
+                        OrderDirection::Bid,
+                        Addr::unchecked("creator"),
+                        Uint128::from(150u128),
+                    ),
+                    Uint128::from(50u128),
+                ),
+            ],
+            expected_remainder: Uint128::zero(),
+            expected_error: None,
+        },
+        RunMarketOrderTestCase {
+            name: "excessive market order (single tick) ASK",
+            placed_order: MarketOrder::new(
+                valid_book_id,
+                Uint128::from(1000u128),
+                OrderDirection::Ask,
+                Addr::unchecked("creator"),
+            ),
+            tick_bound: None,
+            extra_orders: vec![],
+            expected_fulfilments: vec![
+                Fulfilment::new(
+                    LimitOrder::new(
+                        valid_book_id,
+                        -1,
+                        0,
+                        OrderDirection::Bid,
+                        Addr::unchecked("creator"),
+                        Uint128::from(50u128),
+                    ),
+                    Uint128::from(50u128),
+                ),
+                Fulfilment::new(
+                    LimitOrder::new(
+                        valid_book_id,
+                        -2,
+                        1,
+                        OrderDirection::Bid,
+                        Addr::unchecked("creator"),
+                        Uint128::from(150u128),
+                    ),
+                    Uint128::from(150u128),
+                ),
+            ],
+            expected_remainder: Uint128::from(800u128),
+            expected_error: None,
+        },
+        RunMarketOrderTestCase {
+            name: "standard market order (no tick) ASK",
+            placed_order: MarketOrder::new(
+                valid_book_id,
+                Uint128::from(1000u128),
+                OrderDirection::Ask,
+                Addr::unchecked("creator"),
+            ),
+            tick_bound: None,
+            extra_orders: vec![],
+            expected_fulfilments: vec![],
+            expected_remainder: Uint128::from(1000u128),
+            expected_error: None,
+        },
+        RunMarketOrderTestCase {
+            name: "standard market order (multi tick - bound) ASK",
+            placed_order: MarketOrder::new(
+                valid_book_id,
+                Uint128::from(100u128),
+                OrderDirection::Ask,
+                Addr::unchecked("creator"),
+            ),
+            tick_bound: Some(-1),
+            extra_orders: vec![LimitOrder::new(
+                valid_book_id,
+                -2,
+                1,
+                OrderDirection::Bid,
+                Addr::unchecked("creator"),
+                Uint128::from(150u128),
+            )],
+            expected_fulfilments: vec![Fulfilment::new(
                 LimitOrder::new(
                     valid_book_id,
                     -1,
@@ -880,21 +1015,229 @@ fn test_run_market_order() {
                     Uint128::from(50u128),
                 ),
                 Uint128::from(50u128),
+            )],
+            expected_remainder: Uint128::from(50u128),
+            expected_error: None,
+        },
+        RunMarketOrderTestCase {
+            name: "invalid ASK tick bound",
+            placed_order: MarketOrder::new(
+                valid_book_id,
+                Uint128::from(100u128),
+                OrderDirection::Ask,
+                Addr::unchecked("creator"),
             ),
-            Fulfilment::new(
+            tick_bound: Some(1),
+            extra_orders: vec![LimitOrder::new(
+                valid_book_id,
+                -2,
+                1,
+                OrderDirection::Bid,
+                Addr::unchecked("creator"),
+                Uint128::from(150u128),
+            )],
+            expected_fulfilments: vec![Fulfilment::new(
                 LimitOrder::new(
                     valid_book_id,
                     -1,
-                    1,
+                    0,
                     OrderDirection::Bid,
                     Addr::unchecked("creator"),
-                    Uint128::from(150u128),
+                    Uint128::from(50u128),
                 ),
                 Uint128::from(50u128),
+            )],
+            expected_remainder: Uint128::from(50u128),
+            expected_error: Some(ContractError::InvalidTickId { tick_id: 1 }),
+        },
+        RunMarketOrderTestCase {
+            name: "standard market order (single tick) BID",
+            placed_order: MarketOrder::new(
+                valid_book_id,
+                Uint128::from(100u128),
+                OrderDirection::Bid,
+                Addr::unchecked("creator"),
             ),
-        ],
-        expected_error: None,
-    }];
+            tick_bound: None,
+            extra_orders: vec![],
+            expected_fulfilments: vec![
+                Fulfilment::new(
+                    LimitOrder::new(
+                        valid_book_id,
+                        1,
+                        0,
+                        OrderDirection::Ask,
+                        Addr::unchecked("creator"),
+                        Uint128::from(50u128),
+                    ),
+                    Uint128::from(50u128),
+                ),
+                Fulfilment::new(
+                    LimitOrder::new(
+                        valid_book_id,
+                        1,
+                        1,
+                        OrderDirection::Ask,
+                        Addr::unchecked("creator"),
+                        Uint128::from(150u128),
+                    ),
+                    Uint128::from(50u128),
+                ),
+            ],
+            expected_remainder: Uint128::zero(),
+            expected_error: None,
+        },
+        RunMarketOrderTestCase {
+            name: "standard market order (multi tick) BID",
+            placed_order: MarketOrder::new(
+                valid_book_id,
+                Uint128::from(100u128),
+                OrderDirection::Bid,
+                Addr::unchecked("creator"),
+            ),
+            tick_bound: None,
+            extra_orders: vec![],
+            expected_fulfilments: vec![
+                Fulfilment::new(
+                    LimitOrder::new(
+                        valid_book_id,
+                        1,
+                        0,
+                        OrderDirection::Ask,
+                        Addr::unchecked("creator"),
+                        Uint128::from(50u128),
+                    ),
+                    Uint128::from(50u128),
+                ),
+                Fulfilment::new(
+                    LimitOrder::new(
+                        valid_book_id,
+                        2,
+                        1,
+                        OrderDirection::Ask,
+                        Addr::unchecked("creator"),
+                        Uint128::from(150u128),
+                    ),
+                    Uint128::from(50u128),
+                ),
+            ],
+            expected_remainder: Uint128::zero(),
+            expected_error: None,
+        },
+        RunMarketOrderTestCase {
+            name: "excessive market order (single tick) BID",
+            placed_order: MarketOrder::new(
+                valid_book_id,
+                Uint128::from(1000u128),
+                OrderDirection::Bid,
+                Addr::unchecked("creator"),
+            ),
+            tick_bound: None,
+            extra_orders: vec![],
+            expected_fulfilments: vec![
+                Fulfilment::new(
+                    LimitOrder::new(
+                        valid_book_id,
+                        1,
+                        0,
+                        OrderDirection::Ask,
+                        Addr::unchecked("creator"),
+                        Uint128::from(50u128),
+                    ),
+                    Uint128::from(50u128),
+                ),
+                Fulfilment::new(
+                    LimitOrder::new(
+                        valid_book_id,
+                        2,
+                        1,
+                        OrderDirection::Ask,
+                        Addr::unchecked("creator"),
+                        Uint128::from(150u128),
+                    ),
+                    Uint128::from(150u128),
+                ),
+            ],
+            expected_remainder: Uint128::from(800u128),
+            expected_error: None,
+        },
+        RunMarketOrderTestCase {
+            name: "standard market order (no tick) BID",
+            placed_order: MarketOrder::new(
+                valid_book_id,
+                Uint128::from(1000u128),
+                OrderDirection::Bid,
+                Addr::unchecked("creator"),
+            ),
+            tick_bound: None,
+            extra_orders: vec![],
+            expected_fulfilments: vec![],
+            expected_remainder: Uint128::from(1000u128),
+            expected_error: None,
+        },
+        RunMarketOrderTestCase {
+            name: "standard market order (multi tick - bound) BID",
+            placed_order: MarketOrder::new(
+                valid_book_id,
+                Uint128::from(100u128),
+                OrderDirection::Bid,
+                Addr::unchecked("creator"),
+            ),
+            extra_orders: vec![LimitOrder::new(
+                valid_book_id,
+                2,
+                1,
+                OrderDirection::Ask,
+                Addr::unchecked("creator"),
+                Uint128::from(150u128),
+            )],
+            tick_bound: Some(1),
+            expected_fulfilments: vec![Fulfilment::new(
+                LimitOrder::new(
+                    valid_book_id,
+                    1,
+                    0,
+                    OrderDirection::Ask,
+                    Addr::unchecked("creator"),
+                    Uint128::from(50u128),
+                ),
+                Uint128::from(50u128),
+            )],
+            expected_remainder: Uint128::from(50u128),
+            expected_error: None,
+        },
+        RunMarketOrderTestCase {
+            name: "invalid BID tick bound",
+            placed_order: MarketOrder::new(
+                valid_book_id,
+                Uint128::from(100u128),
+                OrderDirection::Bid,
+                Addr::unchecked("creator"),
+            ),
+            extra_orders: vec![LimitOrder::new(
+                valid_book_id,
+                2,
+                1,
+                OrderDirection::Ask,
+                Addr::unchecked("creator"),
+                Uint128::from(150u128),
+            )],
+            tick_bound: Some(0),
+            expected_fulfilments: vec![Fulfilment::new(
+                LimitOrder::new(
+                    valid_book_id,
+                    1,
+                    0,
+                    OrderDirection::Ask,
+                    Addr::unchecked("creator"),
+                    Uint128::from(50u128),
+                ),
+                Uint128::from(50u128),
+            )],
+            expected_remainder: Uint128::from(50u128),
+            expected_error: Some(ContractError::InvalidTickId { tick_id: 0 }),
+        },
+    ];
 
     for test in test_cases {
         let mut deps = mock_dependencies_with_balances(&[]);
@@ -914,9 +1257,14 @@ fn test_run_market_order() {
         .unwrap();
 
         let fulfilments = test.expected_fulfilments.to_vec();
+        let mut all_orders: Vec<LimitOrder> = fulfilments
+            .iter()
+            .map(|Fulfilment { order, .. }| order.clone())
+            .collect();
+        all_orders.extend(test.extra_orders);
 
         // Add orders to state
-        for Fulfilment { order, .. } in fulfilments.clone() {
+        for order in all_orders.clone() {
             orders()
                 .save(
                     deps.as_mut().storage,
@@ -935,6 +1283,28 @@ fn test_run_market_order() {
                     },
                 )
                 .unwrap();
+
+            let mut orderbook = ORDERBOOKS
+                .load(deps.as_ref().storage, &valid_book_id)
+                .unwrap();
+            match order.order_direction {
+                OrderDirection::Ask => {
+                    if order.tick_id < orderbook.next_ask_tick {
+                        orderbook.next_ask_tick = order.tick_id;
+                    }
+                    ORDERBOOKS
+                        .save(deps.as_mut().storage, &valid_book_id, &orderbook)
+                        .unwrap();
+                }
+                OrderDirection::Bid => {
+                    if order.tick_id > orderbook.next_bid_tick {
+                        orderbook.next_bid_tick = order.tick_id;
+                    }
+                    ORDERBOOKS
+                        .save(deps.as_mut().storage, &valid_book_id, &orderbook)
+                        .unwrap();
+                }
+            }
         }
 
         let mut market_order = test.placed_order.clone();
@@ -945,7 +1315,6 @@ fn test_run_market_order() {
         if let Some(expected_error) = &test.expected_error {
             let err = response.unwrap_err();
             assert_eq!(err, *expected_error, "{}", format_test_name(test.name));
-            // NOTE: We cannot check if orders/tick liquidity were unaltered as changes are made in a for loop that is not rolled back upon error
 
             continue;
         }
@@ -953,7 +1322,7 @@ fn test_run_market_order() {
         let response = response.unwrap();
 
         for (idx, fulfilment) in test.expected_fulfilments.iter().enumerate() {
-            // Check message is generated as expected
+            // Check fulfilment is generated as expected
             assert_eq!(
                 response.0[idx],
                 *fulfilment,
@@ -961,5 +1330,12 @@ fn test_run_market_order() {
                 format_test_name(test.name)
             );
         }
+
+        assert_eq!(
+            market_order.quantity,
+            test.expected_remainder,
+            "{}",
+            format_test_name(test.name)
+        );
     }
 }

@@ -180,32 +180,51 @@ pub fn run_market_order(
     let placed_order_denom = orderbook.get_expected_denom(&order.order_direction);
 
     let (min_tick, max_tick, ordering) = match order.order_direction {
-        OrderDirection::Ask => (Some(orderbook.next_bid_tick), tick_bound, Order::Ascending),
-        OrderDirection::Bid => (tick_bound, Some(orderbook.next_ask_tick), Order::Descending),
+        OrderDirection::Ask => {
+            if let Some(tick_bound) = tick_bound {
+                ensure!(
+                    tick_bound <= orderbook.next_bid_tick,
+                    ContractError::InvalidTickId {
+                        tick_id: tick_bound
+                    }
+                );
+            }
+            (tick_bound, Some(orderbook.next_bid_tick), Order::Descending)
+        }
+        OrderDirection::Bid => {
+            if let Some(tick_bound) = tick_bound {
+                ensure!(
+                    tick_bound >= orderbook.next_ask_tick,
+                    ContractError::InvalidTickId {
+                        tick_id: tick_bound
+                    }
+                );
+            }
+            (Some(orderbook.next_ask_tick), tick_bound, Order::Ascending)
+        }
     };
 
     // Create ticks iterator between first tick and requested tick
-    // TODO: Remove filter map and map
-    let ticks = TICK_LIQUIDITY
-        .prefix(order.book_id)
-        .range(
-            storage,
-            min_tick.map(Bound::inclusive),
-            max_tick.map(Bound::inclusive),
-            ordering,
-        )
-        .filter_map(|x| x.ok())
-        .map(|(id, _)| id);
+    let ticks = TICK_LIQUIDITY.prefix(order.book_id).range(
+        storage,
+        min_tick.map(Bound::inclusive),
+        max_tick.map(Bound::inclusive),
+        ordering,
+    );
 
-    for current_tick in ticks {
+    for maybe_current_tick in ticks {
+        let current_tick = maybe_current_tick?.0;
+
         // Create orders iterator for all orders on current tick
-        let tick_orders = orders()
-            .prefix((order.book_id, current_tick))
-            .range(storage, None, None, Order::Ascending)
-            .filter_map(|r| r.ok())
-            .map(|(_, order)| order);
+        let tick_orders = orders().prefix((order.book_id, current_tick)).range(
+            storage,
+            None,
+            None,
+            Order::Ascending,
+        );
 
-        for current_order in tick_orders {
+        for maybe_current_order in tick_orders {
+            let current_order = maybe_current_order?.1;
             let fill_quantity = order.quantity.min(current_order.quantity);
             // Add to total amount fulfiled from placed order
             amount_fulfiled = amount_fulfiled.checked_add(fill_quantity)?;
@@ -213,6 +232,7 @@ pub fn run_market_order(
             let fulfilment = Fulfilment::new(current_order, fill_quantity);
             fulfilments.push(fulfilment);
 
+            // Update remaining order quantity
             order.quantity = order.quantity.checked_sub(fill_quantity)?;
             // TODO: Price detection
             if order.quantity.is_zero() {
@@ -228,7 +248,6 @@ pub fn run_market_order(
 
         // TODO: Price detection
         if order.quantity.is_zero() {
-            order.quantity -= amount_fulfiled;
             return Ok((
                 fulfilments,
                 BankMsg::Send {
@@ -238,8 +257,6 @@ pub fn run_market_order(
             ));
         }
     }
-
-    order.quantity = order.quantity.checked_sub(amount_fulfiled)?;
 
     // TODO: Price detection
     Ok((

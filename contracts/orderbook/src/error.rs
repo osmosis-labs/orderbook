@@ -49,4 +49,7 @@ pub enum ContractError {
         amount_remaining: Uint128,
         reason: Option<String>,
     },
+
+    #[error("Mismatched order direction")]
+    MismatchedOrderDirection {},
 }

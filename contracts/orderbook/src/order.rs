@@ -3,8 +3,8 @@ use crate::state::*;
 use crate::state::{MAX_TICK, MIN_TICK, ORDERBOOKS};
 use crate::types::{Fulfilment, LimitOrder, MarketOrder, OrderDirection, REPLY_ID_REFUND};
 use cosmwasm_std::{
-    coin, ensure, ensure_eq, BankMsg, Decimal, DepsMut, Env, MessageInfo, Order, Response, Storage,
-    SubMsg, Uint128,
+    coin, ensure, ensure_eq, ensure_ne, BankMsg, Decimal, DepsMut, Env, MessageInfo, Order,
+    Response, Storage, SubMsg, Uint128,
 };
 use cw_storage_plus::Bound;
 use cw_utils::{must_pay, nonpayable};
@@ -225,6 +225,11 @@ pub fn run_market_order(
 
         for maybe_current_order in tick_orders {
             let current_order = maybe_current_order?.1;
+            ensure_ne!(
+                current_order.order_direction,
+                order.order_direction,
+                ContractError::MismatchedOrderDirection {}
+            );
             let fill_quantity = order.quantity.min(current_order.quantity);
             // Add to total amount fulfiled from placed order
             amount_fulfiled = amount_fulfiled.checked_add(fill_quantity)?;

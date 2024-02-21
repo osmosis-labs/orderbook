@@ -3,7 +3,7 @@ use crate::{
     order::*,
     orderbook::*,
     state::*,
-    types::{Fulfilment, LimitOrder, MarketOrder, OrderDirection, REPLY_ID_REFUND},
+    types::{Fulfillment, LimitOrder, MarketOrder, OrderDirection, REPLY_ID_REFUND},
 };
 use cosmwasm_std::testing::{mock_dependencies_with_balances, mock_env, mock_info};
 use cosmwasm_std::{coin, Addr, BankMsg, Coin, Decimal, Empty, SubMsg, Uint128};
@@ -540,26 +540,26 @@ fn test_cancel_limit() {
     }
 }
 
-struct ResolveFulfilmentsTestCase {
+struct ResolveFulfillmentsTestCase {
     pub name: &'static str,
     pub book_id: u64,
     /// bool represents if order is removed
-    pub fulfilments: Vec<(Fulfilment, bool)>,
+    pub fulfillments: Vec<(Fulfillment, bool)>,
     // (tick_id, liquidity)
     pub expected_liquidity: Vec<(i64, Uint128)>,
     pub expected_error: Option<ContractError>,
 }
 
 #[test]
-fn test_resolve_fulfilments() {
+fn test_resolve_fulfillments() {
     let valid_book_id = 0;
-    let test_cases: Vec<ResolveFulfilmentsTestCase> = vec![
-        ResolveFulfilmentsTestCase {
-            name: "standard fulfilments (single tick) ",
+    let test_cases: Vec<ResolveFulfillmentsTestCase> = vec![
+        ResolveFulfillmentsTestCase {
+            name: "standard fulfillments (single tick) ",
             book_id: valid_book_id,
-            fulfilments: vec![
+            fulfillments: vec![
                 (
-                    Fulfilment::new(
+                    Fulfillment::new(
                         LimitOrder::new(
                             0,
                             1,
@@ -573,7 +573,7 @@ fn test_resolve_fulfilments() {
                     true,
                 ),
                 (
-                    Fulfilment::new(
+                    Fulfillment::new(
                         LimitOrder::new(
                             0,
                             1,
@@ -590,12 +590,12 @@ fn test_resolve_fulfilments() {
             expected_liquidity: vec![(1, Uint128::from(50u128))],
             expected_error: None,
         },
-        ResolveFulfilmentsTestCase {
-            name: "standard fulfilments (multi tick)",
+        ResolveFulfillmentsTestCase {
+            name: "standard fulfillments (multi tick)",
             book_id: valid_book_id,
-            fulfilments: vec![
+            fulfillments: vec![
                 (
-                    Fulfilment::new(
+                    Fulfillment::new(
                         LimitOrder::new(
                             0,
                             1,
@@ -609,7 +609,7 @@ fn test_resolve_fulfilments() {
                     true,
                 ),
                 (
-                    Fulfilment::new(
+                    Fulfillment::new(
                         LimitOrder::new(
                             0,
                             1,
@@ -623,7 +623,7 @@ fn test_resolve_fulfilments() {
                     true,
                 ),
                 (
-                    Fulfilment::new(
+                    Fulfillment::new(
                         LimitOrder::new(
                             0,
                             2,
@@ -637,7 +637,7 @@ fn test_resolve_fulfilments() {
                     true,
                 ),
                 (
-                    Fulfilment::new(
+                    Fulfillment::new(
                         LimitOrder::new(
                             0,
                             2,
@@ -654,12 +654,12 @@ fn test_resolve_fulfilments() {
             expected_liquidity: vec![(1, Uint128::zero()), (2, Uint128::from(50u128))],
             expected_error: None,
         },
-        ResolveFulfilmentsTestCase {
+        ResolveFulfillmentsTestCase {
             name: "Wrong order book",
             book_id: valid_book_id,
-            fulfilments: vec![
+            fulfillments: vec![
                 (
-                    Fulfilment::new(
+                    Fulfillment::new(
                         LimitOrder::new(
                             0,
                             1,
@@ -673,7 +673,7 @@ fn test_resolve_fulfilments() {
                     true,
                 ),
                 (
-                    Fulfilment::new(
+                    Fulfillment::new(
                         LimitOrder::new(
                             1,
                             1,
@@ -688,19 +688,19 @@ fn test_resolve_fulfilments() {
                 ),
             ],
             expected_liquidity: vec![(1, Uint128::zero())],
-            expected_error: Some(ContractError::InvalidFulfilment {
+            expected_error: Some(ContractError::InvalidFulfillment {
                 order_id: 1,
                 book_id: 1,
                 amount_required: Uint128::from(100u128),
                 amount_remaining: Uint128::from(100u128),
-                reason: Some("Fulfilment is part of another order book".to_string()),
+                reason: Some("Fulfillment is part of another order book".to_string()),
             }),
         },
-        ResolveFulfilmentsTestCase {
-            name: "Invalid fulfilment (insufficient funds)",
+        ResolveFulfillmentsTestCase {
+            name: "Invalid fulfillment (insufficient funds)",
             book_id: valid_book_id,
-            fulfilments: vec![(
-                Fulfilment::new(
+            fulfillments: vec![(
+                Fulfillment::new(
                     LimitOrder::new(
                         0,
                         0,
@@ -714,7 +714,7 @@ fn test_resolve_fulfilments() {
                 true,
             )],
             expected_liquidity: vec![(1, Uint128::zero())],
-            expected_error: Some(ContractError::InvalidFulfilment {
+            expected_error: Some(ContractError::InvalidFulfillment {
                 order_id: 0,
                 book_id: 0,
                 amount_required: Uint128::from(200u128),
@@ -741,14 +741,14 @@ fn test_resolve_fulfilments() {
         )
         .unwrap();
 
-        let fulfilments = test
-            .fulfilments
+        let fulfillments = test
+            .fulfillments
             .iter()
             .map(|f| f.clone().0)
-            .collect::<Vec<Fulfilment>>();
+            .collect::<Vec<Fulfillment>>();
 
         // Add orders to state
-        for Fulfilment { order, .. } in fulfilments.clone() {
+        for Fulfillment { order, .. } in fulfillments.clone() {
             orders()
                 .save(
                     deps.as_mut().storage,
@@ -769,7 +769,7 @@ fn test_resolve_fulfilments() {
                 .unwrap();
         }
 
-        let response = resolve_fulfilments(deps.as_mut().storage, fulfilments);
+        let response = resolve_fulfillments(deps.as_mut().storage, fulfillments);
 
         // -- POST STATE --
 
@@ -808,7 +808,8 @@ fn test_resolve_fulfilments() {
 
         let response = response.unwrap();
 
-        for (idx, (Fulfilment { order, amount }, removed)) in test.fulfilments.iter().enumerate() {
+        for (idx, (Fulfillment { order, amount }, removed)) in test.fulfillments.iter().enumerate()
+        {
             let saved_order = orders()
                 .may_load(
                     deps.as_ref().storage,
@@ -835,7 +836,7 @@ fn test_resolve_fulfilments() {
             // Check message is generated as expected
             let mut order = order.clone();
             let denom = orderbook.get_expected_denom(&order.order_direction);
-            let msg = order.fulfil(denom, *amount, Decimal::one()).unwrap();
+            let msg = order.fulfill(denom, *amount, Decimal::one()).unwrap();
 
             assert_eq!(response[idx], msg, "{}", format_test_name(test.name));
         }
@@ -847,7 +848,7 @@ struct RunMarketOrderTestCase {
     pub placed_order: MarketOrder,
     pub tick_bound: Option<i64>,
     pub extra_orders: Vec<LimitOrder>,
-    pub expected_fulfilments: Vec<Fulfilment>,
+    pub expected_fulfillments: Vec<Fulfillment>,
     pub expected_remainder: Uint128,
     pub expected_error: Option<ContractError>,
 }
@@ -866,8 +867,8 @@ fn test_run_market_order() {
             ),
             tick_bound: None,
             extra_orders: vec![],
-            expected_fulfilments: vec![
-                Fulfilment::new(
+            expected_fulfillments: vec![
+                Fulfillment::new(
                     LimitOrder::new(
                         valid_book_id,
                         -1,
@@ -878,7 +879,7 @@ fn test_run_market_order() {
                     ),
                     Uint128::from(50u128),
                 ),
-                Fulfilment::new(
+                Fulfillment::new(
                     LimitOrder::new(
                         valid_book_id,
                         -1,
@@ -903,8 +904,8 @@ fn test_run_market_order() {
             ),
             tick_bound: None,
             extra_orders: vec![],
-            expected_fulfilments: vec![
-                Fulfilment::new(
+            expected_fulfillments: vec![
+                Fulfillment::new(
                     LimitOrder::new(
                         valid_book_id,
                         -1,
@@ -915,7 +916,7 @@ fn test_run_market_order() {
                     ),
                     Uint128::from(50u128),
                 ),
-                Fulfilment::new(
+                Fulfillment::new(
                     LimitOrder::new(
                         valid_book_id,
                         -2,
@@ -940,8 +941,8 @@ fn test_run_market_order() {
             ),
             tick_bound: None,
             extra_orders: vec![],
-            expected_fulfilments: vec![
-                Fulfilment::new(
+            expected_fulfillments: vec![
+                Fulfillment::new(
                     LimitOrder::new(
                         valid_book_id,
                         -1,
@@ -952,7 +953,7 @@ fn test_run_market_order() {
                     ),
                     Uint128::from(50u128),
                 ),
-                Fulfilment::new(
+                Fulfillment::new(
                     LimitOrder::new(
                         valid_book_id,
                         -2,
@@ -977,7 +978,7 @@ fn test_run_market_order() {
             ),
             tick_bound: None,
             extra_orders: vec![],
-            expected_fulfilments: vec![],
+            expected_fulfillments: vec![],
             expected_remainder: Uint128::from(1000u128),
             expected_error: None,
         },
@@ -998,7 +999,7 @@ fn test_run_market_order() {
                 Addr::unchecked("creator"),
                 Uint128::from(150u128),
             )],
-            expected_fulfilments: vec![Fulfilment::new(
+            expected_fulfillments: vec![Fulfillment::new(
                 LimitOrder::new(
                     valid_book_id,
                     -1,
@@ -1029,7 +1030,7 @@ fn test_run_market_order() {
                 Addr::unchecked("creator"),
                 Uint128::from(150u128),
             )],
-            expected_fulfilments: vec![Fulfilment::new(
+            expected_fulfillments: vec![Fulfillment::new(
                 LimitOrder::new(
                     valid_book_id,
                     -1,
@@ -1053,8 +1054,8 @@ fn test_run_market_order() {
             ),
             tick_bound: None,
             extra_orders: vec![],
-            expected_fulfilments: vec![
-                Fulfilment::new(
+            expected_fulfillments: vec![
+                Fulfillment::new(
                     LimitOrder::new(
                         valid_book_id,
                         1,
@@ -1065,7 +1066,7 @@ fn test_run_market_order() {
                     ),
                     Uint128::from(50u128),
                 ),
-                Fulfilment::new(
+                Fulfillment::new(
                     LimitOrder::new(
                         valid_book_id,
                         1,
@@ -1090,8 +1091,8 @@ fn test_run_market_order() {
             ),
             tick_bound: None,
             extra_orders: vec![],
-            expected_fulfilments: vec![
-                Fulfilment::new(
+            expected_fulfillments: vec![
+                Fulfillment::new(
                     LimitOrder::new(
                         valid_book_id,
                         1,
@@ -1102,7 +1103,7 @@ fn test_run_market_order() {
                     ),
                     Uint128::from(50u128),
                 ),
-                Fulfilment::new(
+                Fulfillment::new(
                     LimitOrder::new(
                         valid_book_id,
                         2,
@@ -1127,8 +1128,8 @@ fn test_run_market_order() {
             ),
             tick_bound: None,
             extra_orders: vec![],
-            expected_fulfilments: vec![
-                Fulfilment::new(
+            expected_fulfillments: vec![
+                Fulfillment::new(
                     LimitOrder::new(
                         valid_book_id,
                         1,
@@ -1139,7 +1140,7 @@ fn test_run_market_order() {
                     ),
                     Uint128::from(50u128),
                 ),
-                Fulfilment::new(
+                Fulfillment::new(
                     LimitOrder::new(
                         valid_book_id,
                         2,
@@ -1164,7 +1165,7 @@ fn test_run_market_order() {
             ),
             tick_bound: None,
             extra_orders: vec![],
-            expected_fulfilments: vec![],
+            expected_fulfillments: vec![],
             expected_remainder: Uint128::from(1000u128),
             expected_error: None,
         },
@@ -1185,7 +1186,7 @@ fn test_run_market_order() {
                 Uint128::from(150u128),
             )],
             tick_bound: Some(1),
-            expected_fulfilments: vec![Fulfilment::new(
+            expected_fulfillments: vec![Fulfillment::new(
                 LimitOrder::new(
                     valid_book_id,
                     1,
@@ -1216,7 +1217,7 @@ fn test_run_market_order() {
                 Uint128::from(150u128),
             )],
             tick_bound: Some(0),
-            expected_fulfilments: vec![Fulfilment::new(
+            expected_fulfillments: vec![Fulfillment::new(
                 LimitOrder::new(
                     valid_book_id,
                     1,
@@ -1247,7 +1248,7 @@ fn test_run_market_order() {
                 Uint128::from(150u128),
             )],
             tick_bound: Some(MAX_TICK + 1),
-            expected_fulfilments: vec![Fulfilment::new(
+            expected_fulfillments: vec![Fulfillment::new(
                 LimitOrder::new(
                     valid_book_id,
                     1,
@@ -1280,7 +1281,7 @@ fn test_run_market_order() {
                 Uint128::from(150u128),
             )],
             tick_bound: Some(MIN_TICK - 1),
-            expected_fulfilments: vec![Fulfilment::new(
+            expected_fulfillments: vec![Fulfillment::new(
                 LimitOrder::new(
                     valid_book_id,
                     1,
@@ -1315,10 +1316,10 @@ fn test_run_market_order() {
         )
         .unwrap();
 
-        let fulfilments = test.expected_fulfilments.to_vec();
-        let mut all_orders: Vec<LimitOrder> = fulfilments
+        let fulfillments = test.expected_fulfillments.to_vec();
+        let mut all_orders: Vec<LimitOrder> = fulfillments
             .iter()
-            .map(|Fulfilment { order, .. }| order.clone())
+            .map(|Fulfillment { order, .. }| order.clone())
             .collect();
         all_orders.extend(test.extra_orders);
 
@@ -1380,11 +1381,11 @@ fn test_run_market_order() {
 
         let response = response.unwrap();
 
-        for (idx, fulfilment) in test.expected_fulfilments.iter().enumerate() {
-            // Check fulfilment is generated as expected
+        for (idx, fulfillment) in test.expected_fulfillments.iter().enumerate() {
+            // Check fulfillment is generated as expected
             assert_eq!(
                 response.0[idx],
-                *fulfilment,
+                *fulfillment,
                 "{}",
                 format_test_name(test.name)
             );
@@ -1402,7 +1403,7 @@ fn test_run_market_order() {
 struct RunLimitOrderTestCase {
     pub name: &'static str,
     pub order: LimitOrder,
-    pub expected_fulfilments: Vec<Fulfilment>,
+    pub expected_fulfillments: Vec<Fulfillment>,
     pub expected_bank_msgs: Vec<BankMsg>,
     pub expected_liquidity: Vec<(i64, Uint128)>,
     pub expected_remainder: Uint128,
@@ -1414,7 +1415,7 @@ fn test_run_limit_order() {
     let valid_book_id = 0;
     let test_cases: Vec<RunLimitOrderTestCase> = vec![
         RunLimitOrderTestCase {
-            name: "run limit order with single fulfilment ASK",
+            name: "run limit order with single fulfillment ASK",
             order: LimitOrder::new(
                 valid_book_id,
                 -1,
@@ -1423,7 +1424,7 @@ fn test_run_limit_order() {
                 Addr::unchecked("creator"),
                 Uint128::from(50u128),
             ),
-            expected_fulfilments: vec![Fulfilment::new(
+            expected_fulfillments: vec![Fulfillment::new(
                 LimitOrder::new(
                     valid_book_id,
                     -1,
@@ -1449,7 +1450,7 @@ fn test_run_limit_order() {
             expected_error: None,
         },
         RunLimitOrderTestCase {
-            name: "run limit order with multiple fulfilments ASK",
+            name: "run limit order with multiple fulfillments ASK",
             order: LimitOrder::new(
                 valid_book_id,
                 -1,
@@ -1458,8 +1459,8 @@ fn test_run_limit_order() {
                 Addr::unchecked("creator"),
                 Uint128::from(100u128),
             ),
-            expected_fulfilments: vec![
-                Fulfilment::new(
+            expected_fulfillments: vec![
+                Fulfillment::new(
                     LimitOrder::new(
                         valid_book_id,
                         -1,
@@ -1470,7 +1471,7 @@ fn test_run_limit_order() {
                     ),
                     Uint128::from(25u128),
                 ),
-                Fulfilment::new(
+                Fulfillment::new(
                     LimitOrder::new(
                         valid_book_id,
                         -1,
@@ -1501,7 +1502,7 @@ fn test_run_limit_order() {
             expected_error: None,
         },
         RunLimitOrderTestCase {
-            name: "run limit order with multiple fulfilments across multiple ticks ASK",
+            name: "run limit order with multiple fulfillments across multiple ticks ASK",
             order: LimitOrder::new(
                 valid_book_id,
                 -3,
@@ -1510,8 +1511,8 @@ fn test_run_limit_order() {
                 Addr::unchecked("creator"),
                 Uint128::from(100u128),
             ),
-            expected_fulfilments: vec![
-                Fulfilment::new(
+            expected_fulfillments: vec![
+                Fulfillment::new(
                     LimitOrder::new(
                         valid_book_id,
                         -1,
@@ -1522,7 +1523,7 @@ fn test_run_limit_order() {
                     ),
                     Uint128::from(25u128),
                 ),
-                Fulfilment::new(
+                Fulfillment::new(
                     LimitOrder::new(
                         valid_book_id,
                         -2,
@@ -1553,7 +1554,7 @@ fn test_run_limit_order() {
             expected_error: None,
         },
         RunLimitOrderTestCase {
-            name: "run limit order with multiple fulfilments w/ partial ASK",
+            name: "run limit order with multiple fulfillments w/ partial ASK",
             order: LimitOrder::new(
                 valid_book_id,
                 -1,
@@ -1562,8 +1563,8 @@ fn test_run_limit_order() {
                 Addr::unchecked("creator"),
                 Uint128::from(100u128),
             ),
-            expected_fulfilments: vec![
-                Fulfilment::new(
+            expected_fulfillments: vec![
+                Fulfillment::new(
                     LimitOrder::new(
                         valid_book_id,
                         -1,
@@ -1574,7 +1575,7 @@ fn test_run_limit_order() {
                     ),
                     Uint128::from(25u128),
                 ),
-                Fulfilment::new(
+                Fulfillment::new(
                     LimitOrder::new(
                         valid_book_id,
                         -1,
@@ -1605,7 +1606,7 @@ fn test_run_limit_order() {
             expected_error: None,
         },
         RunLimitOrderTestCase {
-            name: "run limit order with multiple fulfilments w/ remainder ASK",
+            name: "run limit order with multiple fulfillments w/ remainder ASK",
             order: LimitOrder::new(
                 valid_book_id,
                 -1,
@@ -1614,8 +1615,8 @@ fn test_run_limit_order() {
                 Addr::unchecked("creator"),
                 Uint128::from(1000u128),
             ),
-            expected_fulfilments: vec![
-                Fulfilment::new(
+            expected_fulfillments: vec![
+                Fulfillment::new(
                     LimitOrder::new(
                         valid_book_id,
                         -1,
@@ -1626,7 +1627,7 @@ fn test_run_limit_order() {
                     ),
                     Uint128::from(25u128),
                 ),
-                Fulfilment::new(
+                Fulfillment::new(
                     LimitOrder::new(
                         valid_book_id,
                         -1,
@@ -1666,8 +1667,8 @@ fn test_run_limit_order() {
                 Addr::unchecked("creator"),
                 Uint128::from(100u128),
             ),
-            expected_fulfilments: vec![
-                Fulfilment::new(
+            expected_fulfillments: vec![
+                Fulfillment::new(
                     LimitOrder::new(
                         valid_book_id,
                         -1,
@@ -1678,7 +1679,7 @@ fn test_run_limit_order() {
                     ),
                     Uint128::from(25u128),
                 ),
-                Fulfilment::new(
+                Fulfillment::new(
                     LimitOrder::new(
                         valid_book_id,
                         -1,
@@ -1696,7 +1697,7 @@ fn test_run_limit_order() {
             expected_error: Some(ContractError::InvalidTickId { tick_id: 1 }),
         },
         RunLimitOrderTestCase {
-            name: "run limit order with single fulfilment BID",
+            name: "run limit order with single fulfillment BID",
             order: LimitOrder::new(
                 valid_book_id,
                 1,
@@ -1705,7 +1706,7 @@ fn test_run_limit_order() {
                 Addr::unchecked("creator"),
                 Uint128::from(50u128),
             ),
-            expected_fulfilments: vec![Fulfilment::new(
+            expected_fulfillments: vec![Fulfillment::new(
                 LimitOrder::new(
                     valid_book_id,
                     1,
@@ -1731,7 +1732,7 @@ fn test_run_limit_order() {
             expected_error: None,
         },
         RunLimitOrderTestCase {
-            name: "run limit order with multiple fulfilments BID",
+            name: "run limit order with multiple fulfillments BID",
             order: LimitOrder::new(
                 valid_book_id,
                 1,
@@ -1740,8 +1741,8 @@ fn test_run_limit_order() {
                 Addr::unchecked("creator"),
                 Uint128::from(100u128),
             ),
-            expected_fulfilments: vec![
-                Fulfilment::new(
+            expected_fulfillments: vec![
+                Fulfillment::new(
                     LimitOrder::new(
                         valid_book_id,
                         1,
@@ -1752,7 +1753,7 @@ fn test_run_limit_order() {
                     ),
                     Uint128::from(25u128),
                 ),
-                Fulfilment::new(
+                Fulfillment::new(
                     LimitOrder::new(
                         valid_book_id,
                         1,
@@ -1783,7 +1784,7 @@ fn test_run_limit_order() {
             expected_error: None,
         },
         RunLimitOrderTestCase {
-            name: "run limit order with multiple fulfilments across multiple ticks BID",
+            name: "run limit order with multiple fulfillments across multiple ticks BID",
             order: LimitOrder::new(
                 valid_book_id,
                 3,
@@ -1792,8 +1793,8 @@ fn test_run_limit_order() {
                 Addr::unchecked("creator"),
                 Uint128::from(100u128),
             ),
-            expected_fulfilments: vec![
-                Fulfilment::new(
+            expected_fulfillments: vec![
+                Fulfillment::new(
                     LimitOrder::new(
                         valid_book_id,
                         1,
@@ -1804,7 +1805,7 @@ fn test_run_limit_order() {
                     ),
                     Uint128::from(25u128),
                 ),
-                Fulfilment::new(
+                Fulfillment::new(
                     LimitOrder::new(
                         valid_book_id,
                         2,
@@ -1835,7 +1836,7 @@ fn test_run_limit_order() {
             expected_error: None,
         },
         RunLimitOrderTestCase {
-            name: "run limit order with multiple fulfilments w/ partial BID",
+            name: "run limit order with multiple fulfillments w/ partial BID",
             order: LimitOrder::new(
                 valid_book_id,
                 1,
@@ -1844,8 +1845,8 @@ fn test_run_limit_order() {
                 Addr::unchecked("creator"),
                 Uint128::from(100u128),
             ),
-            expected_fulfilments: vec![
-                Fulfilment::new(
+            expected_fulfillments: vec![
+                Fulfillment::new(
                     LimitOrder::new(
                         valid_book_id,
                         1,
@@ -1856,7 +1857,7 @@ fn test_run_limit_order() {
                     ),
                     Uint128::from(25u128),
                 ),
-                Fulfilment::new(
+                Fulfillment::new(
                     LimitOrder::new(
                         valid_book_id,
                         1,
@@ -1887,7 +1888,7 @@ fn test_run_limit_order() {
             expected_error: None,
         },
         RunLimitOrderTestCase {
-            name: "run limit order with multiple fulfilments w/ remainder BID",
+            name: "run limit order with multiple fulfillments w/ remainder BID",
             order: LimitOrder::new(
                 valid_book_id,
                 1,
@@ -1896,8 +1897,8 @@ fn test_run_limit_order() {
                 Addr::unchecked("creator"),
                 Uint128::from(1000u128),
             ),
-            expected_fulfilments: vec![
-                Fulfilment::new(
+            expected_fulfillments: vec![
+                Fulfillment::new(
                     LimitOrder::new(
                         valid_book_id,
                         1,
@@ -1908,7 +1909,7 @@ fn test_run_limit_order() {
                     ),
                     Uint128::from(25u128),
                 ),
-                Fulfilment::new(
+                Fulfillment::new(
                     LimitOrder::new(
                         valid_book_id,
                         1,
@@ -1948,8 +1949,8 @@ fn test_run_limit_order() {
                 Addr::unchecked("creator"),
                 Uint128::from(100u128),
             ),
-            expected_fulfilments: vec![
-                Fulfilment::new(
+            expected_fulfillments: vec![
+                Fulfillment::new(
                     LimitOrder::new(
                         valid_book_id,
                         1,
@@ -1960,7 +1961,7 @@ fn test_run_limit_order() {
                     ),
                     Uint128::from(25u128),
                 ),
-                Fulfilment::new(
+                Fulfillment::new(
                     LimitOrder::new(
                         valid_book_id,
                         1,
@@ -1987,8 +1988,8 @@ fn test_run_limit_order() {
                 Addr::unchecked("creator"),
                 Uint128::from(100u128),
             ),
-            expected_fulfilments: vec![
-                Fulfilment::new(
+            expected_fulfillments: vec![
+                Fulfillment::new(
                     LimitOrder::new(
                         valid_book_id,
                         1,
@@ -1999,7 +2000,7 @@ fn test_run_limit_order() {
                     ),
                     Uint128::from(25u128),
                 ),
-                Fulfilment::new(
+                Fulfillment::new(
                     LimitOrder::new(
                         valid_book_id,
                         1,
@@ -2026,8 +2027,8 @@ fn test_run_limit_order() {
                 Addr::unchecked("creator"),
                 Uint128::from(100u128),
             ),
-            expected_fulfilments: vec![
-                Fulfilment::new(
+            expected_fulfillments: vec![
+                Fulfillment::new(
                     LimitOrder::new(
                         valid_book_id,
                         1,
@@ -2038,7 +2039,7 @@ fn test_run_limit_order() {
                     ),
                     Uint128::from(25u128),
                 ),
-                Fulfilment::new(
+                Fulfillment::new(
                     LimitOrder::new(
                         valid_book_id,
                         1,
@@ -2067,8 +2068,8 @@ fn test_run_limit_order() {
                 Addr::unchecked("creator"),
                 Uint128::from(100u128),
             ),
-            expected_fulfilments: vec![
-                Fulfilment::new(
+            expected_fulfillments: vec![
+                Fulfillment::new(
                     LimitOrder::new(
                         valid_book_id,
                         1,
@@ -2079,7 +2080,7 @@ fn test_run_limit_order() {
                     ),
                     Uint128::from(25u128),
                 ),
-                Fulfilment::new(
+                Fulfillment::new(
                     LimitOrder::new(
                         valid_book_id,
                         1,
@@ -2117,10 +2118,10 @@ fn test_run_limit_order() {
         )
         .unwrap();
 
-        let fulfilments = test.expected_fulfilments.to_vec();
-        let all_orders: Vec<LimitOrder> = fulfilments
+        let fulfillments = test.expected_fulfillments.to_vec();
+        let all_orders: Vec<LimitOrder> = fulfillments
             .iter()
-            .map(|Fulfilment { order, .. }| order.clone())
+            .map(|Fulfillment { order, .. }| order.clone())
             .collect();
 
         // Add orders to state
@@ -2199,15 +2200,15 @@ fn test_run_limit_order() {
             }
         }
 
-        for fulfilment in test.expected_fulfilments {
-            if fulfilment.amount == fulfilment.order.quantity {
+        for fulfillment in test.expected_fulfillments {
+            if fulfillment.amount == fulfillment.order.quantity {
                 let maybe_order = orders()
                     .may_load(
                         deps.as_ref().storage,
                         &(
-                            fulfilment.order.book_id,
-                            fulfilment.order.tick_id,
-                            fulfilment.order.order_id,
+                            fulfillment.order.book_id,
+                            fulfillment.order.tick_id,
+                            fulfillment.order.order_id,
                         ),
                     )
                     .unwrap();

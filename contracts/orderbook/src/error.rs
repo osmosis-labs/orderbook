@@ -41,8 +41,8 @@ pub enum ContractError {
     #[error("Reply error: {id:?}, {error:?}")]
     ReplyError { id: u64, error: String },
 
-    #[error("Cannot fulfil order. Order ID: {order_id:?}, Book ID: {book_id:?}, Amount Required: {amount_required:?}, Amount Remaining: {amount_remaining:?} {reason:?}")]
-    InvalidFulfilment {
+    #[error("Cannot fulfill order. Order ID: {order_id:?}, Book ID: {book_id:?}, Amount Required: {amount_required:?}, Amount Remaining: {amount_remaining:?} {reason:?}")]
+    InvalidFulfillment {
         order_id: u64,
         book_id: u64,
         amount_required: Uint128,

@@ -40,7 +40,7 @@ impl LimitOrder {
     }
 
     // Transfers the specified quantity of the order's asset to the owner
-    pub fn fulfil(
+    pub fn fulfill(
         &mut self,
         denom: impl Into<String>,
         quantity: Uint128,
@@ -48,7 +48,7 @@ impl LimitOrder {
     ) -> Result<BankMsg, ContractError> {
         ensure!(
             self.quantity >= quantity,
-            ContractError::InvalidFulfilment {
+            ContractError::InvalidFulfillment {
                 order_id: self.order_id,
                 book_id: self.book_id,
                 amount_required: quantity,

@@ -1,7 +1,7 @@
 use crate::state::{
     EXPONENT_AT_PRICE_ONE, GEOMETRIC_EXPONENT_INCREMENT_DISTANCE_IN_TICKS, MAX_TICK, MIN_TICK,
 };
-use cosmwasm_std::Decimal;
+use cosmwasm_std::{Decimal, Uint128};
 
 #[derive(Debug)]
 pub enum TickPriceError {
@@ -31,11 +31,12 @@ pub fn tick_to_price(tick_index: i64) -> Result<Decimal, TickPriceError> {
     }
 
     let current_additive_increment_in_ticks =
-        Decimal::from_ratio(10u128.pow(exponent_at_current_tick as u32), 1);
+        Decimal::from_ratio(10u128.pow(exponent_at_current_tick as u32), Uint128::one());
     let num_additive_ticks =
         tick_index - (geometric_exponent_delta * GEOMETRIC_EXPONENT_INCREMENT_DISTANCE_IN_TICKS);
-    let price = Decimal::from_ratio(10u128.pow(geometric_exponent_delta as u32), 1)
-        + Decimal::from_ratio(num_additive_ticks as u128, 1) * current_additive_increment_in_ticks;
+    let price = Decimal::from_ratio(10u128.pow(geometric_exponent_delta as u32), Uint128::one())
+        + Decimal::from_ratio(num_additive_ticks as u128, Uint128::one())
+            * current_additive_increment_in_ticks;
 
     Ok(price)
 }

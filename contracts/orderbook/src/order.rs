@@ -168,7 +168,7 @@ pub fn run_limit_order(
     Ok(fulfilment_msgs)
 }
 
-// TODO: Finish making this generic
+#[allow(clippy::manual_range_contains)]
 pub fn run_market_order(
     storage: &mut dyn Storage,
     order: &mut MarketOrder,
@@ -183,7 +183,9 @@ pub fn run_market_order(
         OrderDirection::Ask => {
             if let Some(tick_bound) = tick_bound {
                 ensure!(
-                    tick_bound <= orderbook.next_bid_tick,
+                    tick_bound <= orderbook.next_bid_tick
+                        && tick_bound <= MAX_TICK
+                        && tick_bound >= MIN_TICK,
                     ContractError::InvalidTickId {
                         tick_id: tick_bound
                     }
@@ -194,7 +196,9 @@ pub fn run_market_order(
         OrderDirection::Bid => {
             if let Some(tick_bound) = tick_bound {
                 ensure!(
-                    tick_bound >= orderbook.next_ask_tick,
+                    tick_bound >= orderbook.next_ask_tick
+                        && tick_bound <= MAX_TICK
+                        && tick_bound >= MIN_TICK,
                     ContractError::InvalidTickId {
                         tick_id: tick_bound
                     }

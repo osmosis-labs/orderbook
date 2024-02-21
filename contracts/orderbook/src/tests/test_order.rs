@@ -1237,6 +1237,72 @@ fn test_run_market_order() {
             expected_remainder: Uint128::from(50u128),
             expected_error: Some(ContractError::InvalidTickId { tick_id: 0 }),
         },
+        RunMarketOrderTestCase {
+            name: "tick too large",
+            placed_order: MarketOrder::new(
+                valid_book_id,
+                Uint128::from(100u128),
+                OrderDirection::Bid,
+                Addr::unchecked("creator"),
+            ),
+            extra_orders: vec![LimitOrder::new(
+                valid_book_id,
+                2,
+                1,
+                OrderDirection::Ask,
+                Addr::unchecked("creator"),
+                Uint128::from(150u128),
+            )],
+            tick_bound: Some(MAX_TICK + 1),
+            expected_fulfilments: vec![Fulfilment::new(
+                LimitOrder::new(
+                    valid_book_id,
+                    1,
+                    0,
+                    OrderDirection::Ask,
+                    Addr::unchecked("creator"),
+                    Uint128::from(50u128),
+                ),
+                Uint128::from(50u128),
+            )],
+            expected_remainder: Uint128::from(50u128),
+            expected_error: Some(ContractError::InvalidTickId {
+                tick_id: MAX_TICK + 1,
+            }),
+        },
+        RunMarketOrderTestCase {
+            name: "tick too small",
+            placed_order: MarketOrder::new(
+                valid_book_id,
+                Uint128::from(100u128),
+                OrderDirection::Bid,
+                Addr::unchecked("creator"),
+            ),
+            extra_orders: vec![LimitOrder::new(
+                valid_book_id,
+                2,
+                1,
+                OrderDirection::Ask,
+                Addr::unchecked("creator"),
+                Uint128::from(150u128),
+            )],
+            tick_bound: Some(MIN_TICK - 1),
+            expected_fulfilments: vec![Fulfilment::new(
+                LimitOrder::new(
+                    valid_book_id,
+                    1,
+                    0,
+                    OrderDirection::Ask,
+                    Addr::unchecked("creator"),
+                    Uint128::from(50u128),
+                ),
+                Uint128::from(50u128),
+            )],
+            expected_remainder: Uint128::from(50u128),
+            expected_error: Some(ContractError::InvalidTickId {
+                tick_id: MIN_TICK - 1,
+            }),
+        },
     ];
 
     for test in test_cases {
@@ -1956,6 +2022,88 @@ fn test_run_limit_order() {
             expected_liquidity: vec![],
             expected_remainder: Uint128::zero(),
             expected_error: Some(ContractError::MismatchedOrderDirection {}),
+        },
+        RunLimitOrderTestCase {
+            name: "tick too large",
+            order: LimitOrder::new(
+                valid_book_id,
+                MAX_TICK + 1,
+                0,
+                OrderDirection::Bid,
+                Addr::unchecked("creator"),
+                Uint128::from(100u128),
+            ),
+            expected_fulfilments: vec![
+                Fulfilment::new(
+                    LimitOrder::new(
+                        valid_book_id,
+                        1,
+                        0,
+                        OrderDirection::Ask,
+                        Addr::unchecked("maker1"),
+                        Uint128::from(25u128),
+                    ),
+                    Uint128::from(25u128),
+                ),
+                Fulfilment::new(
+                    LimitOrder::new(
+                        valid_book_id,
+                        1,
+                        1,
+                        OrderDirection::Ask,
+                        Addr::unchecked("maker2"),
+                        Uint128::from(150u128),
+                    ),
+                    Uint128::from(50u128),
+                ),
+            ],
+            expected_bank_msgs: vec![],
+            expected_liquidity: vec![],
+            expected_remainder: Uint128::zero(),
+            expected_error: Some(ContractError::InvalidTickId {
+                tick_id: MAX_TICK + 1,
+            }),
+        },
+        RunLimitOrderTestCase {
+            name: "tick too small",
+            order: LimitOrder::new(
+                valid_book_id,
+                MIN_TICK - 1,
+                0,
+                OrderDirection::Bid,
+                Addr::unchecked("creator"),
+                Uint128::from(100u128),
+            ),
+            expected_fulfilments: vec![
+                Fulfilment::new(
+                    LimitOrder::new(
+                        valid_book_id,
+                        1,
+                        0,
+                        OrderDirection::Ask,
+                        Addr::unchecked("maker1"),
+                        Uint128::from(25u128),
+                    ),
+                    Uint128::from(25u128),
+                ),
+                Fulfilment::new(
+                    LimitOrder::new(
+                        valid_book_id,
+                        1,
+                        1,
+                        OrderDirection::Ask,
+                        Addr::unchecked("maker2"),
+                        Uint128::from(150u128),
+                    ),
+                    Uint128::from(50u128),
+                ),
+            ],
+            expected_bank_msgs: vec![],
+            expected_liquidity: vec![],
+            expected_remainder: Uint128::zero(),
+            expected_error: Some(ContractError::InvalidTickId {
+                tick_id: MIN_TICK - 1,
+            }),
         },
     ];
 

@@ -12,7 +12,7 @@ use cw_utils::{must_pay, nonpayable};
 #[allow(clippy::manual_range_contains)]
 pub fn place_limit(
     deps: DepsMut,
-    env: Env,
+    _env: Env,
     info: MessageInfo,
     book_id: u64,
     tick_id: i64,
@@ -73,10 +73,6 @@ pub fn place_limit(
     })?;
 
     Ok(Response::new()
-        .add_message(BankMsg::Send {
-            to_address: env.contract.address.to_string(),
-            amount: vec![coin(quantity.u128(), expected_denom)],
-        })
         .add_attribute("method", "placeLimit")
         .add_attribute("owner", info.sender.to_string())
         .add_attribute("book_id", book_id.to_string())

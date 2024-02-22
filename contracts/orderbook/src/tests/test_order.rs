@@ -836,7 +836,7 @@ fn test_resolve_fulfillments() {
             // Check message is generated as expected
             let mut order = order.clone();
             let denom = orderbook.get_expected_denom(&order.order_direction);
-            let msg = order.fulfill(denom, *amount, Decimal::one()).unwrap();
+            let msg = order.fill(denom, *amount, Decimal::one()).unwrap();
 
             assert_eq!(response[idx], msg, "{}", format_test_name(test.name));
         }

@@ -296,7 +296,7 @@ pub fn resolve_fulfillments(
         // TODO: Add price detection for tick
         let msg = fulfillment
             .order
-            .fulfill(&denom, fulfillment.amount, Decimal::one())?;
+            .fill(&denom, fulfillment.amount, Decimal::one())?;
         msgs.push(msg);
         if fulfillment.order.quantity.is_zero() {
             orders().remove(

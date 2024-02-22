@@ -40,7 +40,7 @@ impl LimitOrder {
     }
 
     // Transfers the specified quantity of the order's asset to the owner
-    pub fn fulfill(
+    pub fn fill(
         &mut self,
         denom: impl Into<String>,
         quantity: Uint128,
@@ -56,7 +56,7 @@ impl LimitOrder {
                 reason: Some("Order does not have enough funds".to_string())
             }
         );
-        self.quantity = self.quantity.checked_sub(quantity.min(self.quantity))?;
+        self.quantity = self.quantity.checked_sub(quantity)?;
         Ok(BankMsg::Send {
             to_address: self.owner.to_string(),
             amount: vec![coin(

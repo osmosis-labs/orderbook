@@ -149,21 +149,6 @@ pub fn place_market(
         .add_attribute("owner", info.sender))
 }
 
-pub fn run_limit_order(
-    storage: &mut dyn Storage,
-    order: &mut LimitOrder,
-) -> Result<Vec<BankMsg>, ContractError> {
-    let mut market_order: MarketOrder = order.clone().into();
-    let (fulfillments, order_fulfillment_msg) =
-        run_market_order(storage, &mut market_order, Some(order.tick_id))?;
-    let mut fulfillment_msgs = resolve_fulfillments(storage, fulfillments)?;
-    fulfillment_msgs.push(order_fulfillment_msg);
-
-    order.quantity = market_order.quantity;
-
-    Ok(fulfillment_msgs)
-}
-
 #[allow(clippy::manual_range_contains)]
 pub fn run_market_order(
     storage: &mut dyn Storage,

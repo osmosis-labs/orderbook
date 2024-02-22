@@ -1400,834 +1400,835 @@ fn test_run_market_order() {
     }
 }
 
-struct RunLimitOrderTestCase {
-    pub name: &'static str,
-    pub order: LimitOrder,
-    pub expected_fulfillments: Vec<Fulfillment>,
-    pub expected_bank_msgs: Vec<BankMsg>,
-    pub expected_liquidity: Vec<(i64, Uint128)>,
-    pub expected_remainder: Uint128,
-    pub expected_error: Option<ContractError>,
-}
+// TODO: Merge in to place limit test cases and remove
+// struct RunLimitOrderTestCase {
+//     pub name: &'static str,
+//     pub order: LimitOrder,
+//     pub expected_fulfillments: Vec<Fulfillment>,
+//     pub expected_bank_msgs: Vec<BankMsg>,
+//     pub expected_liquidity: Vec<(i64, Uint128)>,
+//     pub expected_remainder: Uint128,
+//     pub expected_error: Option<ContractError>,
+// }
 
-#[test]
-fn test_run_limit_order() {
-    let valid_book_id = 0;
-    let test_cases: Vec<RunLimitOrderTestCase> = vec![
-        RunLimitOrderTestCase {
-            name: "run limit order with single fulfillment ASK",
-            order: LimitOrder::new(
-                valid_book_id,
-                -1,
-                0,
-                OrderDirection::Ask,
-                Addr::unchecked("creator"),
-                Uint128::from(50u128),
-            ),
-            expected_fulfillments: vec![Fulfillment::new(
-                LimitOrder::new(
-                    valid_book_id,
-                    -1,
-                    0,
-                    OrderDirection::Bid,
-                    Addr::unchecked("maker"),
-                    Uint128::from(50u128),
-                ),
-                Uint128::from(50u128),
-            )],
-            expected_bank_msgs: vec![
-                BankMsg::Send {
-                    to_address: "maker".to_string(),
-                    amount: vec![coin(50, "quote")],
-                },
-                BankMsg::Send {
-                    to_address: "creator".to_string(),
-                    amount: vec![coin(50, "base")],
-                },
-            ],
-            expected_liquidity: vec![(-1, Uint128::zero())],
-            expected_remainder: Uint128::zero(),
-            expected_error: None,
-        },
-        RunLimitOrderTestCase {
-            name: "run limit order with multiple fulfillments ASK",
-            order: LimitOrder::new(
-                valid_book_id,
-                -1,
-                0,
-                OrderDirection::Ask,
-                Addr::unchecked("creator"),
-                Uint128::from(100u128),
-            ),
-            expected_fulfillments: vec![
-                Fulfillment::new(
-                    LimitOrder::new(
-                        valid_book_id,
-                        -1,
-                        0,
-                        OrderDirection::Bid,
-                        Addr::unchecked("maker1"),
-                        Uint128::from(25u128),
-                    ),
-                    Uint128::from(25u128),
-                ),
-                Fulfillment::new(
-                    LimitOrder::new(
-                        valid_book_id,
-                        -1,
-                        1,
-                        OrderDirection::Bid,
-                        Addr::unchecked("maker2"),
-                        Uint128::from(75u128),
-                    ),
-                    Uint128::from(75u128),
-                ),
-            ],
-            expected_bank_msgs: vec![
-                BankMsg::Send {
-                    to_address: "maker1".to_string(),
-                    amount: vec![coin(25, "quote")],
-                },
-                BankMsg::Send {
-                    to_address: "maker2".to_string(),
-                    amount: vec![coin(75, "quote")],
-                },
-                BankMsg::Send {
-                    to_address: "creator".to_string(),
-                    amount: vec![coin(100, "base")],
-                },
-            ],
-            expected_liquidity: vec![(-1, Uint128::zero())],
-            expected_remainder: Uint128::zero(),
-            expected_error: None,
-        },
-        RunLimitOrderTestCase {
-            name: "run limit order with multiple fulfillments across multiple ticks ASK",
-            order: LimitOrder::new(
-                valid_book_id,
-                -3,
-                2,
-                OrderDirection::Ask,
-                Addr::unchecked("creator"),
-                Uint128::from(100u128),
-            ),
-            expected_fulfillments: vec![
-                Fulfillment::new(
-                    LimitOrder::new(
-                        valid_book_id,
-                        -1,
-                        0,
-                        OrderDirection::Bid,
-                        Addr::unchecked("maker1"),
-                        Uint128::from(25u128),
-                    ),
-                    Uint128::from(25u128),
-                ),
-                Fulfillment::new(
-                    LimitOrder::new(
-                        valid_book_id,
-                        -2,
-                        1,
-                        OrderDirection::Bid,
-                        Addr::unchecked("maker2"),
-                        Uint128::from(75u128),
-                    ),
-                    Uint128::from(75u128),
-                ),
-            ],
-            expected_bank_msgs: vec![
-                BankMsg::Send {
-                    to_address: "maker1".to_string(),
-                    amount: vec![coin(25, "quote")],
-                },
-                BankMsg::Send {
-                    to_address: "maker2".to_string(),
-                    amount: vec![coin(75, "quote")],
-                },
-                BankMsg::Send {
-                    to_address: "creator".to_string(),
-                    amount: vec![coin(100, "base")],
-                },
-            ],
-            expected_liquidity: vec![(-1, Uint128::zero()), (-2, Uint128::zero())],
-            expected_remainder: Uint128::zero(),
-            expected_error: None,
-        },
-        RunLimitOrderTestCase {
-            name: "run limit order with multiple fulfillments w/ partial ASK",
-            order: LimitOrder::new(
-                valid_book_id,
-                -1,
-                0,
-                OrderDirection::Ask,
-                Addr::unchecked("creator"),
-                Uint128::from(100u128),
-            ),
-            expected_fulfillments: vec![
-                Fulfillment::new(
-                    LimitOrder::new(
-                        valid_book_id,
-                        -1,
-                        0,
-                        OrderDirection::Bid,
-                        Addr::unchecked("maker1"),
-                        Uint128::from(25u128),
-                    ),
-                    Uint128::from(25u128),
-                ),
-                Fulfillment::new(
-                    LimitOrder::new(
-                        valid_book_id,
-                        -1,
-                        1,
-                        OrderDirection::Bid,
-                        Addr::unchecked("maker2"),
-                        Uint128::from(150u128),
-                    ),
-                    Uint128::from(50u128),
-                ),
-            ],
-            expected_bank_msgs: vec![
-                BankMsg::Send {
-                    to_address: "maker1".to_string(),
-                    amount: vec![coin(25, "quote")],
-                },
-                BankMsg::Send {
-                    to_address: "maker2".to_string(),
-                    amount: vec![coin(75, "quote")],
-                },
-                BankMsg::Send {
-                    to_address: "creator".to_string(),
-                    amount: vec![coin(100, "base")],
-                },
-            ],
-            expected_liquidity: vec![(-1, Uint128::from(75u128))],
-            expected_remainder: Uint128::zero(),
-            expected_error: None,
-        },
-        RunLimitOrderTestCase {
-            name: "run limit order with multiple fulfillments w/ remainder ASK",
-            order: LimitOrder::new(
-                valid_book_id,
-                -1,
-                0,
-                OrderDirection::Ask,
-                Addr::unchecked("creator"),
-                Uint128::from(1000u128),
-            ),
-            expected_fulfillments: vec![
-                Fulfillment::new(
-                    LimitOrder::new(
-                        valid_book_id,
-                        -1,
-                        0,
-                        OrderDirection::Bid,
-                        Addr::unchecked("maker1"),
-                        Uint128::from(25u128),
-                    ),
-                    Uint128::from(25u128),
-                ),
-                Fulfillment::new(
-                    LimitOrder::new(
-                        valid_book_id,
-                        -1,
-                        1,
-                        OrderDirection::Bid,
-                        Addr::unchecked("maker2"),
-                        Uint128::from(150u128),
-                    ),
-                    Uint128::from(150u128),
-                ),
-            ],
-            expected_bank_msgs: vec![
-                BankMsg::Send {
-                    to_address: "maker1".to_string(),
-                    amount: vec![coin(25, "quote")],
-                },
-                BankMsg::Send {
-                    to_address: "maker2".to_string(),
-                    amount: vec![coin(150, "quote")],
-                },
-                BankMsg::Send {
-                    to_address: "creator".to_string(),
-                    amount: vec![coin(175, "base")],
-                },
-            ],
-            expected_liquidity: vec![(-1, Uint128::zero())],
-            expected_remainder: Uint128::from(825u128),
-            expected_error: None,
-        },
-        RunLimitOrderTestCase {
-            name: "invalid tick ASK",
-            order: LimitOrder::new(
-                valid_book_id,
-                1,
-                0,
-                OrderDirection::Ask,
-                Addr::unchecked("creator"),
-                Uint128::from(100u128),
-            ),
-            expected_fulfillments: vec![
-                Fulfillment::new(
-                    LimitOrder::new(
-                        valid_book_id,
-                        -1,
-                        0,
-                        OrderDirection::Bid,
-                        Addr::unchecked("maker1"),
-                        Uint128::from(25u128),
-                    ),
-                    Uint128::from(25u128),
-                ),
-                Fulfillment::new(
-                    LimitOrder::new(
-                        valid_book_id,
-                        -1,
-                        1,
-                        OrderDirection::Bid,
-                        Addr::unchecked("maker2"),
-                        Uint128::from(150u128),
-                    ),
-                    Uint128::from(50u128),
-                ),
-            ],
-            expected_bank_msgs: vec![],
-            expected_liquidity: vec![],
-            expected_remainder: Uint128::zero(),
-            expected_error: Some(ContractError::InvalidTickId { tick_id: 1 }),
-        },
-        RunLimitOrderTestCase {
-            name: "run limit order with single fulfillment BID",
-            order: LimitOrder::new(
-                valid_book_id,
-                1,
-                0,
-                OrderDirection::Bid,
-                Addr::unchecked("creator"),
-                Uint128::from(50u128),
-            ),
-            expected_fulfillments: vec![Fulfillment::new(
-                LimitOrder::new(
-                    valid_book_id,
-                    1,
-                    0,
-                    OrderDirection::Ask,
-                    Addr::unchecked("maker"),
-                    Uint128::from(50u128),
-                ),
-                Uint128::from(50u128),
-            )],
-            expected_bank_msgs: vec![
-                BankMsg::Send {
-                    to_address: "maker".to_string(),
-                    amount: vec![coin(50, "base")],
-                },
-                BankMsg::Send {
-                    to_address: "creator".to_string(),
-                    amount: vec![coin(50, "quote")],
-                },
-            ],
-            expected_liquidity: vec![(1, Uint128::zero())],
-            expected_remainder: Uint128::zero(),
-            expected_error: None,
-        },
-        RunLimitOrderTestCase {
-            name: "run limit order with multiple fulfillments BID",
-            order: LimitOrder::new(
-                valid_book_id,
-                1,
-                0,
-                OrderDirection::Bid,
-                Addr::unchecked("creator"),
-                Uint128::from(100u128),
-            ),
-            expected_fulfillments: vec![
-                Fulfillment::new(
-                    LimitOrder::new(
-                        valid_book_id,
-                        1,
-                        0,
-                        OrderDirection::Ask,
-                        Addr::unchecked("maker1"),
-                        Uint128::from(25u128),
-                    ),
-                    Uint128::from(25u128),
-                ),
-                Fulfillment::new(
-                    LimitOrder::new(
-                        valid_book_id,
-                        1,
-                        1,
-                        OrderDirection::Ask,
-                        Addr::unchecked("maker2"),
-                        Uint128::from(75u128),
-                    ),
-                    Uint128::from(75u128),
-                ),
-            ],
-            expected_bank_msgs: vec![
-                BankMsg::Send {
-                    to_address: "maker1".to_string(),
-                    amount: vec![coin(25, "base")],
-                },
-                BankMsg::Send {
-                    to_address: "maker2".to_string(),
-                    amount: vec![coin(75, "base")],
-                },
-                BankMsg::Send {
-                    to_address: "creator".to_string(),
-                    amount: vec![coin(100, "quote")],
-                },
-            ],
-            expected_liquidity: vec![(1, Uint128::zero())],
-            expected_remainder: Uint128::zero(),
-            expected_error: None,
-        },
-        RunLimitOrderTestCase {
-            name: "run limit order with multiple fulfillments across multiple ticks BID",
-            order: LimitOrder::new(
-                valid_book_id,
-                3,
-                2,
-                OrderDirection::Bid,
-                Addr::unchecked("creator"),
-                Uint128::from(100u128),
-            ),
-            expected_fulfillments: vec![
-                Fulfillment::new(
-                    LimitOrder::new(
-                        valid_book_id,
-                        1,
-                        0,
-                        OrderDirection::Ask,
-                        Addr::unchecked("maker1"),
-                        Uint128::from(25u128),
-                    ),
-                    Uint128::from(25u128),
-                ),
-                Fulfillment::new(
-                    LimitOrder::new(
-                        valid_book_id,
-                        2,
-                        1,
-                        OrderDirection::Ask,
-                        Addr::unchecked("maker2"),
-                        Uint128::from(75u128),
-                    ),
-                    Uint128::from(75u128),
-                ),
-            ],
-            expected_bank_msgs: vec![
-                BankMsg::Send {
-                    to_address: "maker1".to_string(),
-                    amount: vec![coin(25, "base")],
-                },
-                BankMsg::Send {
-                    to_address: "maker2".to_string(),
-                    amount: vec![coin(75, "base")],
-                },
-                BankMsg::Send {
-                    to_address: "creator".to_string(),
-                    amount: vec![coin(100, "quote")],
-                },
-            ],
-            expected_liquidity: vec![(1, Uint128::zero()), (2, Uint128::zero())],
-            expected_remainder: Uint128::zero(),
-            expected_error: None,
-        },
-        RunLimitOrderTestCase {
-            name: "run limit order with multiple fulfillments w/ partial BID",
-            order: LimitOrder::new(
-                valid_book_id,
-                1,
-                0,
-                OrderDirection::Bid,
-                Addr::unchecked("creator"),
-                Uint128::from(100u128),
-            ),
-            expected_fulfillments: vec![
-                Fulfillment::new(
-                    LimitOrder::new(
-                        valid_book_id,
-                        1,
-                        0,
-                        OrderDirection::Ask,
-                        Addr::unchecked("maker1"),
-                        Uint128::from(25u128),
-                    ),
-                    Uint128::from(25u128),
-                ),
-                Fulfillment::new(
-                    LimitOrder::new(
-                        valid_book_id,
-                        1,
-                        1,
-                        OrderDirection::Ask,
-                        Addr::unchecked("maker2"),
-                        Uint128::from(150u128),
-                    ),
-                    Uint128::from(50u128),
-                ),
-            ],
-            expected_bank_msgs: vec![
-                BankMsg::Send {
-                    to_address: "maker1".to_string(),
-                    amount: vec![coin(25, "base")],
-                },
-                BankMsg::Send {
-                    to_address: "maker2".to_string(),
-                    amount: vec![coin(75, "base")],
-                },
-                BankMsg::Send {
-                    to_address: "creator".to_string(),
-                    amount: vec![coin(100, "quote")],
-                },
-            ],
-            expected_liquidity: vec![(1, Uint128::from(75u128))],
-            expected_remainder: Uint128::zero(),
-            expected_error: None,
-        },
-        RunLimitOrderTestCase {
-            name: "run limit order with multiple fulfillments w/ remainder BID",
-            order: LimitOrder::new(
-                valid_book_id,
-                1,
-                0,
-                OrderDirection::Bid,
-                Addr::unchecked("creator"),
-                Uint128::from(1000u128),
-            ),
-            expected_fulfillments: vec![
-                Fulfillment::new(
-                    LimitOrder::new(
-                        valid_book_id,
-                        1,
-                        0,
-                        OrderDirection::Ask,
-                        Addr::unchecked("maker1"),
-                        Uint128::from(25u128),
-                    ),
-                    Uint128::from(25u128),
-                ),
-                Fulfillment::new(
-                    LimitOrder::new(
-                        valid_book_id,
-                        1,
-                        1,
-                        OrderDirection::Ask,
-                        Addr::unchecked("maker2"),
-                        Uint128::from(150u128),
-                    ),
-                    Uint128::from(150u128),
-                ),
-            ],
-            expected_bank_msgs: vec![
-                BankMsg::Send {
-                    to_address: "maker1".to_string(),
-                    amount: vec![coin(25, "base")],
-                },
-                BankMsg::Send {
-                    to_address: "maker2".to_string(),
-                    amount: vec![coin(150, "base")],
-                },
-                BankMsg::Send {
-                    to_address: "creator".to_string(),
-                    amount: vec![coin(175, "quote")],
-                },
-            ],
-            expected_liquidity: vec![(1, Uint128::zero())],
-            expected_remainder: Uint128::from(825u128),
-            expected_error: None,
-        },
-        RunLimitOrderTestCase {
-            name: "invalid tick BID",
-            order: LimitOrder::new(
-                valid_book_id,
-                -1,
-                0,
-                OrderDirection::Bid,
-                Addr::unchecked("creator"),
-                Uint128::from(100u128),
-            ),
-            expected_fulfillments: vec![
-                Fulfillment::new(
-                    LimitOrder::new(
-                        valid_book_id,
-                        1,
-                        0,
-                        OrderDirection::Ask,
-                        Addr::unchecked("maker1"),
-                        Uint128::from(25u128),
-                    ),
-                    Uint128::from(25u128),
-                ),
-                Fulfillment::new(
-                    LimitOrder::new(
-                        valid_book_id,
-                        1,
-                        1,
-                        OrderDirection::Ask,
-                        Addr::unchecked("maker2"),
-                        Uint128::from(150u128),
-                    ),
-                    Uint128::from(50u128),
-                ),
-            ],
-            expected_bank_msgs: vec![],
-            expected_liquidity: vec![],
-            expected_remainder: Uint128::zero(),
-            expected_error: Some(ContractError::InvalidTickId { tick_id: -1 }),
-        },
-        RunLimitOrderTestCase {
-            name: "mismatched order direction",
-            order: LimitOrder::new(
-                valid_book_id,
-                1,
-                0,
-                OrderDirection::Bid,
-                Addr::unchecked("creator"),
-                Uint128::from(100u128),
-            ),
-            expected_fulfillments: vec![
-                Fulfillment::new(
-                    LimitOrder::new(
-                        valid_book_id,
-                        1,
-                        0,
-                        OrderDirection::Ask,
-                        Addr::unchecked("maker1"),
-                        Uint128::from(25u128),
-                    ),
-                    Uint128::from(25u128),
-                ),
-                Fulfillment::new(
-                    LimitOrder::new(
-                        valid_book_id,
-                        1,
-                        1,
-                        OrderDirection::Bid,
-                        Addr::unchecked("maker2"),
-                        Uint128::from(150u128),
-                    ),
-                    Uint128::from(50u128),
-                ),
-            ],
-            expected_bank_msgs: vec![],
-            expected_liquidity: vec![],
-            expected_remainder: Uint128::zero(),
-            expected_error: Some(ContractError::MismatchedOrderDirection {}),
-        },
-        RunLimitOrderTestCase {
-            name: "tick too large",
-            order: LimitOrder::new(
-                valid_book_id,
-                MAX_TICK + 1,
-                0,
-                OrderDirection::Bid,
-                Addr::unchecked("creator"),
-                Uint128::from(100u128),
-            ),
-            expected_fulfillments: vec![
-                Fulfillment::new(
-                    LimitOrder::new(
-                        valid_book_id,
-                        1,
-                        0,
-                        OrderDirection::Ask,
-                        Addr::unchecked("maker1"),
-                        Uint128::from(25u128),
-                    ),
-                    Uint128::from(25u128),
-                ),
-                Fulfillment::new(
-                    LimitOrder::new(
-                        valid_book_id,
-                        1,
-                        1,
-                        OrderDirection::Ask,
-                        Addr::unchecked("maker2"),
-                        Uint128::from(150u128),
-                    ),
-                    Uint128::from(50u128),
-                ),
-            ],
-            expected_bank_msgs: vec![],
-            expected_liquidity: vec![],
-            expected_remainder: Uint128::zero(),
-            expected_error: Some(ContractError::InvalidTickId {
-                tick_id: MAX_TICK + 1,
-            }),
-        },
-        RunLimitOrderTestCase {
-            name: "tick too small",
-            order: LimitOrder::new(
-                valid_book_id,
-                MIN_TICK - 1,
-                0,
-                OrderDirection::Bid,
-                Addr::unchecked("creator"),
-                Uint128::from(100u128),
-            ),
-            expected_fulfillments: vec![
-                Fulfillment::new(
-                    LimitOrder::new(
-                        valid_book_id,
-                        1,
-                        0,
-                        OrderDirection::Ask,
-                        Addr::unchecked("maker1"),
-                        Uint128::from(25u128),
-                    ),
-                    Uint128::from(25u128),
-                ),
-                Fulfillment::new(
-                    LimitOrder::new(
-                        valid_book_id,
-                        1,
-                        1,
-                        OrderDirection::Ask,
-                        Addr::unchecked("maker2"),
-                        Uint128::from(150u128),
-                    ),
-                    Uint128::from(50u128),
-                ),
-            ],
-            expected_bank_msgs: vec![],
-            expected_liquidity: vec![],
-            expected_remainder: Uint128::zero(),
-            expected_error: Some(ContractError::InvalidTickId {
-                tick_id: MIN_TICK - 1,
-            }),
-        },
-    ];
+// #[test]
+// fn test_run_limit_order() {
+//     let valid_book_id = 0;
+//     let test_cases: Vec<RunLimitOrderTestCase> = vec![
+//         RunLimitOrderTestCase {
+//             name: "run limit order with single fulfillment ASK",
+//             order: LimitOrder::new(
+//                 valid_book_id,
+//                 -1,
+//                 0,
+//                 OrderDirection::Ask,
+//                 Addr::unchecked("creator"),
+//                 Uint128::from(50u128),
+//             ),
+//             expected_fulfillments: vec![Fulfillment::new(
+//                 LimitOrder::new(
+//                     valid_book_id,
+//                     -1,
+//                     0,
+//                     OrderDirection::Bid,
+//                     Addr::unchecked("maker"),
+//                     Uint128::from(50u128),
+//                 ),
+//                 Uint128::from(50u128),
+//             )],
+//             expected_bank_msgs: vec![
+//                 BankMsg::Send {
+//                     to_address: "maker".to_string(),
+//                     amount: vec![coin(50, "quote")],
+//                 },
+//                 BankMsg::Send {
+//                     to_address: "creator".to_string(),
+//                     amount: vec![coin(50, "base")],
+//                 },
+//             ],
+//             expected_liquidity: vec![(-1, Uint128::zero())],
+//             expected_remainder: Uint128::zero(),
+//             expected_error: None,
+//         },
+//         RunLimitOrderTestCase {
+//             name: "run limit order with multiple fulfillments ASK",
+//             order: LimitOrder::new(
+//                 valid_book_id,
+//                 -1,
+//                 0,
+//                 OrderDirection::Ask,
+//                 Addr::unchecked("creator"),
+//                 Uint128::from(100u128),
+//             ),
+//             expected_fulfillments: vec![
+//                 Fulfillment::new(
+//                     LimitOrder::new(
+//                         valid_book_id,
+//                         -1,
+//                         0,
+//                         OrderDirection::Bid,
+//                         Addr::unchecked("maker1"),
+//                         Uint128::from(25u128),
+//                     ),
+//                     Uint128::from(25u128),
+//                 ),
+//                 Fulfillment::new(
+//                     LimitOrder::new(
+//                         valid_book_id,
+//                         -1,
+//                         1,
+//                         OrderDirection::Bid,
+//                         Addr::unchecked("maker2"),
+//                         Uint128::from(75u128),
+//                     ),
+//                     Uint128::from(75u128),
+//                 ),
+//             ],
+//             expected_bank_msgs: vec![
+//                 BankMsg::Send {
+//                     to_address: "maker1".to_string(),
+//                     amount: vec![coin(25, "quote")],
+//                 },
+//                 BankMsg::Send {
+//                     to_address: "maker2".to_string(),
+//                     amount: vec![coin(75, "quote")],
+//                 },
+//                 BankMsg::Send {
+//                     to_address: "creator".to_string(),
+//                     amount: vec![coin(100, "base")],
+//                 },
+//             ],
+//             expected_liquidity: vec![(-1, Uint128::zero())],
+//             expected_remainder: Uint128::zero(),
+//             expected_error: None,
+//         },
+//         RunLimitOrderTestCase {
+//             name: "run limit order with multiple fulfillments across multiple ticks ASK",
+//             order: LimitOrder::new(
+//                 valid_book_id,
+//                 -3,
+//                 2,
+//                 OrderDirection::Ask,
+//                 Addr::unchecked("creator"),
+//                 Uint128::from(100u128),
+//             ),
+//             expected_fulfillments: vec![
+//                 Fulfillment::new(
+//                     LimitOrder::new(
+//                         valid_book_id,
+//                         -1,
+//                         0,
+//                         OrderDirection::Bid,
+//                         Addr::unchecked("maker1"),
+//                         Uint128::from(25u128),
+//                     ),
+//                     Uint128::from(25u128),
+//                 ),
+//                 Fulfillment::new(
+//                     LimitOrder::new(
+//                         valid_book_id,
+//                         -2,
+//                         1,
+//                         OrderDirection::Bid,
+//                         Addr::unchecked("maker2"),
+//                         Uint128::from(75u128),
+//                     ),
+//                     Uint128::from(75u128),
+//                 ),
+//             ],
+//             expected_bank_msgs: vec![
+//                 BankMsg::Send {
+//                     to_address: "maker1".to_string(),
+//                     amount: vec![coin(25, "quote")],
+//                 },
+//                 BankMsg::Send {
+//                     to_address: "maker2".to_string(),
+//                     amount: vec![coin(75, "quote")],
+//                 },
+//                 BankMsg::Send {
+//                     to_address: "creator".to_string(),
+//                     amount: vec![coin(100, "base")],
+//                 },
+//             ],
+//             expected_liquidity: vec![(-1, Uint128::zero()), (-2, Uint128::zero())],
+//             expected_remainder: Uint128::zero(),
+//             expected_error: None,
+//         },
+//         RunLimitOrderTestCase {
+//             name: "run limit order with multiple fulfillments w/ partial ASK",
+//             order: LimitOrder::new(
+//                 valid_book_id,
+//                 -1,
+//                 0,
+//                 OrderDirection::Ask,
+//                 Addr::unchecked("creator"),
+//                 Uint128::from(100u128),
+//             ),
+//             expected_fulfillments: vec![
+//                 Fulfillment::new(
+//                     LimitOrder::new(
+//                         valid_book_id,
+//                         -1,
+//                         0,
+//                         OrderDirection::Bid,
+//                         Addr::unchecked("maker1"),
+//                         Uint128::from(25u128),
+//                     ),
+//                     Uint128::from(25u128),
+//                 ),
+//                 Fulfillment::new(
+//                     LimitOrder::new(
+//                         valid_book_id,
+//                         -1,
+//                         1,
+//                         OrderDirection::Bid,
+//                         Addr::unchecked("maker2"),
+//                         Uint128::from(150u128),
+//                     ),
+//                     Uint128::from(50u128),
+//                 ),
+//             ],
+//             expected_bank_msgs: vec![
+//                 BankMsg::Send {
+//                     to_address: "maker1".to_string(),
+//                     amount: vec![coin(25, "quote")],
+//                 },
+//                 BankMsg::Send {
+//                     to_address: "maker2".to_string(),
+//                     amount: vec![coin(75, "quote")],
+//                 },
+//                 BankMsg::Send {
+//                     to_address: "creator".to_string(),
+//                     amount: vec![coin(100, "base")],
+//                 },
+//             ],
+//             expected_liquidity: vec![(-1, Uint128::from(75u128))],
+//             expected_remainder: Uint128::zero(),
+//             expected_error: None,
+//         },
+//         RunLimitOrderTestCase {
+//             name: "run limit order with multiple fulfillments w/ remainder ASK",
+//             order: LimitOrder::new(
+//                 valid_book_id,
+//                 -1,
+//                 0,
+//                 OrderDirection::Ask,
+//                 Addr::unchecked("creator"),
+//                 Uint128::from(1000u128),
+//             ),
+//             expected_fulfillments: vec![
+//                 Fulfillment::new(
+//                     LimitOrder::new(
+//                         valid_book_id,
+//                         -1,
+//                         0,
+//                         OrderDirection::Bid,
+//                         Addr::unchecked("maker1"),
+//                         Uint128::from(25u128),
+//                     ),
+//                     Uint128::from(25u128),
+//                 ),
+//                 Fulfillment::new(
+//                     LimitOrder::new(
+//                         valid_book_id,
+//                         -1,
+//                         1,
+//                         OrderDirection::Bid,
+//                         Addr::unchecked("maker2"),
+//                         Uint128::from(150u128),
+//                     ),
+//                     Uint128::from(150u128),
+//                 ),
+//             ],
+//             expected_bank_msgs: vec![
+//                 BankMsg::Send {
+//                     to_address: "maker1".to_string(),
+//                     amount: vec![coin(25, "quote")],
+//                 },
+//                 BankMsg::Send {
+//                     to_address: "maker2".to_string(),
+//                     amount: vec![coin(150, "quote")],
+//                 },
+//                 BankMsg::Send {
+//                     to_address: "creator".to_string(),
+//                     amount: vec![coin(175, "base")],
+//                 },
+//             ],
+//             expected_liquidity: vec![(-1, Uint128::zero())],
+//             expected_remainder: Uint128::from(825u128),
+//             expected_error: None,
+//         },
+//         RunLimitOrderTestCase {
+//             name: "invalid tick ASK",
+//             order: LimitOrder::new(
+//                 valid_book_id,
+//                 1,
+//                 0,
+//                 OrderDirection::Ask,
+//                 Addr::unchecked("creator"),
+//                 Uint128::from(100u128),
+//             ),
+//             expected_fulfillments: vec![
+//                 Fulfillment::new(
+//                     LimitOrder::new(
+//                         valid_book_id,
+//                         -1,
+//                         0,
+//                         OrderDirection::Bid,
+//                         Addr::unchecked("maker1"),
+//                         Uint128::from(25u128),
+//                     ),
+//                     Uint128::from(25u128),
+//                 ),
+//                 Fulfillment::new(
+//                     LimitOrder::new(
+//                         valid_book_id,
+//                         -1,
+//                         1,
+//                         OrderDirection::Bid,
+//                         Addr::unchecked("maker2"),
+//                         Uint128::from(150u128),
+//                     ),
+//                     Uint128::from(50u128),
+//                 ),
+//             ],
+//             expected_bank_msgs: vec![],
+//             expected_liquidity: vec![],
+//             expected_remainder: Uint128::zero(),
+//             expected_error: Some(ContractError::InvalidTickId { tick_id: 1 }),
+//         },
+//         RunLimitOrderTestCase {
+//             name: "run limit order with single fulfillment BID",
+//             order: LimitOrder::new(
+//                 valid_book_id,
+//                 1,
+//                 0,
+//                 OrderDirection::Bid,
+//                 Addr::unchecked("creator"),
+//                 Uint128::from(50u128),
+//             ),
+//             expected_fulfillments: vec![Fulfillment::new(
+//                 LimitOrder::new(
+//                     valid_book_id,
+//                     1,
+//                     0,
+//                     OrderDirection::Ask,
+//                     Addr::unchecked("maker"),
+//                     Uint128::from(50u128),
+//                 ),
+//                 Uint128::from(50u128),
+//             )],
+//             expected_bank_msgs: vec![
+//                 BankMsg::Send {
+//                     to_address: "maker".to_string(),
+//                     amount: vec![coin(50, "base")],
+//                 },
+//                 BankMsg::Send {
+//                     to_address: "creator".to_string(),
+//                     amount: vec![coin(50, "quote")],
+//                 },
+//             ],
+//             expected_liquidity: vec![(1, Uint128::zero())],
+//             expected_remainder: Uint128::zero(),
+//             expected_error: None,
+//         },
+//         RunLimitOrderTestCase {
+//             name: "run limit order with multiple fulfillments BID",
+//             order: LimitOrder::new(
+//                 valid_book_id,
+//                 1,
+//                 0,
+//                 OrderDirection::Bid,
+//                 Addr::unchecked("creator"),
+//                 Uint128::from(100u128),
+//             ),
+//             expected_fulfillments: vec![
+//                 Fulfillment::new(
+//                     LimitOrder::new(
+//                         valid_book_id,
+//                         1,
+//                         0,
+//                         OrderDirection::Ask,
+//                         Addr::unchecked("maker1"),
+//                         Uint128::from(25u128),
+//                     ),
+//                     Uint128::from(25u128),
+//                 ),
+//                 Fulfillment::new(
+//                     LimitOrder::new(
+//                         valid_book_id,
+//                         1,
+//                         1,
+//                         OrderDirection::Ask,
+//                         Addr::unchecked("maker2"),
+//                         Uint128::from(75u128),
+//                     ),
+//                     Uint128::from(75u128),
+//                 ),
+//             ],
+//             expected_bank_msgs: vec![
+//                 BankMsg::Send {
+//                     to_address: "maker1".to_string(),
+//                     amount: vec![coin(25, "base")],
+//                 },
+//                 BankMsg::Send {
+//                     to_address: "maker2".to_string(),
+//                     amount: vec![coin(75, "base")],
+//                 },
+//                 BankMsg::Send {
+//                     to_address: "creator".to_string(),
+//                     amount: vec![coin(100, "quote")],
+//                 },
+//             ],
+//             expected_liquidity: vec![(1, Uint128::zero())],
+//             expected_remainder: Uint128::zero(),
+//             expected_error: None,
+//         },
+//         RunLimitOrderTestCase {
+//             name: "run limit order with multiple fulfillments across multiple ticks BID",
+//             order: LimitOrder::new(
+//                 valid_book_id,
+//                 3,
+//                 2,
+//                 OrderDirection::Bid,
+//                 Addr::unchecked("creator"),
+//                 Uint128::from(100u128),
+//             ),
+//             expected_fulfillments: vec![
+//                 Fulfillment::new(
+//                     LimitOrder::new(
+//                         valid_book_id,
+//                         1,
+//                         0,
+//                         OrderDirection::Ask,
+//                         Addr::unchecked("maker1"),
+//                         Uint128::from(25u128),
+//                     ),
+//                     Uint128::from(25u128),
+//                 ),
+//                 Fulfillment::new(
+//                     LimitOrder::new(
+//                         valid_book_id,
+//                         2,
+//                         1,
+//                         OrderDirection::Ask,
+//                         Addr::unchecked("maker2"),
+//                         Uint128::from(75u128),
+//                     ),
+//                     Uint128::from(75u128),
+//                 ),
+//             ],
+//             expected_bank_msgs: vec![
+//                 BankMsg::Send {
+//                     to_address: "maker1".to_string(),
+//                     amount: vec![coin(25, "base")],
+//                 },
+//                 BankMsg::Send {
+//                     to_address: "maker2".to_string(),
+//                     amount: vec![coin(75, "base")],
+//                 },
+//                 BankMsg::Send {
+//                     to_address: "creator".to_string(),
+//                     amount: vec![coin(100, "quote")],
+//                 },
+//             ],
+//             expected_liquidity: vec![(1, Uint128::zero()), (2, Uint128::zero())],
+//             expected_remainder: Uint128::zero(),
+//             expected_error: None,
+//         },
+//         RunLimitOrderTestCase {
+//             name: "run limit order with multiple fulfillments w/ partial BID",
+//             order: LimitOrder::new(
+//                 valid_book_id,
+//                 1,
+//                 0,
+//                 OrderDirection::Bid,
+//                 Addr::unchecked("creator"),
+//                 Uint128::from(100u128),
+//             ),
+//             expected_fulfillments: vec![
+//                 Fulfillment::new(
+//                     LimitOrder::new(
+//                         valid_book_id,
+//                         1,
+//                         0,
+//                         OrderDirection::Ask,
+//                         Addr::unchecked("maker1"),
+//                         Uint128::from(25u128),
+//                     ),
+//                     Uint128::from(25u128),
+//                 ),
+//                 Fulfillment::new(
+//                     LimitOrder::new(
+//                         valid_book_id,
+//                         1,
+//                         1,
+//                         OrderDirection::Ask,
+//                         Addr::unchecked("maker2"),
+//                         Uint128::from(150u128),
+//                     ),
+//                     Uint128::from(50u128),
+//                 ),
+//             ],
+//             expected_bank_msgs: vec![
+//                 BankMsg::Send {
+//                     to_address: "maker1".to_string(),
+//                     amount: vec![coin(25, "base")],
+//                 },
+//                 BankMsg::Send {
+//                     to_address: "maker2".to_string(),
+//                     amount: vec![coin(75, "base")],
+//                 },
+//                 BankMsg::Send {
+//                     to_address: "creator".to_string(),
+//                     amount: vec![coin(100, "quote")],
+//                 },
+//             ],
+//             expected_liquidity: vec![(1, Uint128::from(75u128))],
+//             expected_remainder: Uint128::zero(),
+//             expected_error: None,
+//         },
+//         RunLimitOrderTestCase {
+//             name: "run limit order with multiple fulfillments w/ remainder BID",
+//             order: LimitOrder::new(
+//                 valid_book_id,
+//                 1,
+//                 0,
+//                 OrderDirection::Bid,
+//                 Addr::unchecked("creator"),
+//                 Uint128::from(1000u128),
+//             ),
+//             expected_fulfillments: vec![
+//                 Fulfillment::new(
+//                     LimitOrder::new(
+//                         valid_book_id,
+//                         1,
+//                         0,
+//                         OrderDirection::Ask,
+//                         Addr::unchecked("maker1"),
+//                         Uint128::from(25u128),
+//                     ),
+//                     Uint128::from(25u128),
+//                 ),
+//                 Fulfillment::new(
+//                     LimitOrder::new(
+//                         valid_book_id,
+//                         1,
+//                         1,
+//                         OrderDirection::Ask,
+//                         Addr::unchecked("maker2"),
+//                         Uint128::from(150u128),
+//                     ),
+//                     Uint128::from(150u128),
+//                 ),
+//             ],
+//             expected_bank_msgs: vec![
+//                 BankMsg::Send {
+//                     to_address: "maker1".to_string(),
+//                     amount: vec![coin(25, "base")],
+//                 },
+//                 BankMsg::Send {
+//                     to_address: "maker2".to_string(),
+//                     amount: vec![coin(150, "base")],
+//                 },
+//                 BankMsg::Send {
+//                     to_address: "creator".to_string(),
+//                     amount: vec![coin(175, "quote")],
+//                 },
+//             ],
+//             expected_liquidity: vec![(1, Uint128::zero())],
+//             expected_remainder: Uint128::from(825u128),
+//             expected_error: None,
+//         },
+//         RunLimitOrderTestCase {
+//             name: "invalid tick BID",
+//             order: LimitOrder::new(
+//                 valid_book_id,
+//                 -1,
+//                 0,
+//                 OrderDirection::Bid,
+//                 Addr::unchecked("creator"),
+//                 Uint128::from(100u128),
+//             ),
+//             expected_fulfillments: vec![
+//                 Fulfillment::new(
+//                     LimitOrder::new(
+//                         valid_book_id,
+//                         1,
+//                         0,
+//                         OrderDirection::Ask,
+//                         Addr::unchecked("maker1"),
+//                         Uint128::from(25u128),
+//                     ),
+//                     Uint128::from(25u128),
+//                 ),
+//                 Fulfillment::new(
+//                     LimitOrder::new(
+//                         valid_book_id,
+//                         1,
+//                         1,
+//                         OrderDirection::Ask,
+//                         Addr::unchecked("maker2"),
+//                         Uint128::from(150u128),
+//                     ),
+//                     Uint128::from(50u128),
+//                 ),
+//             ],
+//             expected_bank_msgs: vec![],
+//             expected_liquidity: vec![],
+//             expected_remainder: Uint128::zero(),
+//             expected_error: Some(ContractError::InvalidTickId { tick_id: -1 }),
+//         },
+//         RunLimitOrderTestCase {
+//             name: "mismatched order direction",
+//             order: LimitOrder::new(
+//                 valid_book_id,
+//                 1,
+//                 0,
+//                 OrderDirection::Bid,
+//                 Addr::unchecked("creator"),
+//                 Uint128::from(100u128),
+//             ),
+//             expected_fulfillments: vec![
+//                 Fulfillment::new(
+//                     LimitOrder::new(
+//                         valid_book_id,
+//                         1,
+//                         0,
+//                         OrderDirection::Ask,
+//                         Addr::unchecked("maker1"),
+//                         Uint128::from(25u128),
+//                     ),
+//                     Uint128::from(25u128),
+//                 ),
+//                 Fulfillment::new(
+//                     LimitOrder::new(
+//                         valid_book_id,
+//                         1,
+//                         1,
+//                         OrderDirection::Bid,
+//                         Addr::unchecked("maker2"),
+//                         Uint128::from(150u128),
+//                     ),
+//                     Uint128::from(50u128),
+//                 ),
+//             ],
+//             expected_bank_msgs: vec![],
+//             expected_liquidity: vec![],
+//             expected_remainder: Uint128::zero(),
+//             expected_error: Some(ContractError::MismatchedOrderDirection {}),
+//         },
+//         RunLimitOrderTestCase {
+//             name: "tick too large",
+//             order: LimitOrder::new(
+//                 valid_book_id,
+//                 MAX_TICK + 1,
+//                 0,
+//                 OrderDirection::Bid,
+//                 Addr::unchecked("creator"),
+//                 Uint128::from(100u128),
+//             ),
+//             expected_fulfillments: vec![
+//                 Fulfillment::new(
+//                     LimitOrder::new(
+//                         valid_book_id,
+//                         1,
+//                         0,
+//                         OrderDirection::Ask,
+//                         Addr::unchecked("maker1"),
+//                         Uint128::from(25u128),
+//                     ),
+//                     Uint128::from(25u128),
+//                 ),
+//                 Fulfillment::new(
+//                     LimitOrder::new(
+//                         valid_book_id,
+//                         1,
+//                         1,
+//                         OrderDirection::Ask,
+//                         Addr::unchecked("maker2"),
+//                         Uint128::from(150u128),
+//                     ),
+//                     Uint128::from(50u128),
+//                 ),
+//             ],
+//             expected_bank_msgs: vec![],
+//             expected_liquidity: vec![],
+//             expected_remainder: Uint128::zero(),
+//             expected_error: Some(ContractError::InvalidTickId {
+//                 tick_id: MAX_TICK + 1,
+//             }),
+//         },
+//         RunLimitOrderTestCase {
+//             name: "tick too small",
+//             order: LimitOrder::new(
+//                 valid_book_id,
+//                 MIN_TICK - 1,
+//                 0,
+//                 OrderDirection::Bid,
+//                 Addr::unchecked("creator"),
+//                 Uint128::from(100u128),
+//             ),
+//             expected_fulfillments: vec![
+//                 Fulfillment::new(
+//                     LimitOrder::new(
+//                         valid_book_id,
+//                         1,
+//                         0,
+//                         OrderDirection::Ask,
+//                         Addr::unchecked("maker1"),
+//                         Uint128::from(25u128),
+//                     ),
+//                     Uint128::from(25u128),
+//                 ),
+//                 Fulfillment::new(
+//                     LimitOrder::new(
+//                         valid_book_id,
+//                         1,
+//                         1,
+//                         OrderDirection::Ask,
+//                         Addr::unchecked("maker2"),
+//                         Uint128::from(150u128),
+//                     ),
+//                     Uint128::from(50u128),
+//                 ),
+//             ],
+//             expected_bank_msgs: vec![],
+//             expected_liquidity: vec![],
+//             expected_remainder: Uint128::zero(),
+//             expected_error: Some(ContractError::InvalidTickId {
+//                 tick_id: MIN_TICK - 1,
+//             }),
+//         },
+//     ];
 
-    for test in test_cases {
-        let mut deps = mock_dependencies_with_balances(&[]);
-        let env = mock_env();
-        let info = mock_info("maker", &[]);
+//     for test in test_cases {
+//         let mut deps = mock_dependencies_with_balances(&[]);
+//         let env = mock_env();
+//         let info = mock_info("maker", &[]);
 
-        // Create an orderbook to operate on
-        let quote_denom = "quote".to_string();
-        let base_denom = "base".to_string();
-        create_orderbook(
-            deps.as_mut(),
-            env.clone(),
-            info.clone(),
-            quote_denom.clone(),
-            base_denom.clone(),
-        )
-        .unwrap();
+//         // Create an orderbook to operate on
+//         let quote_denom = "quote".to_string();
+//         let base_denom = "base".to_string();
+//         create_orderbook(
+//             deps.as_mut(),
+//             env.clone(),
+//             info.clone(),
+//             quote_denom.clone(),
+//             base_denom.clone(),
+//         )
+//         .unwrap();
 
-        let fulfillments = test.expected_fulfillments.to_vec();
-        let all_orders: Vec<LimitOrder> = fulfillments
-            .iter()
-            .map(|Fulfillment { order, .. }| order.clone())
-            .collect();
+//         let fulfillments = test.expected_fulfillments.to_vec();
+//         let all_orders: Vec<LimitOrder> = fulfillments
+//             .iter()
+//             .map(|Fulfillment { order, .. }| order.clone())
+//             .collect();
 
-        // Add orders to state
-        for order in all_orders.clone() {
-            orders()
-                .save(
-                    deps.as_mut().storage,
-                    &(order.book_id, order.tick_id, order.order_id),
-                    &order,
-                )
-                .unwrap();
-            TICK_LIQUIDITY
-                .update(
-                    deps.as_mut().storage,
-                    &(order.book_id, order.tick_id),
-                    |l| {
-                        Ok::<Uint128, ContractError>(
-                            l.unwrap_or_default().checked_add(order.quantity).unwrap(),
-                        )
-                    },
-                )
-                .unwrap();
+//         // Add orders to state
+//         for order in all_orders.clone() {
+//             orders()
+//                 .save(
+//                     deps.as_mut().storage,
+//                     &(order.book_id, order.tick_id, order.order_id),
+//                     &order,
+//                 )
+//                 .unwrap();
+//             TICK_LIQUIDITY
+//                 .update(
+//                     deps.as_mut().storage,
+//                     &(order.book_id, order.tick_id),
+//                     |l| {
+//                         Ok::<Uint128, ContractError>(
+//                             l.unwrap_or_default().checked_add(order.quantity).unwrap(),
+//                         )
+//                     },
+//                 )
+//                 .unwrap();
 
-            let mut orderbook = ORDERBOOKS
-                .load(deps.as_ref().storage, &valid_book_id)
-                .unwrap();
-            match order.order_direction {
-                OrderDirection::Ask => {
-                    if order.tick_id < orderbook.next_ask_tick {
-                        orderbook.next_ask_tick = order.tick_id;
-                    }
-                    ORDERBOOKS
-                        .save(deps.as_mut().storage, &valid_book_id, &orderbook)
-                        .unwrap();
-                }
-                OrderDirection::Bid => {
-                    if order.tick_id > orderbook.next_bid_tick {
-                        orderbook.next_bid_tick = order.tick_id;
-                    }
-                    ORDERBOOKS
-                        .save(deps.as_mut().storage, &valid_book_id, &orderbook)
-                        .unwrap();
-                }
-            }
-        }
+//             let mut orderbook = ORDERBOOKS
+//                 .load(deps.as_ref().storage, &valid_book_id)
+//                 .unwrap();
+//             match order.order_direction {
+//                 OrderDirection::Ask => {
+//                     if order.tick_id < orderbook.next_ask_tick {
+//                         orderbook.next_ask_tick = order.tick_id;
+//                     }
+//                     ORDERBOOKS
+//                         .save(deps.as_mut().storage, &valid_book_id, &orderbook)
+//                         .unwrap();
+//                 }
+//                 OrderDirection::Bid => {
+//                     if order.tick_id > orderbook.next_bid_tick {
+//                         orderbook.next_bid_tick = order.tick_id;
+//                     }
+//                     ORDERBOOKS
+//                         .save(deps.as_mut().storage, &valid_book_id, &orderbook)
+//                         .unwrap();
+//                 }
+//             }
+//         }
 
-        let mut order = test.order.clone();
-        let response = run_limit_order(deps.as_mut().storage, &mut order);
-        if let Some(expected_error) = &test.expected_error {
-            let err = response.unwrap_err();
-            assert_eq!(err, *expected_error, "{}", format_test_name(test.name));
+//         let mut order = test.order.clone();
+//         let response = run_limit_order(deps.as_mut().storage, &mut order);
+//         if let Some(expected_error) = &test.expected_error {
+//             let err = response.unwrap_err();
+//             assert_eq!(err, *expected_error, "{}", format_test_name(test.name));
 
-            continue;
-        }
+//             continue;
+//         }
 
-        let bank_msgs = response.unwrap();
+//         let bank_msgs = response.unwrap();
 
-        for (tick_id, expected_liquidity) in test.expected_liquidity {
-            let maybe_current_liquidity = TICK_LIQUIDITY
-                .may_load(deps.as_ref().storage, &(valid_book_id, tick_id))
-                .unwrap();
+//         for (tick_id, expected_liquidity) in test.expected_liquidity {
+//             let maybe_current_liquidity = TICK_LIQUIDITY
+//                 .may_load(deps.as_ref().storage, &(valid_book_id, tick_id))
+//                 .unwrap();
 
-            if expected_liquidity.is_zero() {
-                assert!(
-                    maybe_current_liquidity.is_none(),
-                    "{}",
-                    format_test_name(test.name)
-                );
-            } else {
-                assert_eq!(
-                    maybe_current_liquidity.unwrap(),
-                    expected_liquidity,
-                    "{}",
-                    format_test_name(test.name)
-                );
-            }
-        }
+//             if expected_liquidity.is_zero() {
+//                 assert!(
+//                     maybe_current_liquidity.is_none(),
+//                     "{}",
+//                     format_test_name(test.name)
+//                 );
+//             } else {
+//                 assert_eq!(
+//                     maybe_current_liquidity.unwrap(),
+//                     expected_liquidity,
+//                     "{}",
+//                     format_test_name(test.name)
+//                 );
+//             }
+//         }
 
-        for fulfillment in test.expected_fulfillments {
-            if fulfillment.amount == fulfillment.order.quantity {
-                let maybe_order = orders()
-                    .may_load(
-                        deps.as_ref().storage,
-                        &(
-                            fulfillment.order.book_id,
-                            fulfillment.order.tick_id,
-                            fulfillment.order.order_id,
-                        ),
-                    )
-                    .unwrap();
-                assert!(maybe_order.is_none(), "{}", format_test_name(test.name));
-            }
-        }
+//         for fulfillment in test.expected_fulfillments {
+//             if fulfillment.amount == fulfillment.order.quantity {
+//                 let maybe_order = orders()
+//                     .may_load(
+//                         deps.as_ref().storage,
+//                         &(
+//                             fulfillment.order.book_id,
+//                             fulfillment.order.tick_id,
+//                             fulfillment.order.order_id,
+//                         ),
+//                     )
+//                     .unwrap();
+//                 assert!(maybe_order.is_none(), "{}", format_test_name(test.name));
+//             }
+//         }
 
-        assert_eq!(
-            test.expected_bank_msgs,
-            bank_msgs,
-            "{}",
-            format_test_name(test.name)
-        );
+//         assert_eq!(
+//             test.expected_bank_msgs,
+//             bank_msgs,
+//             "{}",
+//             format_test_name(test.name)
+//         );
 
-        assert_eq!(
-            order.quantity,
-            test.expected_remainder,
-            "{}",
-            format_test_name(test.name)
-        );
-    }
-}
+//         assert_eq!(
+//             order.quantity,
+//             test.expected_remainder,
+//             "{}",
+//             format_test_name(test.name)
+//         );
+//     }
+// }

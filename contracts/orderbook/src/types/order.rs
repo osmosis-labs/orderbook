@@ -1,5 +1,7 @@
 use cosmwasm_schema::cw_serde;
-use cosmwasm_std::{Addr, Uint128};
+use cosmwasm_std::{coin, ensure, Addr, BankMsg, Decimal, Uint128};
+
+use crate::ContractError;
 
 #[cw_serde]
 #[derive(Copy)]
@@ -34,6 +36,69 @@ impl LimitOrder {
             order_direction,
             owner,
             quantity,
+        }
+    }
+
+    // Transfers the specified quantity of the order's asset to the owner
+    pub fn fill(
+        &mut self,
+        denom: impl Into<String>,
+        quantity: Uint128,
+        price: Decimal,
+    ) -> Result<BankMsg, ContractError> {
+        ensure!(
+            self.quantity >= quantity,
+            ContractError::InvalidFulfillment {
+                order_id: self.order_id,
+                book_id: self.book_id,
+                amount_required: quantity,
+                amount_remaining: self.quantity,
+                reason: Some("Order does not have enough funds".to_string())
+            }
+        );
+        self.quantity = self.quantity.checked_sub(quantity)?;
+        Ok(BankMsg::Send {
+            to_address: self.owner.to_string(),
+            amount: vec![coin(
+                // TODO: Add From for error
+                quantity.checked_mul_floor(price).unwrap().u128(),
+                denom.into(),
+            )],
+        })
+    }
+}
+
+#[cw_serde]
+pub struct MarketOrder {
+    pub book_id: u64,
+    pub quantity: Uint128,
+    pub order_direction: OrderDirection,
+    pub owner: Addr,
+}
+
+impl MarketOrder {
+    pub fn new(
+        book_id: u64,
+        quantity: Uint128,
+        order_direction: OrderDirection,
+        owner: Addr,
+    ) -> Self {
+        MarketOrder {
+            book_id,
+            quantity,
+            order_direction,
+            owner,
+        }
+    }
+}
+
+impl From<LimitOrder> for MarketOrder {
+    fn from(limit_order: LimitOrder) -> Self {
+        MarketOrder {
+            book_id: limit_order.book_id,
+            quantity: limit_order.quantity,
+            order_direction: limit_order.order_direction,
+            owner: limit_order.owner,
         }
     }
 }

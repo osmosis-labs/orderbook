@@ -4,6 +4,9 @@ use crate::constants::{
 use crate::error::*;
 use cosmwasm_std::{ensure, Decimal256, Uint256};
 
+// tick_to_price converts a tick index to a price.
+// If tick_index is zero, the function returns Decimal256::one().
+// Errors if the given tick is outside of the bounds allowed by MIN_TICK and MAX_TICK.
 pub fn tick_to_price(tick_index: i64) -> ContractResult<Decimal256> {
     if tick_index == 0 {
         return Ok(Decimal256::one());
@@ -16,8 +19,11 @@ pub fn tick_to_price(tick_index: i64) -> ContractResult<Decimal256> {
         }
     );
 
+    // geometric_exponent_delta is the number of times we have incremented the exponent by
+    // GEOMETRIC_EXPONENT_INCREMENT_DISTANCE_IN_TICKS to reach the current tick index.
     let geometric_exponent_delta: i64 = tick_index / GEOMETRIC_EXPONENT_INCREMENT_DISTANCE_IN_TICKS;
 
+    // The exponent at the current tick is the exponent at price one plus the number of times we have incremented the exponent by
     let mut exponent_at_current_tick = (EXPONENT_AT_PRICE_ONE as i64) + geometric_exponent_delta;
 
     // We must decrement the exponentAtCurrentTick when entering the negative tick range in order to constantly step up in precision when going further down in ticks
@@ -26,10 +32,10 @@ pub fn tick_to_price(tick_index: i64) -> ContractResult<Decimal256> {
         exponent_at_current_tick -= 1;
     }
 
-    // 10^(exponent_at_current_tick))
+    // We can derive the contribution of each additive tick with 10^(exponent_at_current_tick))
     let current_additive_increment_in_ticks = pow_ten(exponent_at_current_tick as i32)?;
 
-    // The number of ticks that are not a multiple of the geometricExponentIncrementDistanceInTicks
+    // The current number of additive ticks are equivalent to the portion of the tick index that is not covered by the geometric component.
     let num_additive_ticks =
         tick_index - (geometric_exponent_delta * GEOMETRIC_EXPONENT_INCREMENT_DISTANCE_IN_TICKS);
 
@@ -44,6 +50,8 @@ pub fn tick_to_price(tick_index: i64) -> ContractResult<Decimal256> {
         Uint256::one(),
     )
     .checked_mul(current_additive_increment_in_ticks)?;
+
+    // We manually handle sign here to avoid expensive conversions between Decimal256 and SignedDecimal256.
     let price = if num_additive_ticks < 0 {
         geometric_component.checked_sub(additive_component)
     } else {

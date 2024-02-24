@@ -1,6 +1,7 @@
 use crate::{
+    constants::{MAX_TICK, MIN_TICK},
     orderbook::*,
-    state::{MAX_TICK, MIN_TICK, ORDERBOOKS},
+    state::ORDERBOOKS,
 };
 use cosmwasm_std::testing::{mock_dependencies, mock_env, mock_info};
 

@@ -1,6 +1,7 @@
+use crate::constants::{MAX_TICK, MIN_TICK};
 use crate::error::ContractError;
+use crate::state::ORDERBOOKS;
 use crate::state::*;
-use crate::state::{MAX_TICK, MIN_TICK, ORDERBOOKS};
 use crate::types::{LimitOrder, OrderDirection, REPLY_ID_REFUND};
 use cosmwasm_std::{
     coin, ensure, ensure_eq, BankMsg, DepsMut, Env, MessageInfo, Response, SubMsg, Uint128,

@@ -3,9 +3,6 @@ use crate::ContractError;
 use cosmwasm_std::{Addr, Order, StdResult, Storage, Uint128};
 use cw_storage_plus::{Bound, Index, IndexList, IndexedMap, Item, Map, MultiIndex};
 
-pub const MIN_TICK: i64 = -108000000;
-pub const MAX_TICK: i64 = 342000000;
-
 // Counters for ID tracking
 pub const ORDER_ID: Item<u64> = Item::new("order_id");
 pub const ORDERBOOK_ID: Item<u64> = Item::new("orderbook_id");
@@ -13,10 +10,6 @@ pub const ORDERBOOK_ID: Item<u64> = Item::new("orderbook_id");
 // Pagination constants for queries
 const MAX_PAGE_SIZE: u8 = 100;
 const DEFAULT_PAGE_SIZE: u8 = 50;
-
-// Tick math constants
-pub const EXPONENT_AT_PRICE_ONE: i32 = -6;
-pub const GEOMETRIC_EXPONENT_INCREMENT_DISTANCE_IN_TICKS: i64 = 9_000_000;
 
 pub const ORDERBOOKS: Map<&u64, Orderbook> = Map::new("orderbooks");
 /// Key: (orderbook_id, tick)

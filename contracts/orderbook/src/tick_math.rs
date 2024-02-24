@@ -1,27 +1,23 @@
-use crate::state::{
+use crate::constants::{
     EXPONENT_AT_PRICE_ONE, GEOMETRIC_EXPONENT_INCREMENT_DISTANCE_IN_TICKS, MAX_TICK, MIN_TICK,
 };
-use cosmwasm_std::Decimal;
+use crate::error::*;
+use cosmwasm_std::{ensure, Decimal256, Uint256};
 
-#[derive(Debug)]
-pub enum TickPriceError {
-    BelowMin,
-    AboveMax,
-    OutOfBounds,
-}
-
-pub fn tick_to_price(tick_index: i64) -> Result<Decimal, TickPriceError> {
+pub fn tick_to_price(tick_index: i64) -> ContractResult<Decimal256> {
     if tick_index == 0 {
-        return Ok(Decimal::one());
+        return Ok(Decimal256::one());
     }
 
-    if tick_index < MIN_TICK {
-        return Err(TickPriceError::BelowMin);
-    } else if tick_index > MAX_TICK {
-        return Err(TickPriceError::AboveMax);
-    }
+    ensure!(
+        !(tick_index < MIN_TICK) && !(tick_index > MAX_TICK),
+        ContractError::TickOutOfBounds {
+            tick_id: tick_index
+        }
+    );
 
     let geometric_exponent_delta: i64 = tick_index / GEOMETRIC_EXPONENT_INCREMENT_DISTANCE_IN_TICKS;
+
     let mut exponent_at_current_tick = (EXPONENT_AT_PRICE_ONE as i64) + geometric_exponent_delta;
 
     // We must decrement the exponentAtCurrentTick when entering the negative tick range in order to constantly step up in precision when going further down in ticks
@@ -30,12 +26,40 @@ pub fn tick_to_price(tick_index: i64) -> Result<Decimal, TickPriceError> {
         exponent_at_current_tick -= 1;
     }
 
-    let current_additive_increment_in_ticks =
-        Decimal::from_ratio(10u128.pow(exponent_at_current_tick as u32), 1);
+    // 10^(exponent_at_current_tick))
+    let current_additive_increment_in_ticks = pow_ten(exponent_at_current_tick as i32)?;
+
+    // The number of ticks that are not a multiple of the geometricExponentIncrementDistanceInTicks
     let num_additive_ticks =
         tick_index - (geometric_exponent_delta * GEOMETRIC_EXPONENT_INCREMENT_DISTANCE_IN_TICKS);
-    let price = Decimal::from_ratio(10u128.pow(geometric_exponent_delta as u32), 1)
-        + Decimal::from_ratio(num_additive_ticks as u128, 1) * current_additive_increment_in_ticks;
+
+    // Price is equal to the sum of the geometric and additive components.
+    // Since we derive `geometric_exponent_delta` by division with truncation, we can get the geometric component
+    // by simply taking 10^(geometric_exponent_delta).
+    //
+    // The additive component is simply the number of additive ticks by the current additive increment per tick.
+    let geometric_component = pow_ten(geometric_exponent_delta as i32)?;
+    let additive_component = Decimal256::from_ratio(
+        Uint256::from(num_additive_ticks.unsigned_abs()),
+        Uint256::one(),
+    )
+    .checked_mul(current_additive_increment_in_ticks)?;
+    let price = if num_additive_ticks < 0 {
+        geometric_component.checked_sub(additive_component)
+    } else {
+        geometric_component.checked_add(additive_component)
+    }?;
 
     Ok(price)
+}
+
+// Takes an exponent and returns 10^exponent. Supports negative exponents.
+pub fn pow_ten(expo: i32) -> ContractResult<Decimal256> {
+    let target_expo = Uint256::from(10u8).checked_pow(expo.unsigned_abs())?;
+    if expo < 0 {
+        Ok(Decimal256::checked_from_ratio(Uint256::one(), target_expo)?)
+    } else {
+        let res = Uint256::one().checked_mul(target_expo)?;
+        Ok(Decimal256::from_ratio(res, Uint256::one()))
+    }
 }

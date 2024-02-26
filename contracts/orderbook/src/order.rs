@@ -55,7 +55,7 @@ pub fn place_limit(
     let order_id = new_order_id(deps.storage)?;
 
     // Build limit order
-    let limit_order = LimitOrder::new(
+    let mut limit_order = LimitOrder::new(
         book_id,
         tick_id,
         order_id,
@@ -64,15 +64,42 @@ pub fn place_limit(
         quantity,
     );
 
-    // Save the order to the orderbook
-    orders().save(deps.storage, &(book_id, tick_id, order_id), &limit_order)?;
+    // Determine if the order needs to be filled
+    let should_fill = match order_direction {
+        OrderDirection::Ask => tick_id < orderbook.next_bid_tick,
+        OrderDirection::Bid => tick_id > orderbook.next_ask_tick,
+    };
 
-    // Update tick liquidity
-    TICK_LIQUIDITY.update(deps.storage, &(book_id, tick_id), |liquidity| {
-        Ok::<Uint128, ContractError>(liquidity.unwrap_or_default().checked_add(quantity)?)
-    })?;
+    let mut response = Response::default();
+    // Run order fill if criteria met
+    if should_fill {
+        let mut market_order: MarketOrder = limit_order.clone().into();
+        let (fulfillments, placed_order_payment) =
+            run_market_order(deps.storage, &mut market_order, Some(tick_id))?;
+        let fulfillment_msgs = resolve_fulfillments(deps.storage, fulfillments)?;
+        limit_order.quantity = market_order.quantity;
 
-    Ok(Response::new()
+        response = response
+            .add_messages(fulfillment_msgs)
+            .add_message(placed_order_payment)
+            .add_attribute(
+                "quantity_fulfilled",
+                quantity.checked_sub(market_order.quantity)?,
+            );
+    }
+
+    // Only save the order if not fully filled
+    if limit_order.quantity > Uint128::zero() {
+        // Save the order to the orderbook
+        orders().save(deps.storage, &(book_id, tick_id, order_id), &limit_order)?;
+
+        // Update tick liquidity
+        TICK_LIQUIDITY.update(deps.storage, &(book_id, tick_id), |liquidity| {
+            Ok::<Uint128, ContractError>(liquidity.unwrap_or_default().checked_add(quantity)?)
+        })?;
+    }
+
+    Ok(response
         .add_attribute("method", "placeLimit")
         .add_attribute("owner", info.sender.to_string())
         .add_attribute("book_id", book_id.to_string())

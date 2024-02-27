@@ -1,7 +1,10 @@
 use cosmwasm_schema::cw_serde;
-use cosmwasm_std::{coin, ensure, Addr, BankMsg, Decimal, Uint128};
+use cosmwasm_std::{coin, ensure, Addr, BankMsg, Uint128};
 
-use crate::ContractError;
+use crate::{
+    tick_math::{multiply_by_price, tick_to_price},
+    ContractError,
+};
 
 #[cw_serde]
 #[derive(Copy)]
@@ -44,7 +47,6 @@ impl LimitOrder {
         &mut self,
         denom: impl Into<String>,
         quantity: Uint128,
-        price: Decimal,
     ) -> Result<BankMsg, ContractError> {
         ensure!(
             self.quantity >= quantity,
@@ -57,13 +59,11 @@ impl LimitOrder {
             }
         );
         self.quantity = self.quantity.checked_sub(quantity)?;
+        let price = tick_to_price(self.tick_id)?;
+        let amount_to_send = multiply_by_price(quantity, price)?;
         Ok(BankMsg::Send {
             to_address: self.owner.to_string(),
-            amount: vec![coin(
-                // TODO: Add From for error
-                quantity.checked_mul_floor(price).unwrap().u128(),
-                denom.into(),
-            )],
+            amount: vec![coin(amount_to_send.u128(), denom.into())],
         })
     }
 }

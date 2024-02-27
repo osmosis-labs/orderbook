@@ -1,8 +1,10 @@
+use std::str::FromStr;
+
 use crate::constants::{
     EXPONENT_AT_PRICE_ONE, GEOMETRIC_EXPONENT_INCREMENT_DISTANCE_IN_TICKS, MAX_TICK, MIN_TICK,
 };
 use crate::error::*;
-use cosmwasm_std::{ensure, Decimal256, Uint256};
+use cosmwasm_std::{ensure, Decimal256, Uint128, Uint256};
 
 // tick_to_price converts a tick index to a price.
 // If tick_index is zero, the function returns Decimal256::one().
@@ -71,4 +73,22 @@ pub fn pow_ten(expo: i32) -> ContractResult<Decimal256> {
         let res = Uint256::one().checked_mul(target_expo)?;
         Ok(Decimal256::from_ratio(res, Uint256::one()))
     }
+}
+
+// Multiplies a given tick amount by the price for that tick
+pub fn multiply_by_price(amount: Uint128, price: Decimal256) -> ContractResult<Uint128> {
+    let amount_to_send_u256 = price
+        .checked_mul(Decimal256::new(Uint256::from(amount)))?
+        .to_uint_ceil();
+
+    // TODO: Rounding?
+    ensure!(
+        amount_to_send_u256 <= Uint256::from_u128(Uint128::MAX.u128()),
+        ContractError::InvalidQuantity {
+            quantity: Uint128::MAX
+        }
+    );
+    let amount_to_send = Uint128::from_str(amount_to_send_u256.to_string().as_str()).unwrap();
+
+    Ok(amount_to_send)
 }

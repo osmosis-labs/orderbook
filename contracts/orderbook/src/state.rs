@@ -18,7 +18,6 @@ pub const ORDERBOOKS: Map<&u64, Orderbook> = Map::new("orderbooks");
 /// Key: (orderbook_id, tick)
 pub const TICK_LIQUIDITY: Map<&(u64, i64), Uint128> = Map::new("tick_liquidity");
 
-// TODO: Check additional gas fee for adding more indexes
 pub struct OrderIndexes {
     // Index by owner; Generic types: MultiIndex<Index Key: owner, Input Data: LimitOrder, Map Key: (orderbook_id, tick, order_id)>
     pub owner: MultiIndex<'static, Addr, LimitOrder, (u64, i64, u64)>,
@@ -87,7 +86,7 @@ pub fn reduce_tick_liquidity(
         TICK_LIQUIDITY.remove(storage, &(book_id, tick_id));
     } else {
         TICK_LIQUIDITY.save(storage, &(book_id, tick_id), &new_liquidity)?;
-    }
+    };
     Ok(())
 }
 

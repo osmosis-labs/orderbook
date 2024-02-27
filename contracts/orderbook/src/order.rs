@@ -73,10 +73,14 @@ pub fn place_limit(
     let mut response = Response::default();
     // Run order fill if criteria met
     if should_fill {
+        // Convert order to market order for filling
         let mut market_order: MarketOrder = limit_order.clone().into();
+        // Generate vector of fulfillments for current orders and a payment for the placed order
         let (fulfillments, placed_order_payment) =
             run_market_order(deps.storage, &mut market_order, Some(tick_id))?;
+        // Resolve given fulfillments and current placed order
         let fulfillment_msgs = resolve_fulfillments(deps.storage, fulfillments)?;
+        // Update limit order quantity to reflect fulfilled amount
         limit_order.quantity = market_order.quantity;
 
         response = response
@@ -299,7 +303,6 @@ pub fn resolve_fulfillments(
         ensure_eq!(
             fulfillment.order.book_id,
             orderbook.book_id,
-            // TODO: Error not expressive
             ContractError::InvalidFulfillment {
                 order_id: fulfillment.order.order_id,
                 book_id: fulfillment.order.book_id,

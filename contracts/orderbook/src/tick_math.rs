@@ -104,13 +104,14 @@ pub fn divide_by_price(amount: Uint128, price: Decimal256) -> ContractResult<Uin
     Ok(amount_to_send)
 }
 
+/// Converts a tick amount to it's value given a price and order direction
 pub fn amount_to_value(
     order: OrderDirection,
     amount: Uint128,
     price: Decimal256,
 ) -> ContractResult<Uint128> {
     match order {
-        OrderDirection::Bid => divide_by_price(amount, price),
-        OrderDirection::Ask => multiply_by_price(amount, price),
+        OrderDirection::Bid => multiply_by_price(amount, price),
+        OrderDirection::Ask => divide_by_price(amount, price),
     }
 }

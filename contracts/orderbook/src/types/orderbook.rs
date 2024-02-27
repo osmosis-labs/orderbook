@@ -42,4 +42,13 @@ impl Orderbook {
             OrderDirection::Ask => self.base_denom.clone(),
         }
     }
+
+    /// Get the opposite denomination for a given order direction.
+    #[inline]
+    pub fn get_opposite_denom(&self, order_direction: &OrderDirection) -> String {
+        match order_direction {
+            OrderDirection::Bid => self.base_denom.clone(),
+            OrderDirection::Ask => self.quote_denom.clone(),
+        }
+    }
 }

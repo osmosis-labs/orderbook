@@ -1,4 +1,5 @@
 use crate::{
+    constants::{MAX_TICK, MIN_TICK},
     error::ContractError,
     order::*,
     orderbook::*,

@@ -3,9 +3,6 @@ use crate::ContractError;
 use cosmwasm_std::{Addr, Order, StdResult, Storage, Uint128};
 use cw_storage_plus::{Bound, Index, IndexList, IndexedMap, Item, Map, MultiIndex};
 
-pub const MIN_TICK: i64 = -108000000;
-pub const MAX_TICK: i64 = 342000000;
-
 // Counters for ID tracking
 pub const ORDER_ID: Item<u64> = Item::new("order_id");
 pub const ORDERBOOK_ID: Item<u64> = Item::new("orderbook_id");

@@ -1,4 +1,7 @@
-use cosmwasm_std::{CoinsError, OverflowError, StdError, Uint128};
+use cosmwasm_std::{
+    CheckedFromRatioError, CheckedMultiplyRatioError, CoinsError, ConversionOverflowError,
+    DecimalRangeExceeded, DivideByZeroError, OverflowError, StdError, Uint128,
+};
 use cw_utils::PaymentError;
 use thiserror::Error;
 
@@ -41,6 +44,25 @@ pub enum ContractError {
     #[error("Reply error: {id:?}, {error:?}")]
     ReplyError { id: u64, error: String },
 
+    // Decimal-related errors
+    #[error("{0}")]
+    ConversionOverflow(#[from] ConversionOverflowError),
+
+    #[error("{0}")]
+    CheckedMultiplyRatio(#[from] CheckedMultiplyRatioError),
+
+    #[error("{0}")]
+    CheckedFromRatio(#[from] CheckedFromRatioError),
+
+    #[error("{0}")]
+    DivideByZero(#[from] DivideByZeroError),
+
+    #[error("{0}")]
+    DecimalRangeExceeded(#[from] DecimalRangeExceeded),
+
+    // Tick out of bounds error
+    #[error("Tick out of bounds: {tick_id:?}")]
+    TickOutOfBounds { tick_id: i64 },
     #[error("Cannot fulfill order. Order ID: {order_id:?}, Book ID: {book_id:?}, Amount Required: {amount_required:?}, Amount Remaining: {amount_remaining:?} {reason:?}")]
     InvalidFulfillment {
         order_id: u64,
@@ -53,3 +75,5 @@ pub enum ContractError {
     #[error("Mismatched order direction")]
     MismatchedOrderDirection {},
 }
+
+pub type ContractResult<T> = Result<T, ContractError>;

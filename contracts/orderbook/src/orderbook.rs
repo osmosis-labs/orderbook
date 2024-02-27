@@ -1,5 +1,6 @@
+use crate::constants::{MAX_TICK, MIN_TICK};
 use crate::error::ContractError;
-use crate::state::{new_orderbook_id, MAX_TICK, MIN_TICK, ORDERBOOKS};
+use crate::state::{new_orderbook_id, ORDERBOOKS};
 use crate::types::Orderbook;
 use cosmwasm_std::{DepsMut, Env, MessageInfo, Response};
 

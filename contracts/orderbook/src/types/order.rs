@@ -2,7 +2,7 @@ use cosmwasm_schema::cw_serde;
 use cosmwasm_std::{coin, ensure, Addr, BankMsg, Uint128};
 
 use crate::{
-    tick_math::{multiply_by_price, tick_to_price},
+    tick_math::{amount_to_value, tick_to_price},
     ContractError,
 };
 
@@ -59,8 +59,10 @@ impl LimitOrder {
             }
         );
         self.quantity = self.quantity.checked_sub(quantity)?;
+        // Determine price
         let price = tick_to_price(self.tick_id)?;
-        let amount_to_send = multiply_by_price(quantity, price)?;
+        // Multiply quantity by price
+        let amount_to_send = amount_to_value(self.order_direction, quantity, price)?;
         Ok(BankMsg::Send {
             to_address: self.owner.to_string(),
             amount: vec![coin(amount_to_send.u128(), denom.into())],

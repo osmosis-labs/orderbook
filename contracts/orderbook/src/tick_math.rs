@@ -4,6 +4,7 @@ use crate::constants::{
     EXPONENT_AT_PRICE_ONE, GEOMETRIC_EXPONENT_INCREMENT_DISTANCE_IN_TICKS, MAX_TICK, MIN_TICK,
 };
 use crate::error::*;
+use crate::types::OrderDirection;
 use cosmwasm_std::{ensure, Decimal256, Uint128, Uint256};
 
 // tick_to_price converts a tick index to a price.
@@ -91,4 +92,25 @@ pub fn multiply_by_price(amount: Uint128, price: Decimal256) -> ContractResult<U
     let amount_to_send = Uint128::from_str(amount_to_send_u256.to_string().as_str()).unwrap();
 
     Ok(amount_to_send)
+}
+
+// Divides a given tick amount by the price for that tick
+pub fn divide_by_price(amount: Uint128, price: Decimal256) -> ContractResult<Uint128> {
+    let amount_to_send_u256 = price
+        .checked_div(Decimal256::new(Uint256::from(amount)))?
+        .to_uint_ceil();
+    let amount_to_send = Uint128::from_str(amount_to_send_u256.to_string().as_str()).unwrap();
+
+    Ok(amount_to_send)
+}
+
+pub fn amount_to_value(
+    order: OrderDirection,
+    amount: Uint128,
+    price: Decimal256,
+) -> ContractResult<Uint128> {
+    match order {
+        OrderDirection::Bid => divide_by_price(amount, price),
+        OrderDirection::Ask => multiply_by_price(amount, price),
+    }
 }

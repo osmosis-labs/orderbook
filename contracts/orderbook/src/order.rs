@@ -2,7 +2,7 @@ use crate::constants::{MAX_TICK, MIN_TICK};
 use crate::error::ContractError;
 use crate::state::ORDERBOOKS;
 use crate::state::*;
-use crate::tick_math::{multiply_by_price, tick_to_price};
+use crate::tick_math::{amount_to_value, tick_to_price};
 use crate::types::{Fulfillment, LimitOrder, MarketOrder, OrderDirection, REPLY_ID_REFUND};
 use cosmwasm_std::{
     coin, ensure, ensure_eq, ensure_ne, BankMsg, Decimal256, DepsMut, Env, MessageInfo, Order,
@@ -221,8 +221,11 @@ pub fn run_market_order(
             let fill_quantity = order.quantity.min(current_order.quantity);
             // Add to total amount fulfilled from placed order
             amount_fulfilled = amount_fulfilled.checked_add(fill_quantity)?;
-            amount_to_send =
-                amount_to_send.checked_add(multiply_by_price(amount_fulfilled, tick_price)?)?;
+            amount_to_send = amount_to_send.checked_add(amount_to_value(
+                order.order_direction,
+                amount_fulfilled,
+                tick_price,
+            )?)?;
             // Generate fulfillment for current order
             let fulfillment = Fulfillment::new(current_order, fill_quantity);
             fulfillments.push(fulfillment);

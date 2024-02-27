@@ -7,7 +7,7 @@ use crate::{
     types::{Fulfillment, LimitOrder, MarketOrder, OrderDirection, REPLY_ID_REFUND},
 };
 use cosmwasm_std::testing::{mock_dependencies_with_balances, mock_env, mock_info};
-use cosmwasm_std::{coin, Addr, BankMsg, Coin, Decimal, Empty, SubMsg, Uint128};
+use cosmwasm_std::{coin, Addr, BankMsg, Coin, Empty, SubMsg, Uint128};
 use cw_utils::PaymentError;
 
 #[allow(clippy::uninlined_format_args)]
@@ -577,7 +577,7 @@ fn test_resolve_fulfillments() {
                     Fulfillment::new(
                         LimitOrder::new(
                             0,
-                            MAX_TICK,
+                            1,
                             1,
                             OrderDirection::Bid,
                             Addr::unchecked("creator"),

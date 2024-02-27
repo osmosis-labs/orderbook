@@ -7,13 +7,14 @@ use cosmwasm_std::{ensure, Decimal256, Uint256};
 // tick_to_price converts a tick index to a price.
 // If tick_index is zero, the function returns Decimal256::one().
 // Errors if the given tick is outside of the bounds allowed by MIN_TICK and MAX_TICK.
+#[allow(clippy::manual_range_contains)]
 pub fn tick_to_price(tick_index: i64) -> ContractResult<Decimal256> {
     if tick_index == 0 {
         return Ok(Decimal256::one());
     }
 
     ensure!(
-        !(tick_index < MIN_TICK) && !(tick_index > MAX_TICK),
+        tick_index >= MIN_TICK && tick_index <= MAX_TICK,
         ContractError::TickOutOfBounds {
             tick_id: tick_index
         }

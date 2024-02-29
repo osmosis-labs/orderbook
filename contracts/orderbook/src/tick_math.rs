@@ -5,7 +5,7 @@ use crate::constants::{
 };
 use crate::error::*;
 use crate::types::OrderDirection;
-use cosmwasm_std::{ensure, Decimal256, Uint128, Uint256};
+use cosmwasm_std::{ensure, Decimal256, OverflowError, OverflowOperation, Uint128, Uint256};
 
 // tick_to_price converts a tick index to a price.
 // If tick_index is zero, the function returns Decimal256::one().
@@ -79,15 +79,20 @@ pub fn pow_ten(expo: i32) -> ContractResult<Decimal256> {
 // Multiplies a given tick amount by the price for that tick
 pub fn multiply_by_price(amount: Uint128, price: Decimal256) -> ContractResult<Uint128> {
     let amount_to_send_u256 = price
-        .checked_mul(Decimal256::new(Uint256::from(amount)))?
+        .checked_mul(Decimal256::from_ratio(
+            Uint256::from_uint128(amount),
+            Uint256::one(),
+        ))?
         .to_uint_ceil();
 
     // TODO: Rounding?
     ensure!(
         amount_to_send_u256 <= Uint256::from_u128(Uint128::MAX.u128()),
-        ContractError::InvalidQuantity {
-            quantity: Uint128::MAX
-        }
+        ContractError::Overflow(OverflowError {
+            operation: OverflowOperation::Mul,
+            operand1: amount.to_string(),
+            operand2: price.to_string(),
+        })
     );
     let amount_to_send = Uint128::from_str(amount_to_send_u256.to_string().as_str()).unwrap();
 
@@ -96,9 +101,18 @@ pub fn multiply_by_price(amount: Uint128, price: Decimal256) -> ContractResult<U
 
 // Divides a given tick amount by the price for that tick
 pub fn divide_by_price(amount: Uint128, price: Decimal256) -> ContractResult<Uint128> {
-    let amount_to_send_u256 = price
-        .checked_div(Decimal256::new(Uint256::from(amount)))?
+    let amount_to_send_u256 = Decimal256::from_ratio(amount, Uint256::one())
+        .checked_div(price)?
         .to_uint_ceil();
+
+    ensure!(
+        amount_to_send_u256 <= Uint256::from_u128(Uint128::MAX.u128()),
+        ContractError::Overflow(OverflowError {
+            operation: OverflowOperation::Mul,
+            operand1: amount.to_string(),
+            operand2: price.to_string(),
+        })
+    );
     let amount_to_send = Uint128::from_str(amount_to_send_u256.to_string().as_str()).unwrap();
 
     Ok(amount_to_send)

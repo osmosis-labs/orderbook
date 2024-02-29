@@ -1,7 +1,7 @@
 use crate::constants::*;
 use crate::error::ContractError;
-use crate::tick_math::{pow_ten, tick_to_price};
-use cosmwasm_std::{Decimal256, Uint256};
+use crate::tick_math::{divide_by_price, multiply_by_price, pow_ten, tick_to_price};
+use cosmwasm_std::{Decimal256, OverflowError, OverflowOperation, Uint128, Uint256};
 use std::str::FromStr;
 
 struct TickToPriceTestCase {
@@ -201,5 +201,94 @@ fn test_pow_ten() {
     for test in test_cases {
         let result = pow_ten(test.exponent).unwrap();
         assert_eq!(test.expected_result, result);
+    }
+}
+
+struct OperByPriceTestCase {
+    name: &'static str,
+    price: Decimal256,
+    amount: Uint128,
+    expected_result: Uint128,
+    expected_error: Option<ContractError>,
+}
+
+#[test]
+fn test_multiply_by_price() {
+    let test_cases: Vec<OperByPriceTestCase> = vec![
+        OperByPriceTestCase {
+            name: "basic price multiplication",
+            price: Decimal256::from_ratio(Uint256::from_u128(5u128), Uint256::one()),
+            amount: Uint128::from(10u128),
+            expected_result: Uint128::from(50u128),
+            expected_error: None,
+        },
+        OperByPriceTestCase {
+            name: "basic price multiplication w/ rounding",
+            price: Decimal256::from_ratio(Uint256::from_u128(5u128), Uint256::from_u128(100)),
+            amount: Uint128::from(3u128),
+            expected_result: Uint128::from(1u128),
+            expected_error: None,
+        },
+        OperByPriceTestCase {
+            name: "error overflow",
+            price: Decimal256::from_ratio(Uint256::from_u128(2u128), Uint256::one()),
+            amount: Uint128::MAX,
+            expected_result: Uint128::from(1u128),
+            expected_error: Some(ContractError::Overflow(OverflowError {
+                operation: OverflowOperation::Mul,
+                operand2: Decimal256::from_ratio(Uint256::from_u128(2u128), Uint256::one())
+                    .to_string(),
+                operand1: Uint128::MAX.to_string(),
+            })),
+        },
+    ];
+
+    for test in test_cases {
+        let result = multiply_by_price(test.amount, test.price);
+        if let Some(expected_error) = test.expected_error {
+            assert_eq!(result.unwrap_err(), expected_error, "{}", test.name);
+        } else {
+            assert_eq!(result.unwrap(), test.expected_result, "{}", test.name);
+        }
+    }
+}
+
+#[test]
+fn test_divide_by_price() {
+    let test_cases: Vec<OperByPriceTestCase> = vec![
+        OperByPriceTestCase {
+            name: "basic price division",
+            price: Decimal256::from_ratio(Uint256::from_u128(5u128), Uint256::one()),
+            amount: Uint128::from(10u128),
+            expected_result: Uint128::from(2u128),
+            expected_error: None,
+        },
+        OperByPriceTestCase {
+            name: "basic price division w/ rounding",
+            price: Decimal256::from_ratio(Uint256::from_u128(5u128), Uint256::one()),
+            amount: Uint128::from(1u128),
+            expected_result: Uint128::from(1u128),
+            expected_error: None,
+        },
+        OperByPriceTestCase {
+            name: "error overflow",
+            price: tick_to_price(MIN_TICK).unwrap(),
+            amount: Uint128::MAX,
+            expected_result: Uint128::from(1u128),
+            expected_error: Some(ContractError::Overflow(OverflowError {
+                operation: OverflowOperation::Mul,
+                operand2: tick_to_price(MIN_TICK).unwrap().to_string(),
+                operand1: Uint128::MAX.to_string(),
+            })),
+        },
+    ];
+
+    for test in test_cases {
+        let result = divide_by_price(test.amount, test.price);
+        if let Some(expected_error) = test.expected_error {
+            assert_eq!(result.unwrap_err(), expected_error, "{}", test.name);
+        } else {
+            assert_eq!(result.unwrap(), test.expected_result, "{}", test.name);
+        }
     }
 }

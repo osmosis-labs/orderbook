@@ -267,7 +267,7 @@ fn test_divide_by_price() {
             name: "basic price division w/ rounding",
             price: Decimal256::from_ratio(Uint256::from_u128(5u128), Uint256::one()),
             amount: Uint128::from(1u128),
-            expected_result: Uint128::from(1u128),
+            expected_result: Uint128::zero(),
             expected_error: None,
         },
         OperByPriceTestCase {

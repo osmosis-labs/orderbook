@@ -103,7 +103,7 @@ pub fn multiply_by_price(amount: Uint128, price: Decimal256) -> ContractResult<U
 pub fn divide_by_price(amount: Uint128, price: Decimal256) -> ContractResult<Uint128> {
     let amount_to_send_u256 = Decimal256::from_ratio(amount, Uint256::one())
         .checked_div(price)?
-        .to_uint_ceil();
+        .to_uint_floor();
 
     ensure!(
         amount_to_send_u256 <= Uint256::from_u128(Uint128::MAX.u128()),

@@ -80,7 +80,7 @@ pub fn place_limit(
             run_market_order(deps.storage, &mut market_order, Some(tick_id))?;
         // Resolve given fulfillments and current placed order
         let fulfillment_msgs = resolve_fulfillments(deps.storage, fulfillments)?;
-        // Update limit order quantity to reflect fulfilled amount
+        // Update limit order quantity to reflect amount remaining after market order
         limit_order.quantity = market_order.quantity;
 
         response = response

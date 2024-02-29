@@ -56,7 +56,7 @@ pub fn place_limit(
     let order_id = new_order_id(deps.storage)?;
 
     // Build limit order
-    let limit_order = LimitOrder::new(
+    let mut limit_order = LimitOrder::new(
         book_id,
         tick_id,
         order_id,
@@ -65,22 +65,57 @@ pub fn place_limit(
         quantity,
     );
 
-    // Save the order to the orderbook
-    orders().save(deps.storage, &(book_id, tick_id, order_id), &limit_order)?;
+    // Determine if the order needs to be filled
+    let should_fill = match order_direction {
+        OrderDirection::Ask => tick_id <= orderbook.next_bid_tick,
+        OrderDirection::Bid => tick_id >= orderbook.next_ask_tick,
+    };
 
-    // Update tick liquidity
-    TICK_LIQUIDITY.update(deps.storage, &(book_id, tick_id), |liquidity| {
-        Ok::<Uint128, ContractError>(liquidity.unwrap_or_default().checked_add(quantity)?)
-    })?;
+    let mut response = Response::default();
+    // Run order fill if criteria met
+    if should_fill {
+        // Convert order to market order for filling
+        let mut market_order: MarketOrder = limit_order.clone().into();
+        // Generate vector of fulfillments for current orders and a payment for the placed order
+        let (fulfillments, placed_order_payment) =
+            run_market_order(deps.storage, &mut market_order, Some(tick_id))?;
+        // Resolve given fulfillments and current placed order
+        let fulfillment_msgs = resolve_fulfillments(deps.storage, fulfillments)?;
+        // Update limit order quantity to reflect amount remaining after market order
+        limit_order.quantity = market_order.quantity;
 
-    Ok(Response::new()
+        response = response
+            .add_messages(fulfillment_msgs)
+            .add_message(placed_order_payment)
+    }
+
+    // Only save the order if not fully filled
+    if limit_order.quantity > Uint128::zero() {
+        // Save the order to the orderbook
+        orders().save(deps.storage, &(book_id, tick_id, order_id), &limit_order)?;
+
+        // Update tick liquidity
+        TICK_LIQUIDITY.update(deps.storage, &(book_id, tick_id), |liquidity| {
+            Ok::<Uint128, ContractError>(
+                liquidity
+                    .unwrap_or_default()
+                    .checked_add(limit_order.quantity)?,
+            )
+        })?;
+    }
+
+    Ok(response
         .add_attribute("method", "placeLimit")
         .add_attribute("owner", info.sender.to_string())
         .add_attribute("book_id", book_id.to_string())
         .add_attribute("tick_id", tick_id.to_string())
         .add_attribute("order_id", order_id.to_string())
         .add_attribute("order_direction", format!("{order_direction:?}"))
-        .add_attribute("quantity", quantity.to_string()))
+        .add_attribute("quantity", quantity.to_string())
+        .add_attribute(
+            "quantity_fulfilled",
+            quantity.checked_sub(limit_order.quantity)?,
+        ))
 }
 
 pub fn cancel_limit(
@@ -159,7 +194,7 @@ pub fn run_market_order(
     let mut fulfillments: Vec<Fulfillment> = vec![];
     let mut amount_fulfilled: Uint128 = Uint128::zero();
     let orderbook = ORDERBOOKS.load(storage, &order.book_id)?;
-    let placed_order_denom = orderbook.get_expected_denom(&order.order_direction);
+    let placed_order_fulfilled_denom = orderbook.get_opposite_denom(&order.order_direction);
 
     let (min_tick, max_tick, ordering) = match order.order_direction {
         OrderDirection::Ask => {
@@ -231,7 +266,7 @@ pub fn run_market_order(
                     fulfillments,
                     BankMsg::Send {
                         to_address: order.owner.to_string(),
-                        amount: vec![coin(amount_fulfilled.u128(), placed_order_denom)],
+                        amount: vec![coin(amount_fulfilled.u128(), placed_order_fulfilled_denom)],
                     },
                 ));
             }
@@ -243,7 +278,7 @@ pub fn run_market_order(
                 fulfillments,
                 BankMsg::Send {
                     to_address: order.owner.to_string(),
-                    amount: vec![coin(amount_fulfilled.u128(), placed_order_denom)],
+                    amount: vec![coin(amount_fulfilled.u128(), placed_order_fulfilled_denom)],
                 },
             ));
         }
@@ -254,7 +289,7 @@ pub fn run_market_order(
         fulfillments,
         BankMsg::Send {
             to_address: order.owner.to_string(),
-            amount: vec![coin(amount_fulfilled.u128(), placed_order_denom)],
+            amount: vec![coin(amount_fulfilled.u128(), placed_order_fulfilled_denom)],
         },
     ))
 }
@@ -269,7 +304,6 @@ pub fn resolve_fulfillments(
         ensure_eq!(
             fulfillment.order.book_id,
             orderbook.book_id,
-            // TODO: Error not expressive
             ContractError::InvalidFulfillment {
                 order_id: fulfillment.order.order_id,
                 book_id: fulfillment.order.book_id,
@@ -278,7 +312,7 @@ pub fn resolve_fulfillments(
                 reason: Some("Fulfillment is part of another order book".to_string()),
             }
         );
-        let denom = orderbook.get_expected_denom(&fulfillment.order.order_direction);
+        let denom = orderbook.get_opposite_denom(&fulfillment.order.order_direction);
         // TODO: Add price detection for tick
         let msg = fulfillment
             .order

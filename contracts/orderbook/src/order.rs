@@ -258,7 +258,7 @@ pub fn run_market_order(
             amount_fulfilled = amount_fulfilled.checked_add(fill_quantity)?;
             amount_to_send = amount_to_send.checked_add(amount_to_value(
                 order.order_direction,
-                amount_fulfilled,
+                fill_quantity,
                 tick_price,
             )?)?;
             // Generate fulfillment for current order

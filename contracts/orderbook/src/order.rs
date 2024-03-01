@@ -44,13 +44,12 @@ pub fn place_limit(
     // Verify the funds sent with the message match the `quantity` for the correct denom
     // We reject any quantity that is not exactly equal to the amount in the limit order being placed
     let received = must_pay(&info, &expected_denom)?;
-    let expected_amount = amount_to_value(order_direction, quantity, tick_to_price(tick_id)?)?;
     ensure_eq!(
         received,
-        expected_amount,
+        quantity,
         ContractError::InsufficientFunds {
             sent: received,
-            required: expected_amount,
+            required: quantity,
         }
     );
 

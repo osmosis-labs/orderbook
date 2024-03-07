@@ -358,32 +358,3 @@ impl Display for TreeNode {
         write!(f, "{}: {}", self.key, self.node_type)
     }
 }
-
-#[cfg(test)]
-pub fn print_tree(storage: &dyn Storage, node: &TreeNode, depth: u8, top: bool) {
-    let padding = "      ";
-    let mut pre_padding = "".to_string();
-    let mut vertical_padding = "".to_string();
-    if depth >= 1 {
-        for _ in 0..depth {
-            pre_padding.push_str(padding);
-            vertical_padding.push_str(padding);
-        }
-        pre_padding.push_str("+─────[");
-    }
-    if let Some(right) = node.get_right(storage).unwrap() {
-        print_tree(storage, &right, depth + 1, true);
-    } else if !top {
-        println!("{vertical_padding}|");
-    } else {
-        println!();
-    }
-    println!("{pre_padding}{node}");
-    if let Some(left) = node.get_left(storage).unwrap() {
-        print_tree(storage, &left, depth + 1, false);
-    } else if top {
-        println!("{vertical_padding}|");
-    } else {
-        println!();
-    }
-}

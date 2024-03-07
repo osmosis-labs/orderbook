@@ -1,6 +1,6 @@
 use cosmwasm_std::{testing::mock_dependencies, Storage, Uint128};
 
-use crate::sumtree::node::{NodeType, TreeNode, NODES};
+use crate::sumtree::node::{generate_node_id, NodeType, TreeNode, NODES};
 
 pub fn print_tree(storage: &dyn Storage, node: &TreeNode, depth: u8, top: bool) {
     let padding = "      ";

@@ -6,7 +6,7 @@ use core::fmt;
 use std::fmt::Display;
 
 use cosmwasm_schema::cw_serde;
-use cosmwasm_std::{Storage, Uint128};
+use cosmwasm_std::{ensure, Storage, Uint128};
 use cw_storage_plus::Map;
 
 use crate::{error::ContractResult, ContractError};
@@ -190,12 +190,20 @@ impl TreeNode {
     ///
     /// If the node is internal an error is returned.
     ///
-    /// If the node is a leaf, it will be inserted in to the tree as a leaf node.
+    /// If the node is a leaf it will be inserted by the following priority:
+    /// 1. New node fits in either left or right range, insert accordingly
+    /// 2. Left is empty, insert left
+    /// 3. Incompatible left, Right is empty, insert right
+    /// 4. Left is leaf, split left
+    /// 5. Left is incompatible, right is leaf, split right
     pub fn insert(
         &mut self,
         storage: &mut dyn Storage,
         new_node: &mut TreeNode,
     ) -> ContractResult<()> {
+        ensure!(!self.is_internal(), ContractError::InvalidNodeType);
+        ensure!(!new_node.is_internal(), ContractError::InvalidNodeType);
+
         // New node is being placed below current, update ranges and accumulator as tree is traversed
         self.add_value(new_node.get_value())?;
         if self.get_min_range() > new_node.get_min_range() {
@@ -212,7 +220,7 @@ impl TreeNode {
         // Check if left node exists
         if let Some(mut left_node) = maybe_left {
             if left_node.is_internal() && new_node.get_min_range() < left_node.get_max_range() {
-                // Case: Left is internal and new node is in rage
+                // Case: Left is internal and new node is in range
                 left_node.insert(storage, new_node)?;
                 self.save(storage)?;
                 return Ok(());
@@ -240,6 +248,7 @@ impl TreeNode {
 
                 // Case: Left is leaf, right is leaf
                 // Insert parent right
+                // Is this ever met?
                 let new_right = right_node.split(storage, new_node)?;
                 self.right = Some(new_right);
                 self.save(storage)?;
@@ -280,7 +289,8 @@ impl TreeNode {
         }
     }
 
-    /// Splits a given node by generating a new parent internal node and assigning the current and new node as ordered children
+    /// Splits a given node by generating a new parent internal node and assigning the current and new node as ordered children.
+    /// Split nodes are ordered by ETAS in ascending order left to right.
     ///
     /// Returns an ID for the new parent node
     pub fn split(
@@ -288,14 +298,17 @@ impl TreeNode {
         storage: &mut dyn Storage,
         new_node: &mut TreeNode,
     ) -> ContractResult<u64> {
+        ensure!(!self.is_internal(), ContractError::InvalidNodeType);
         let id = generate_node_id(storage, self.book_id, self.tick_id)?;
         let accumulator = self.get_value().checked_add(new_node.get_value())?;
 
+        // Determine which node goes to which side, maintaining order by ETAS
         let (new_left, new_right) = if self.get_min_range() < new_node.get_min_range() {
             (self.key, new_node.key)
         } else {
             (new_node.key, self.key)
         };
+        // Determine the new range for the generated parent
         let (new_min, new_max) = (
             new_node.get_min_range().min(self.get_min_range()),
             new_node.get_max_range().max(self.get_max_range()),
@@ -308,6 +321,7 @@ impl TreeNode {
             NodeType::internal(accumulator, (new_min, new_max)),
         );
 
+        // Save new key references
         self.parent = Some(id);
         new_node.parent = Some(id);
         new_parent.left = Some(new_left);

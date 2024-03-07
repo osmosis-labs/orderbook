@@ -201,7 +201,7 @@ impl TreeNode {
         storage: &mut dyn Storage,
         new_node: &mut TreeNode,
     ) -> ContractResult<()> {
-        ensure!(!self.is_internal(), ContractError::InvalidNodeType);
+        ensure!(self.is_internal(), ContractError::InvalidNodeType);
         ensure!(!new_node.is_internal(), ContractError::InvalidNodeType);
 
         // New node is being placed below current, update ranges and accumulator as tree is traversed

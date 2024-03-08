@@ -115,6 +115,18 @@ impl TreeNode {
         }
     }
 
+    pub fn get_parent(&self, storage: &dyn Storage) -> ContractResult<Option<TreeNode>> {
+        if let Some(parent) = self.parent {
+            Ok(NODES.may_load(storage, &(self.book_id, self.tick_id, parent))?)
+        } else {
+            Ok(None)
+        }
+    }
+
+    pub fn has_child(&self) -> bool {
+        self.left.is_some() || self.right.is_some()
+    }
+
     pub fn save(&self, storage: &mut dyn Storage) -> ContractResult<()> {
         Ok(NODES.save(storage, &(self.book_id, self.tick_id, self.key), self)?)
     }
@@ -161,17 +173,73 @@ impl TreeNode {
         }
     }
 
-    /// Adds a given value to an internal node's accumulator
-    ///
-    /// Errors if given node is not internal
-    pub fn add_value(&mut self, value: Uint128) -> ContractResult<()> {
+    pub fn set_value(&mut self, value: Uint128) -> ContractResult<()> {
         match &mut self.node_type {
             NodeType::Internal { accumulator, .. } => {
-                *accumulator = accumulator.checked_add(value)?;
+                *accumulator = value;
                 Ok(())
             }
             NodeType::Leaf { .. } => Err(ContractError::InvalidNodeType),
         }
+    }
+
+    /// Adds a given value to an internal node's accumulator
+    ///
+    /// Errors if given node is not internal
+    pub fn add_value(&mut self, value: Uint128) -> ContractResult<()> {
+        self.set_value(self.get_value().checked_add(value)?)
+    }
+
+    // TODO: This can likely be optimized
+    /// Recalculates the range and accumulated value for a node and propagates it up the tree
+    pub fn recalculate_values(&mut self, storage: &mut dyn Storage) -> ContractResult<()> {
+        let maybe_left = self.get_left(storage)?;
+        let maybe_right = self.get_right(storage)?;
+
+        // Calculate min from remaining children
+        // Attempt to get min value or default to Uint128::MAX for both nodes
+        // Take min from both returned values
+        let min = maybe_left
+            .clone()
+            .map(|n| n.get_min_range())
+            .unwrap_or(Uint128::MAX)
+            .min(
+                maybe_right
+                    .clone()
+                    .map(|n| n.get_min_range())
+                    .unwrap_or(Uint128::MAX),
+            );
+        // Calculate max from remaining children
+        // Attempt to get max value or default to Uint128::MIN for both nodes
+        // Take max from both returned values
+        let max = maybe_left
+            .clone()
+            .map(|n| n.get_max_range())
+            .unwrap_or(Uint128::MIN)
+            .max(
+                maybe_right
+                    .clone()
+                    .map(|n| n.get_max_range())
+                    .unwrap_or(Uint128::MIN),
+            );
+
+        self.set_min_range(min)?;
+        self.set_max_range(max)?;
+
+        let value = maybe_left
+            .map(|n| n.get_value())
+            .unwrap_or_default()
+            .checked_add(maybe_right.map(|n| n.get_value()).unwrap_or_default())?;
+        self.set_value(value)?;
+
+        // Must save before propagating as parent will read this node
+        self.save(storage)?;
+
+        if let Some(mut parent) = self.get_parent(storage)? {
+            parent.recalculate_values(storage)?;
+        }
+
+        Ok(())
     }
 
     /// Gets the value for a given node.
@@ -322,16 +390,41 @@ impl TreeNode {
         );
 
         // Save new key references
-        self.parent = Some(id);
-        new_node.parent = Some(id);
+        new_parent.parent = self.parent;
         new_parent.left = Some(new_left);
         new_parent.right = Some(new_right);
+        self.parent = Some(id);
+        new_node.parent = Some(id);
 
         new_parent.save(storage)?;
         self.save(storage)?;
         new_node.save(storage)?;
 
         Ok(id)
+    }
+
+    pub fn delete(&self, storage: &mut dyn Storage) -> ContractResult<()> {
+        let maybe_parent = self.get_parent(storage)?;
+        if let Some(mut parent) = maybe_parent {
+            // Remove node reference from parent
+            if parent.left == Some(self.key) {
+                parent.left = None;
+            } else if parent.right == Some(self.key) {
+                parent.right = None;
+            }
+
+            if !parent.has_child() {
+                // Remove no-leaf parents
+                parent.delete(storage)?;
+            } else {
+                // Update parents values after removing node
+                parent.recalculate_values(storage)?;
+            }
+        }
+
+        NODES.remove(storage, &(self.book_id, self.tick_id, self.key));
+
+        Ok(())
     }
 
     #[cfg(test)]

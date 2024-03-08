@@ -189,3 +189,174 @@ fn test_node_insert_valid() {
         }
     }
 }
+
+struct NodeDeletionTestCase {
+    name: &'static str,
+    nodes: Vec<NodeType>,
+    delete: Vec<u64>,
+    // Depth first search ordering of node IDs (Could be improved?)
+    expected: Vec<u64>,
+    // Whether to print the tree
+    print: bool,
+}
+
+#[test]
+fn test_node_deletion_valid() {
+    let book_id = 1;
+    let tick_id = 1;
+    let test_cases: Vec<NodeDeletionTestCase> = vec![
+        NodeDeletionTestCase {
+            name: "Remove only node",
+            nodes: vec![NodeType::leaf(1u32, 10u32)],
+            delete: vec![2],
+            expected: vec![],
+            print: true,
+        },
+        NodeDeletionTestCase {
+            name: "Remove one of two nodes",
+            nodes: vec![NodeType::leaf(1u32, 10u32), NodeType::leaf(11u32, 5u32)],
+            delete: vec![2],
+            expected: vec![1, 3],
+            print: true,
+        },
+        NodeDeletionTestCase {
+            name: "Remove nested node",
+            nodes: vec![
+                NodeType::leaf(1u32, 10u32),
+                NodeType::leaf(21u32, 5u32),
+                NodeType::leaf(11u32, 10u32),
+            ],
+            delete: vec![2],
+            expected: vec![1, 5, 4, 3],
+            print: true,
+        },
+        NodeDeletionTestCase {
+            name: "Remove both children of internal",
+            nodes: vec![
+                NodeType::leaf(1u32, 10u32),
+                NodeType::leaf(21u32, 5u32),
+                NodeType::leaf(11u32, 10u32),
+            ],
+            delete: vec![2, 4],
+            expected: vec![1, 3],
+            print: true,
+        },
+    ];
+
+    for test in test_cases {
+        let mut deps = mock_dependencies();
+        let mut tree = TreeNode::new(
+            book_id,
+            tick_id,
+            generate_node_id(deps.as_mut().storage, book_id, tick_id).unwrap(),
+            NodeType::internal(Uint128::zero(), (u32::MAX, u32::MIN)),
+        );
+
+        for node in test.nodes {
+            let mut tree_node = TreeNode::new(
+                book_id,
+                tick_id,
+                generate_node_id(deps.as_mut().storage, book_id, tick_id).unwrap(),
+                node,
+            );
+            NODES
+                .save(
+                    deps.as_mut().storage,
+                    &(book_id, tick_id, tree_node.key),
+                    &tree_node,
+                )
+                .unwrap();
+            tree.insert(deps.as_mut().storage, &mut tree_node).unwrap();
+        }
+
+        if test.print {
+            println!("Pre-Deletion Tree: {}", test.name);
+            println!("--------------------------");
+            print_tree(deps.as_ref().storage, &tree, 0, true);
+            println!();
+        }
+
+        for key in test.delete.clone() {
+            let node = NODES
+                .load(deps.as_ref().storage, &(book_id, tick_id, key))
+                .unwrap();
+            node.delete(deps.as_mut().storage).unwrap();
+        }
+
+        if test.expected.is_empty() {
+            let maybe_parent = tree.get_parent(deps.as_ref().storage).unwrap();
+            assert!(maybe_parent.is_none(), "Parent node should not exist");
+            continue;
+        }
+
+        let tree = NODES
+            .load(deps.as_ref().storage, &(book_id, tick_id, tree.key))
+            .unwrap();
+
+        if test.print {
+            println!("Post-Deletion Tree: {}", test.name);
+            println!("--------------------------");
+            print_tree(deps.as_ref().storage, &tree, 0, true);
+            println!();
+        }
+
+        let result = tree.traverse(deps.as_ref().storage).unwrap();
+
+        assert_eq!(
+            result,
+            test.expected
+                .iter()
+                .map(|key| NODES
+                    .load(deps.as_ref().storage, &(book_id, tick_id, *key))
+                    .unwrap())
+                .collect::<Vec<TreeNode>>()
+        );
+
+        for key in test.delete {
+            let maybe_node = NODES
+                .may_load(deps.as_ref().storage, &(book_id, tick_id, key))
+                .unwrap();
+            assert!(maybe_node.is_none(), "Node {key} was not deleted");
+        }
+
+        let internals: Vec<&TreeNode> = result.iter().filter(|x| x.is_internal()).collect();
+        for internal_node in internals {
+            let left_node = internal_node.get_left(deps.as_ref().storage).unwrap();
+            let right_node = internal_node.get_right(deps.as_ref().storage).unwrap();
+
+            let accumulated_value = left_node
+                .clone()
+                .map(|x| x.get_value())
+                .unwrap_or_default()
+                .checked_add(
+                    right_node
+                        .clone()
+                        .map(|x| x.get_value())
+                        .unwrap_or_default(),
+                )
+                .unwrap();
+            assert_eq!(internal_node.get_value(), accumulated_value);
+
+            let min = left_node
+                .clone()
+                .map(|n| n.get_min_range())
+                .unwrap_or(Uint128::MAX)
+                .min(
+                    right_node
+                        .clone()
+                        .map(|n| n.get_min_range())
+                        .unwrap_or(Uint128::MAX),
+                );
+            let max = left_node
+                .map(|n| n.get_max_range())
+                .unwrap_or(Uint128::MIN)
+                .max(
+                    right_node
+                        .map(|n| n.get_max_range())
+                        .unwrap_or(Uint128::MIN),
+                );
+            assert_eq!(internal_node.get_min_range(), min);
+            assert_eq!(internal_node.get_max_range(), max);
+        }
+    }
+}

@@ -216,8 +216,6 @@ fn test_node_insert_valid() {
         if test.print {
             println!("Print Tree: {}", test.name);
             println!("--------------------------");
-            // print_tree(deps.as_ref().storage, &tree, true);
-            // println!();
 
             let nodes = tree.traverse_bfs(deps.as_ref().storage).unwrap();
             for (idx, row) in nodes.iter().enumerate() {
@@ -355,7 +353,10 @@ fn test_node_deletion_valid() {
         if test.print {
             println!("Pre-Deletion Tree: {}", test.name);
             println!("--------------------------");
-            print_tree(deps.as_ref().storage, &tree, 0, true);
+            let nodes = tree.traverse_bfs(deps.as_ref().storage).unwrap();
+            for (idx, row) in nodes.iter().enumerate() {
+                print_tree_row(row.clone(), idx == 0, (nodes.len() - idx - 1) as u32);
+            }
             println!();
         }
 
@@ -379,7 +380,10 @@ fn test_node_deletion_valid() {
         if test.print {
             println!("Post-Deletion Tree: {}", test.name);
             println!("--------------------------");
-            print_tree(deps.as_ref().storage, &tree, 0, true);
+            let nodes = tree.traverse_bfs(deps.as_ref().storage).unwrap();
+            for (idx, row) in nodes.iter().enumerate() {
+                print_tree_row(row.clone(), idx == 0, (nodes.len() - idx - 1) as u32);
+            }
             println!();
         }
 

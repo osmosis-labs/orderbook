@@ -286,6 +286,14 @@ fn test_node_deletion_valid() {
     let book_id = 1;
     let tick_id = 1;
     let test_cases: Vec<NodeDeletionTestCase> = vec![
+        // Pre
+        // ---
+        //          1: 10 1-11
+        //     ┌────────
+        // ->2: 1 10
+        //
+        // Post
+        // ----
         // No tree
         NodeDeletionTestCase {
             name: "Remove only node",
@@ -294,6 +302,14 @@ fn test_node_deletion_valid() {
             expected: vec![],
             print: true,
         },
+        // Pre
+        // ---
+        //          1: 15 1-16
+        //     ┌────────────────┐
+        // ->2: 1 10         3: 11 5
+        //
+        // Post
+        // ----
         // 1: 5 11-16
         //      ────────┐
         //          3: 11 5
@@ -304,6 +320,16 @@ fn test_node_deletion_valid() {
             expected: vec![1, 3],
             print: true,
         },
+        // Pre
+        // ---
+        //                       1: 25 1-26
+        //             ┌────────────────────────────────┐
+        //        5: 20 1-21                       3: 21 5
+        //     ┌────────────────┐
+        // ->2: 1 10      4: 11 10
+        //
+        // Post
+        // ----
         //                   1: 15 11-26
         //         ┌────────────────────────────────┐
         //   5: 10 11-21                       3: 21 5
@@ -320,6 +346,16 @@ fn test_node_deletion_valid() {
             expected: vec![1, 5, 4, 3],
             print: true,
         },
+        // Pre
+        // ---
+        //                      1: 25 1-26
+        //         ┌────────────────────────────────┐
+        //    5: 20 1-21                       3: 21 5
+        // ┌────────────────┐
+        // ->2: 1 10     ->4: 11 10
+        //
+        // Post
+        // ----
         // 1: 5 21-26
         //      ────────┐
         //          3: 21 5
@@ -331,6 +367,30 @@ fn test_node_deletion_valid() {
                 NodeType::leaf(11u32, 10u32),
             ],
             delete: vec![2, 4],
+            expected: vec![1, 3],
+            print: true,
+        },
+        // Pre
+        // ---
+        //                      1: 25 1-26
+        //         ┌────────────────────────────────┐
+        //    ->5: 20 1-21                       3: 21 5
+        // ┌────────────────┐
+        // 2: 1 10       4: 11 10
+        //
+        // Post
+        // ----
+        // 1: 5 21-26
+        //       ────────┐
+        //           3: 21 5
+        NodeDeletionTestCase {
+            name: "Remove parent node",
+            nodes: vec![
+                NodeType::leaf(1u32, 10u32),
+                NodeType::leaf(21u32, 5u32),
+                NodeType::leaf(11u32, 10u32),
+            ],
+            delete: vec![5],
             expected: vec![1, 3],
             print: true,
         },

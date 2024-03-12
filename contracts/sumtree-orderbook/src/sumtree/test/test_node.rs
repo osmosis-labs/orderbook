@@ -134,7 +134,7 @@ fn test_node_insert_valid() {
             expected: vec![1, 5, 2, 4, 7, 9, 3, 8, 6],
             print: true,
         },
-        //                1: 10 1-11
+        //            1: 10 1-11
         //     ┌────────
         // 2: 1 10
         TestNodeInsertCase {

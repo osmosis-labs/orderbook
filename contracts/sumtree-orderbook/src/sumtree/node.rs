@@ -193,9 +193,9 @@ impl TreeNode {
     /// If the node is a leaf it will be inserted by the following priority:
     /// 1. New node fits in either left or right range, insert accordingly
     /// 2. Left is empty, insert left
-    /// 3. Incompatible left, Right is empty, insert right
+    /// 3. Out of range for left, Right is empty, insert right
     /// 4. Left is leaf, split left
-    /// 5. Left is incompatible, right is leaf, split right
+    /// 5. Left is out of range, right is leaf, split right
     pub fn insert(
         &mut self,
         storage: &mut dyn Storage,
@@ -217,76 +217,73 @@ impl TreeNode {
         let maybe_left = self.get_left(storage)?;
         let maybe_right = self.get_right(storage)?;
 
-        // Check if left node exists
-        if let Some(mut left_node) = maybe_left {
-            if left_node.is_internal() && new_node.get_min_range() < left_node.get_max_range() {
-                // Case: Left is internal and new node is in range
-                left_node.insert(storage, new_node)?;
-                self.save(storage)?;
-                return Ok(());
-            }
+        let is_in_left_range = maybe_left.clone().map_or(false, |left| {
+            left.is_internal() && new_node.get_min_range() < left.get_max_range()
+        });
+        let is_in_right_range = maybe_right.clone().map_or(false, |right| {
+            right.is_internal() && new_node.get_min_range() > right.get_min_range()
+        });
 
-            if let Some(mut right_node) = maybe_right {
-                if right_node.is_internal()
-                    && right_node.get_min_range() <= new_node.get_min_range()
-                {
-                    // Case: Left is leaf, right is internal and node is in range
-                    right_node.insert(storage, new_node)?;
-                    self.save(storage)?;
-                    return Ok(());
-                }
+        // Case 1 Left
+        if is_in_left_range {
+            // Can unwrap as node must exist
+            let mut left = maybe_left.unwrap();
 
-                if !left_node.is_internal() {
-                    // Case: Left is leaf, right is not in range
-                    // Insert parent left
-                    let new_left = left_node.split(storage, new_node)?;
-                    self.left = Some(new_left);
-                    self.save(storage)?;
+            left.insert(storage, new_node)?;
+            self.save(storage)?;
+            return Ok(());
+        }
+        // Case 1 Right
+        if is_in_right_range {
+            // Can unwrap as node must exist
+            let mut right = maybe_right.unwrap();
+            right.insert(storage, new_node)?;
+            self.save(storage)?;
+            return Ok(());
+        }
 
-                    return Ok(());
-                }
-
-                // Case: Left is leaf, right is leaf
-                // Insert parent right
-                // Is this ever met?
-                let new_right = right_node.split(storage, new_node)?;
-                self.right = Some(new_right);
-                self.save(storage)?;
-
-                Ok(())
-            } else {
-                // Case: Left exists and new node outside range, right does not exist
-                // Insert right
-                self.right = Some(new_node.key);
-                new_node.parent = Some(self.key);
-
-                new_node.save(storage)?;
-                self.save(storage)?;
-                Ok(())
-            }
-        } else {
-            // Left does not exist, check if right exists
-            if let Some(mut right_node) = maybe_right {
-                if right_node.is_internal()
-                    && new_node.get_min_range() >= right_node.get_min_range()
-                {
-                    // Case: Left does not exist, right does, is internal and node fits in to range
-                    right_node.insert(storage, new_node)?;
-
-                    self.save(storage)?;
-                    return Ok(());
-                }
-            }
-
-            // Case: Left does not exist, insert on left
+        // Case 2
+        if maybe_left.is_none() {
             self.left = Some(new_node.key);
-
             new_node.parent = Some(self.key);
             new_node.save(storage)?;
-
             self.save(storage)?;
-            Ok(())
+            return Ok(());
         }
+
+        // Case 3
+        if !is_in_left_range && maybe_right.is_none() {
+            self.right = Some(new_node.key);
+            new_node.parent = Some(self.key);
+            new_node.save(storage)?;
+            self.save(storage)?;
+            return Ok(());
+        }
+
+        let left_is_leaf = maybe_left.clone().map_or(false, |left| !left.is_internal());
+        let right_is_leaf = maybe_right
+            .clone()
+            .map_or(false, |right| !right.is_internal());
+
+        // Case 4
+        if left_is_leaf {
+            let mut left = maybe_left.unwrap();
+            let new_left = left.split(storage, new_node)?;
+            self.left = Some(new_left);
+            self.save(storage)?;
+            return Ok(());
+        }
+
+        // Case 5
+        if !is_in_left_range && right_is_leaf {
+            let mut right = maybe_right.unwrap();
+            let new_right = right.split(storage, new_node)?;
+            self.right = Some(new_right);
+            self.save(storage)?;
+            return Ok(());
+        }
+
+        Ok(())
     }
 
     /// Splits a given node by generating a new parent internal node and assigning the current and new node as ordered children.

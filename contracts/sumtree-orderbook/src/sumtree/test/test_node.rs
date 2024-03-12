@@ -286,6 +286,7 @@ fn test_node_deletion_valid() {
     let book_id = 1;
     let tick_id = 1;
     let test_cases: Vec<NodeDeletionTestCase> = vec![
+        // No tree
         NodeDeletionTestCase {
             name: "Remove only node",
             nodes: vec![NodeType::leaf(1u32, 10u32)],
@@ -293,6 +294,9 @@ fn test_node_deletion_valid() {
             expected: vec![],
             print: true,
         },
+        // 1: 5 11-16
+        //      ────────┐
+        //          3: 11 5
         NodeDeletionTestCase {
             name: "Remove one of two nodes",
             nodes: vec![NodeType::leaf(1u32, 10u32), NodeType::leaf(11u32, 5u32)],
@@ -300,6 +304,11 @@ fn test_node_deletion_valid() {
             expected: vec![1, 3],
             print: true,
         },
+        //                   1: 15 11-26
+        //         ┌────────────────────────────────┐
+        //   5: 10 11-21                       3: 21 5
+        //         ────────┐
+        //             4: 11 10
         NodeDeletionTestCase {
             name: "Remove nested node",
             nodes: vec![
@@ -311,6 +320,9 @@ fn test_node_deletion_valid() {
             expected: vec![1, 5, 4, 3],
             print: true,
         },
+        // 1: 5 21-26
+        //      ────────┐
+        //          3: 21 5
         NodeDeletionTestCase {
             name: "Remove both children of internal",
             nodes: vec![

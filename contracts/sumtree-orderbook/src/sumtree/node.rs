@@ -82,6 +82,9 @@ pub struct TreeNode {
     pub node_type: NodeType,
 }
 
+#[cfg(test)]
+pub type BFSVec = Vec<Vec<(Option<TreeNode>, Option<TreeNode>)>>;
+
 impl TreeNode {
     pub fn new(book_id: u64, tick_id: i64, key: u64, node_type: NodeType) -> Self {
         Self {
@@ -347,6 +350,42 @@ impl TreeNode {
         }
         Ok(nodes)
     }
+
+    #[cfg(test)]
+    pub fn get_height(&self, storage: &dyn Storage) -> ContractResult<u8> {
+        let mut height = 0;
+        if let Some(left) = self.get_left(storage)? {
+            height = height.max(left.get_height(storage)?);
+        }
+        if let Some(right) = self.get_right(storage)? {
+            height = height.max(right.get_height(storage)?);
+        }
+        Ok(height + 1)
+    }
+
+    #[cfg(test)]
+    pub fn traverse_bfs(&self, storage: &dyn Storage) -> ContractResult<BFSVec> {
+        let mut result = vec![vec![(Some(self.clone()), None)]];
+        let mut queue: Vec<Option<TreeNode>> = vec![Some(self.clone())];
+        while queue.iter().any(|n| n.is_some()) {
+            let mut level = vec![];
+            let mut next_queue: Vec<Option<TreeNode>> = vec![];
+            for node in queue {
+                if let Some(node) = node {
+                    level.push((node.get_left(storage)?, node.get_right(storage)?));
+                    next_queue.push(node.get_left(storage)?);
+                    next_queue.push(node.get_right(storage)?);
+                } else {
+                    level.push((None, None));
+                    next_queue.push(None);
+                    next_queue.push(None);
+                }
+            }
+            queue = next_queue;
+            result.push(level);
+        }
+        Ok(result)
+    }
 }
 
 // For printing in test environments
@@ -356,7 +395,7 @@ impl Display for NodeType {
         match self {
             NodeType::Leaf { value, etas } => write!(f, "{etas} {value}"),
             NodeType::Internal { accumulator, range } => {
-                write!(f, "{} ({}, {})", accumulator, range.0, range.1)
+                write!(f, "{} {}-{}", accumulator, range.0, range.1)
             }
         }
     }

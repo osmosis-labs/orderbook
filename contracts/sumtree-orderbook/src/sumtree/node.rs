@@ -403,6 +403,9 @@ impl TreeNode {
         Ok(id)
     }
 
+    /// Deletes a given node from the tree and propagates value changes up through its parent nodes.
+    ///
+    /// If the parent node has no children after removal it is also deleted recursively, to prune empty branches.
     pub fn delete(&self, storage: &mut dyn Storage) -> ContractResult<()> {
         let maybe_parent = self.get_parent(storage)?;
         if let Some(mut parent) = maybe_parent {
@@ -414,7 +417,7 @@ impl TreeNode {
             }
 
             if !parent.has_child() {
-                // Remove no-leaf parents
+                // Remove no-children parents
                 parent.delete(storage)?;
             } else {
                 // Update parents values after removing node

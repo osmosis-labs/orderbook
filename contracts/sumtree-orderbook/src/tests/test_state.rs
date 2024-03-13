@@ -1,5 +1,5 @@
 use crate::state::*;
-use crate::types::{FilterOwnerOrders, LimitOrder, OrderDirection};
+use crate::types::{FilterOwnerOrders, LimitOrder, OrderDirection, TickState};
 use cosmwasm_std::testing::MockStorage;
 use cosmwasm_std::{Addr, Order, Uint128};
 
@@ -27,11 +27,11 @@ fn test_tick_iteration() {
     let book_id = new_orderbook_id(&mut storage).unwrap();
     let tick_amount = 50;
     for i in -tick_amount..tick_amount {
-        TICK_LIQUIDITY
-            .save(&mut storage, &(book_id, i), &Uint128::new(i as u128))
+        TICK_STATE
+            .save(&mut storage, &(book_id, i), &TickState::default())
             .unwrap();
     }
-    let prefix = TICK_LIQUIDITY.prefix(book_id);
+    let prefix = TICK_STATE.prefix(book_id);
     let ticks_asc: Vec<i64> = prefix
         .keys(&storage, None, None, Order::Ascending)
         .map(|result| result.unwrap())

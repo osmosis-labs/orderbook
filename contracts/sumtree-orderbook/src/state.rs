@@ -1,6 +1,6 @@
-use crate::types::{FilterOwnerOrders, LimitOrder, Orderbook};
+use crate::types::{FilterOwnerOrders, LimitOrder, Orderbook, TickState};
 use crate::ContractError;
-use cosmwasm_std::{Addr, Order, StdResult, Storage, Uint128};
+use cosmwasm_std::{Addr, Order, StdResult, Storage};
 use cw_storage_plus::{Bound, Index, IndexList, IndexedMap, Item, Map, MultiIndex};
 
 // Counters for ID tracking
@@ -13,7 +13,7 @@ const DEFAULT_PAGE_SIZE: u8 = 50;
 
 pub const ORDERBOOKS: Map<&u64, Orderbook> = Map::new("orderbooks");
 /// Key: (orderbook_id, tick)
-pub const TICK_LIQUIDITY: Map<&(u64, i64), Uint128> = Map::new("tick_liquidity");
+pub const TICK_STATE: Map<&(u64, i64), TickState> = Map::new("tick_state");
 
 pub struct OrderIndexes {
     // Index by owner; Generic types: MultiIndex<Index Key: owner, Input Data: LimitOrder, Map Key: (orderbook_id, tick, order_id)>
@@ -66,25 +66,6 @@ pub fn new_order_id(storage: &mut dyn Storage) -> Result<u64, ContractError> {
     let id = ORDER_ID.load(storage).unwrap_or_default();
     ORDER_ID.save(storage, &(id + 1))?;
     Ok(id)
-}
-
-/// Reduces the liquidity of a tick by the specified amount and removes it if no liquidity remains.
-pub fn reduce_tick_liquidity(
-    storage: &mut dyn Storage,
-    book_id: u64,
-    tick_id: i64,
-    amount: Uint128,
-) -> Result<(), ContractError> {
-    let tick_liquidity = TICK_LIQUIDITY
-        .may_load(storage, &(book_id, tick_id))?
-        .ok_or(ContractError::InvalidTickId { tick_id })?;
-    let new_liquidity = tick_liquidity.checked_sub(amount)?;
-    if new_liquidity.is_zero() {
-        TICK_LIQUIDITY.remove(storage, &(book_id, tick_id));
-    } else {
-        TICK_LIQUIDITY.save(storage, &(book_id, tick_id), &new_liquidity)?;
-    };
-    Ok(())
 }
 
 /// Retrieves a list of `LimitOrder` filtered by the specified `FilterOwnerOrders`.

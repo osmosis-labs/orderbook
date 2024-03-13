@@ -1,6 +1,6 @@
 use crate::constants::{MAX_TICK, MIN_TICK};
 use crate::error::ContractError;
-use crate::state::{new_order_id, orders, ORDERBOOKS, TICK_LIQUIDITY};
+use crate::state::{new_order_id, orders, ORDERBOOKS};
 use crate::types::{LimitOrder, OrderDirection};
 use cosmwasm_std::{ensure, ensure_eq, DepsMut, Env, MessageInfo, Response, Uint128};
 use cw_utils::{must_pay, nonpayable};
@@ -76,16 +76,13 @@ pub fn place_limit(
     if limit_order.quantity > Uint128::zero() {
         // Save the order to the orderbook
         orders().save(deps.storage, &(book_id, tick_id, order_id), &limit_order)?;
-
-        // Update tick liquidity
-        TICK_LIQUIDITY.update(deps.storage, &(book_id, tick_id), |liquidity| {
-            Ok::<Uint128, ContractError>(
-                liquidity
-                    .unwrap_or_default()
-                    .checked_add(limit_order.quantity)?,
-            )
-        })?;
     }
+
+    // TODO: Update Tick State
+    // Update tick liquidity
+    // TICK_STATE.update(deps.storage, &(book_id, tick_id), |state| {
+    //     let curr_state = state.unwrap_or_default();
+    // })?;
 
     Ok(response
         .add_attribute("method", "placeLimit")

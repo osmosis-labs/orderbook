@@ -1,9 +1,14 @@
+use std::str::FromStr;
+
 use crate::constants::{MAX_TICK, MIN_TICK};
 use crate::error::ContractError;
 use crate::state::{new_order_id, orders, ORDERBOOKS, TICK_STATE};
-use crate::types::{LimitOrder, OrderDirection, TickState};
+use crate::sumtree::node::{generate_node_id, NodeType, TreeNode};
+use crate::sumtree::tree::TREE;
+use crate::types::{LimitOrder, OrderDirection, TickState, REPLY_ID_REFUND};
 use cosmwasm_std::{
-    ensure, ensure_eq, Decimal256, DepsMut, Env, MessageInfo, Response, Uint128, Uint256,
+    coin, ensure, ensure_eq, BankMsg, Decimal256, DepsMut, Env, MessageInfo, Response, SubMsg,
+    Uint128, Uint256,
 };
 use cw_utils::{must_pay, nonpayable};
 
@@ -138,7 +143,82 @@ pub fn cancel_limit(
     // Ensure the sender is the order owner
     ensure_eq!(info.sender, order.owner, ContractError::Unauthorized {});
 
-    todo!();
+    // Fetch the sumtree from storage, or create one if it does not exist
+    let mut tree = TREE
+        .load(deps.storage, &(order.book_id, order.tick_id))
+        .unwrap_or(TreeNode::new(
+            order.book_id,
+            order.tick_id,
+            generate_node_id(deps.storage, order.book_id, order.tick_id)?,
+            NodeType::default(),
+        ));
+
+    // Generate info for new node to insert to sumtree
+    let node_id = generate_node_id(deps.storage, order.book_id, order.tick_id)?;
+    let mut curr_tick_state = TICK_STATE
+        .load(deps.storage, &(order.book_id, order.tick_id))
+        .ok()
+        .ok_or(ContractError::InvalidTickId {
+            tick_id: order.tick_id,
+        })?;
+    // TODO: Awful type conversion here
+    // either swap tree to Decimal256 or state to Uint128
+    let etas = Uint128::from_str(
+        curr_tick_state
+            .effective_total_amount_swapped
+            .to_uint_ceil()
+            .to_string()
+            .as_str(),
+    )?;
+    let mut new_node = TreeNode::new(
+        order.book_id,
+        order.tick_id,
+        node_id,
+        NodeType::leaf(etas, order.quantity),
+    );
+
+    // Insert new node
+    tree.insert(deps.storage, &mut new_node)?;
+
+    // Get orderbook info for correct denomination
+    let orderbook =
+        ORDERBOOKS
+            .may_load(deps.storage, &order.book_id)?
+            .ok_or(ContractError::InvalidBookId {
+                book_id: order.book_id,
+            })?;
+
+    // Generate refund
+    let expected_denom = orderbook.get_expected_denom(&order.order_direction);
+    let refund_msg = SubMsg::reply_on_error(
+        BankMsg::Send {
+            to_address: order.owner.to_string(),
+            amount: vec![coin(order.quantity.u128(), expected_denom)],
+        },
+        REPLY_ID_REFUND,
+    );
+
+    orders().remove(
+        deps.storage,
+        &(order.book_id, order.tick_id, order.order_id),
+    )?;
+
+    curr_tick_state.total_amount_of_liquidity = curr_tick_state
+        .total_amount_of_liquidity
+        .checked_sub(Decimal256::from_ratio(order.quantity, Uint256::one()))?;
+    TICK_STATE.save(
+        deps.storage,
+        &(order.book_id, order.tick_id),
+        &curr_tick_state,
+    )?;
+
+    Ok(Response::new()
+        .add_attribute("method", "cancelLimit")
+        .add_attribute("owner", info.sender)
+        .add_attribute("book_id", book_id.to_string())
+        .add_attribute("tick_id", tick_id.to_string())
+        .add_attribute("order_id", order_id.to_string())
+        .add_submessage(refund_msg))
 }
 
 pub fn place_market(

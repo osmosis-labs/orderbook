@@ -16,13 +16,23 @@ fn test_node_insert_valid() {
     let book_id = 1;
     let tick_id = 1;
     let test_cases: Vec<TestNodeInsertCase> = vec![
+        // Pre
+        // ---
+        //                                        1: 31 1-38
+        //                 ┌────────────────────────────────────────────────┐
+        //            5: 13 1-20                                     7: 18 20-38
+        //     ┌────────────────────────┐                        ┌────────────────────────┐
+        //  2: 1 5                 4: 12 8                    3: 20 10                6: 30 8
+        //
+        // Post
+        // ----
         //                                                        1: 37 1-38
         //                             ┌────────────────────────────────────────────────────────────────┐
         //                        5: 19 1-20                                                     7: 18 20-38
         //             ┌────────────────────────────────┐                                ┌────────────────────────────────┐
         //        9: 11 1-12                       4: 12 8                            3: 20 10                        6: 30 8
         //     ┌────────────────┐
-        //  2: 1 5          8: 6 6
+        //  2: 1 5          ->8: 6 6
         TestNodeInsertCase {
             name: "Case 1a: Left Internal, Right Internal, Left Insert",
             nodes: vec![
@@ -35,13 +45,23 @@ fn test_node_insert_valid() {
             expected: vec![1, 5, 9, 2, 8, 4, 7, 3, 6],
             print: true,
         },
+        // Pre
+        // ---
+        //                                       1: 32 1-38
+        //                 ┌────────────────────────────────────────────────┐
+        //            5: 19 1-20                                     7: 13 20-38
+        //     ┌────────────────────────┐                        ┌────────────────────────┐
+        // 2: 1 11                 4: 12 8                    3: 20 5                 6: 30 8
+        //
+        // Post
+        // ----
         //                                                 1: 37 1-38
         //                     ┌────────────────────────────────────────────────────────────────┐
         //                5: 19 1-20                                                     7: 18 20-38
         //     ┌────────────────────────────────┐                                ┌────────────────────────────────┐
         // 2: 1 11                         4: 12 8                          9: 10 20-30                       6: 30 8
         //                                                             ┌────────────────┐
-        //                                                         3: 20 5         8: 25 5
+        //                                                         3: 20 5         ->8: 25 5
         TestNodeInsertCase {
             name: "Case 1b: Left Internal, Right Internal, Right Insert",
             nodes: vec![
@@ -54,38 +74,68 @@ fn test_node_insert_valid() {
             expected: vec![1, 5, 2, 4, 7, 9, 3, 8, 6],
             print: true,
         },
+        // Pre
+        // ---
+        // No Tree
+        //
+        // Post
+        // ----
         //            1: 10 1-11
         //     ┌────────
-        // 2: 1 10
+        // ->2: 1 10
         TestNodeInsertCase {
             name: "Case 2: First Node Insert",
             nodes: vec![NodeType::leaf(1u32, 10u32)],
             expected: vec![1, 2],
             print: true,
         },
+        // Pre
+        // ---
+        //     1: 10 1-11
+        //     ┌────────
+        // 2: 1 10
+        //
+        // Post
+        // ----
         //          1: 20 1-22
         //     ┌────────────────┐
-        // 2: 1 10         3: 12 10
+        // 2: 1 10         ->3: 12 10
         TestNodeInsertCase {
             name: "Case 3: Left Leaf, Right Empty",
             nodes: vec![NodeType::leaf(1u32, 10u32), NodeType::leaf(12u32, 10u32)],
             expected: vec![1, 2, 3],
             print: true,
         },
+        // Pre
+        // ---
+        //     1: 10 12-22
+        //     ┌────────
+        // 2: 12 10
+        //
+        // Post
+        // ----
         //          1: 20 1-22
         //     ┌────────────────┐
-        // 2: 1 10         3: 12 10
+        // ->2: 1 10         3: 12 10
         TestNodeInsertCase {
             name: "Case 3: Left Leaf, Right Empty, Larger Order First",
             nodes: vec![NodeType::leaf(12u32, 10u32), NodeType::leaf(1u32, 10u32)],
             expected: vec![1, 3, 2],
             print: true,
         },
+        // Pre
+        // ---
+        //          1: 20 1-30
+        //     ┌────────────────┐
+        // 2: 1 10         3: 20 10
+        //
+        // Post
+        // ----
         //                          1: 28 1-30
         //             ┌────────────────────────────────┐
         //        5: 18 1-20                       3: 20 10
         //     ┌────────────────┐
-        // 2: 1 10         4: 12 8
+        // 2: 1 10         ->4: 12 8
         TestNodeInsertCase {
             name: "Case 4: Left Leaf, Right Leaf, Left Insert",
             nodes: vec![
@@ -96,11 +146,21 @@ fn test_node_insert_valid() {
             expected: vec![1, 5, 2, 4, 3],
             print: true,
         },
+        // Pre
+        // ---
+        //                            1: 28 1-30
+        //             ┌────────────────────────────────┐
+        //        5: 18 1-20                       3: 20 10
+        //     ┌────────────────┐
+        // 2: 1 10         4: 12 8
+        //
+        // Post
+        // ----
         //                          1: 36 1-38
         //             ┌────────────────────────────────┐
         //        5: 18 1-20                     7: 18 20-38
         //     ┌────────────────┐                ┌────────────────┐
-        // 2: 1 10         4: 12 8            3: 20 10        6: 30 8
+        // 2: 1 10         4: 12 8            3: 20 10        -> 6: 30 8
         TestNodeInsertCase {
             name: "Case 5: Left Internal, Right Leaf, Right Insert",
             nodes: vec![
@@ -125,12 +185,12 @@ fn test_node_insert_valid() {
         );
 
         // Insert nodes into tree
-        for node in test.nodes {
+        for (idx, node) in test.nodes.iter().enumerate() {
             let mut tree_node = TreeNode::new(
                 book_id,
                 tick_id,
                 generate_node_id(deps.as_mut().storage, book_id, tick_id).unwrap(),
-                node,
+                node.clone(),
             );
             NODES
                 .save(
@@ -140,13 +200,23 @@ fn test_node_insert_valid() {
                 )
                 .unwrap();
             tree.insert(deps.as_mut().storage, &mut tree_node).unwrap();
+
+            // Print tree at second last node to see pre-insert
+            if test.nodes.len() >= 2 && idx == test.nodes.len() - 2 && test.print {
+                println!("Pre Insert Tree: {}", test.name);
+                println!("--------------------------");
+
+                let nodes = tree.traverse_bfs(deps.as_ref().storage).unwrap();
+                for (idx, row) in nodes.iter().enumerate() {
+                    print_tree_row(row.clone(), idx == 0, (nodes.len() - idx - 1) as u32);
+                }
+                println!();
+            }
         }
 
         if test.print {
-            println!("Print Tree: {}", test.name);
+            println!("Post Insert Tree: {}", test.name);
             println!("--------------------------");
-            // print_tree(deps.as_ref().storage, &tree, true);
-            // println!();
 
             let nodes = tree.traverse_bfs(deps.as_ref().storage).unwrap();
             for (idx, row) in nodes.iter().enumerate() {

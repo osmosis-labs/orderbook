@@ -255,10 +255,10 @@ impl TreeNode {
         }
 
         // Case 3: reordering
-        let is_less_than_left_leaf = maybe_left.clone().map_or(false, |l| {
+        let is_lower_than_left_leaf = maybe_left.clone().map_or(false, |l| {
             !l.is_internal() && new_node.get_max_range() <= l.get_min_range()
         });
-        if is_less_than_left_leaf && maybe_right.is_none() {
+        if is_lower_than_left_leaf && maybe_right.is_none() {
             self.right = self.left;
             self.left = Some(new_node.key);
             new_node.parent = Some(self.key);

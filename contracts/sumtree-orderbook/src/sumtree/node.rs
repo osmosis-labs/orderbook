@@ -254,6 +254,19 @@ impl TreeNode {
             return Ok(());
         }
 
+        // Case 3: reordering
+        let is_less_than_left_leaf = maybe_left.clone().map_or(false, |l| {
+            !l.is_internal() && new_node.get_max_range() <= l.get_min_range()
+        });
+        if is_less_than_left_leaf && maybe_right.is_none() {
+            self.right = self.left;
+            self.left = Some(new_node.key);
+            new_node.parent = Some(self.key);
+            new_node.save(storage)?;
+            self.save(storage)?;
+            return Ok(());
+        }
+
         // Case 3
         if !is_in_left_range && maybe_right.is_none() {
             self.right = Some(new_node.key);
@@ -273,6 +286,20 @@ impl TreeNode {
             let mut left = maybe_left.unwrap();
             let new_left = left.split(storage, new_node)?;
             self.left = Some(new_left);
+            self.save(storage)?;
+            return Ok(());
+        }
+
+        // Case 5: Reordering
+        // TODO: Add edge case test for this
+        let is_higher_than_right_leaf = maybe_right.clone().map_or(false, |r| {
+            !r.is_internal() && new_node.get_min_range() >= r.get_min_range()
+        });
+        if is_higher_than_right_leaf && maybe_left.is_none() {
+            self.left = self.right;
+            self.right = Some(new_node.key);
+            new_node.parent = Some(self.key);
+            new_node.save(storage)?;
             self.save(storage)?;
             return Ok(());
         }

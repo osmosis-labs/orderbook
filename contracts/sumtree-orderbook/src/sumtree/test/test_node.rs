@@ -2,86 +2,6 @@ use cosmwasm_std::{testing::mock_dependencies, Uint128};
 
 use crate::sumtree::node::{generate_node_id, NodeType, TreeNode, NODES};
 
-const SPACING: u32 = 2u32;
-const RIGHT_CORNER: &str = "┐";
-const LEFT_CORNER: &str = "┌";
-const STRAIGHT: &str = "─";
-
-pub fn spacing(len: u32) -> String {
-    let mut s = "".to_string();
-    for _ in 0..len {
-        s.push(' ');
-    }
-    s
-}
-
-pub fn print_tree_row(row: Vec<(Option<TreeNode>, Option<TreeNode>)>, top: bool, height: u32) {
-    let blank_spacing_length = 2u32.pow(height + 1) * SPACING;
-    let blank_spacing = spacing(blank_spacing_length);
-
-    let mut node_spacing = "".to_string();
-    for _ in 0..blank_spacing_length {
-        node_spacing.push_str(STRAIGHT);
-    }
-
-    if !top {
-        let mut line = "".to_string();
-        for (left, right) in row.clone() {
-            let print_left_top = if left.is_some() {
-                format!("{blank_spacing}{LEFT_CORNER}{node_spacing}")
-            } else {
-                spacing(blank_spacing_length * 2)
-            };
-            let print_right_top = if right.is_some() {
-                format!("{node_spacing}{RIGHT_CORNER}{blank_spacing}")
-            } else {
-                spacing(blank_spacing_length * 2)
-            };
-            line.push_str(format!("{print_left_top}{print_right_top}").as_str())
-        }
-        println!("{line}")
-    }
-
-    let mut line = "".to_string();
-    for (left, right) in row {
-        let left_node_length = if let Some(left) = left.clone() {
-            left.to_string().len()
-        } else {
-            0
-        };
-        let print_left_top = if let Some(left) = left {
-            // Shift spacing to adjust for length of node string
-            let left_space =
-                spacing(blank_spacing_length - (left_node_length as f32 / 2.0).ceil() as u32);
-
-            format!("{left_space}{left}{blank_spacing}")
-        } else {
-            spacing(blank_spacing_length * 2)
-        };
-        let right_node_length = if let Some(right) = right.clone() {
-            right.to_string().len()
-        } else {
-            0
-        };
-        let print_right_top = if let Some(right) = right {
-            // Shift spacing to adjust for length of left and right node string
-            let right_space = spacing(
-                blank_spacing_length
-                    - (right_node_length as f32 / 2.0).ceil() as u32
-                    - (left_node_length as f32 / 2.0).floor() as u32,
-            );
-            format!("{right_space}{right}{blank_spacing}")
-        } else if !top {
-            spacing(blank_spacing_length * 2)
-        } else {
-            // Prevents root from going on to new line
-            "".to_string()
-        };
-        line.push_str(format!("{print_left_top}{print_right_top}").as_str())
-    }
-    println!("{line}")
-}
-
 struct TestNodeInsertCase {
     name: &'static str,
     nodes: Vec<NodeType>,
@@ -138,7 +58,7 @@ fn test_node_insert_valid() {
         //     ┌────────
         // 2: 1 10
         TestNodeInsertCase {
-            name: "Case 2: Left Empty Right Empty",
+            name: "Case 2: First Node Insert",
             nodes: vec![NodeType::leaf(1u32, 10u32)],
             expected: vec![1, 2],
             print: true,
@@ -150,6 +70,15 @@ fn test_node_insert_valid() {
             name: "Case 3: Left Leaf, Right Empty",
             nodes: vec![NodeType::leaf(1u32, 10u32), NodeType::leaf(12u32, 10u32)],
             expected: vec![1, 2, 3],
+            print: true,
+        },
+        //          1: 20 1-22
+        //     ┌────────────────┐
+        // 2: 1 10         3: 12 10
+        TestNodeInsertCase {
+            name: "Case 3: Left Leaf, Right Empty, Larger Order First",
+            nodes: vec![NodeType::leaf(12u32, 10u32), NodeType::leaf(1u32, 10u32)],
+            expected: vec![1, 3, 2],
             print: true,
         },
         //                          1: 28 1-30
@@ -271,4 +200,84 @@ fn test_node_insert_valid() {
             assert_eq!(internal_node.get_max_range(), max);
         }
     }
+}
+
+const SPACING: u32 = 2u32;
+const RIGHT_CORNER: &str = "┐";
+const LEFT_CORNER: &str = "┌";
+const STRAIGHT: &str = "─";
+
+pub fn spacing(len: u32) -> String {
+    let mut s = "".to_string();
+    for _ in 0..len {
+        s.push(' ');
+    }
+    s
+}
+
+pub fn print_tree_row(row: Vec<(Option<TreeNode>, Option<TreeNode>)>, top: bool, height: u32) {
+    let blank_spacing_length = 2u32.pow(height + 1) * SPACING;
+    let blank_spacing = spacing(blank_spacing_length);
+
+    let mut node_spacing = "".to_string();
+    for _ in 0..blank_spacing_length {
+        node_spacing.push_str(STRAIGHT);
+    }
+
+    if !top {
+        let mut line = "".to_string();
+        for (left, right) in row.clone() {
+            let print_left_top = if left.is_some() {
+                format!("{blank_spacing}{LEFT_CORNER}{node_spacing}")
+            } else {
+                spacing(blank_spacing_length * 2)
+            };
+            let print_right_top = if right.is_some() {
+                format!("{node_spacing}{RIGHT_CORNER}{blank_spacing}")
+            } else {
+                spacing(blank_spacing_length * 2)
+            };
+            line.push_str(format!("{print_left_top}{print_right_top}").as_str())
+        }
+        println!("{line}")
+    }
+
+    let mut line = "".to_string();
+    for (left, right) in row {
+        let left_node_length = if let Some(left) = left.clone() {
+            left.to_string().len()
+        } else {
+            0
+        };
+        let print_left_top = if let Some(left) = left {
+            // Shift spacing to adjust for length of node string
+            let left_space =
+                spacing(blank_spacing_length - (left_node_length as f32 / 2.0).ceil() as u32);
+
+            format!("{left_space}{left}{blank_spacing}")
+        } else {
+            spacing(blank_spacing_length * 2)
+        };
+        let right_node_length = if let Some(right) = right.clone() {
+            right.to_string().len()
+        } else {
+            0
+        };
+        let print_right_top = if let Some(right) = right {
+            // Shift spacing to adjust for length of left and right node string
+            let right_space = spacing(
+                blank_spacing_length
+                    - (right_node_length as f32 / 2.0).ceil() as u32
+                    - (left_node_length as f32 / 2.0).floor() as u32,
+            );
+            format!("{right_space}{right}{blank_spacing}")
+        } else if !top {
+            spacing(blank_spacing_length * 2)
+        } else {
+            // Prevents root from going on to new line
+            "".to_string()
+        };
+        line.push_str(format!("{print_left_top}{print_right_top}").as_str())
+    }
+    println!("{line}")
 }

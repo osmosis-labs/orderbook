@@ -162,6 +162,8 @@ pub fn cancel_limit(
         })?;
     // TODO: Awful type conversion here
     // either swap tree to Decimal256 or state to Uint128
+    // TODO: Should this be part of the LimitOrder struct rather than pulled from current tick state?
+    // i.e. ETAS is recorded when order placed instead of when cancelled
     let etas = Uint128::from_str(
         curr_tick_state
             .effective_total_amount_swapped

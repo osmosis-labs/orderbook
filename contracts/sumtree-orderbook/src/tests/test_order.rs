@@ -308,14 +308,14 @@ fn test_place_limit() {
             format_test_name(test.name)
         );
         assert_eq!(
-            state.effective_total_amount_swapped,
-            Decimal256::zero(),
+            state.cumulative_total_limits,
+            Decimal256::from_ratio(test.quantity, Uint256::one()),
             "{}",
             format_test_name(test.name)
         );
         assert_eq!(
-            state.cumulative_total_limits,
-            Decimal256::one(),
+            state.effective_total_amount_swapped,
+            Decimal256::zero(),
             "{}",
             format_test_name(test.name)
         );

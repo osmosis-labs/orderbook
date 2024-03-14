@@ -102,10 +102,9 @@ pub fn place_limit(
         curr_state.effective_total_amount_swapped = curr_state
             .effective_total_amount_swapped
             .checked_add(Decimal256::from_ratio(quantity_fullfilled, Uint256::one()))?;
-        // TODO: Unsure of what this value is for?
         curr_state.cumulative_total_limits = curr_state
             .cumulative_total_limits
-            .checked_add(Decimal256::one())?;
+            .checked_add(Decimal256::from_ratio(quantity, Uint256::one()))?;
 
         Ok::<TickState, ContractError>(curr_state)
     })?;

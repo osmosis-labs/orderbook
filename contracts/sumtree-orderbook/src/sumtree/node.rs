@@ -293,7 +293,7 @@ impl TreeNode {
         // Case 5: Reordering
         // TODO: Add edge case test for this
         let is_higher_than_right_leaf = maybe_right.clone().map_or(false, |r| {
-            !r.is_internal() && new_node.get_min_range() >= r.get_min_range()
+            !r.is_internal() && new_node.get_min_range() >= r.get_max_range()
         });
         if is_higher_than_right_leaf && maybe_left.is_none() {
             self.left = self.right;

@@ -4,9 +4,10 @@ use crate::{
     order::*,
     orderbook::*,
     state::*,
+    tick_math::{divide_by_price, multiply_by_price, tick_to_price},
     types::{Fulfillment, LimitOrder, MarketOrder, OrderDirection, REPLY_ID_REFUND},
 };
-use cosmwasm_std::{coin, Addr, BankMsg, Coin, CosmosMsg, Decimal, Empty, SubMsg, Uint128};
+use cosmwasm_std::{coin, Addr, BankMsg, Coin, CosmosMsg, Empty, SubMsg, Uint128};
 use cosmwasm_std::{
     testing::{mock_dependencies_with_balances, mock_env, mock_info},
     ReplyOn,
@@ -322,36 +323,6 @@ fn test_place_limit_fill() {
 
     let test_cases: Vec<FillLimitOrderTestCase> = vec![
         FillLimitOrderTestCase {
-            name: "standard fulfilled order BID",
-            tick_id: 2,
-            order_direction: OrderDirection::Bid,
-            quantity: Uint128::from(100u128),
-            expected_fulfillments: vec![Fulfillment::new(
-                LimitOrder::new(
-                    valid_book_id,
-                    1,
-                    0,
-                    OrderDirection::Ask,
-                    Addr::unchecked("maker1"),
-                    Uint128::from(100u128),
-                ),
-                Uint128::zero(),
-            )],
-            expected_bank_msgs: vec![
-                BankMsg::Send {
-                    to_address: "maker1".to_string(),
-                    amount: vec![coin(100u128, quote_denom.clone())],
-                },
-                BankMsg::Send {
-                    to_address: creator.to_string(),
-                    amount: vec![coin(100u128, base_denom.clone())],
-                },
-            ],
-            expected_liquidity: vec![(1, Uint128::zero())],
-            expected_remainder: Uint128::zero(),
-            expected_error: None,
-        },
-        FillLimitOrderTestCase {
             name: "run limit order with single fulfillment ASK",
             tick_id: -1,
             order_direction: OrderDirection::Ask,
@@ -425,6 +396,46 @@ fn test_place_limit_fill() {
                 },
             ],
             expected_liquidity: vec![(-1, Uint128::zero())],
+            expected_remainder: Uint128::zero(),
+            expected_error: None,
+        },
+        FillLimitOrderTestCase {
+            name: "standard fulfilled order higher tick ASK",
+            tick_id: -100000,
+            order_direction: OrderDirection::Ask,
+            quantity: Uint128::from(100u128),
+            expected_fulfillments: vec![Fulfillment::new(
+                LimitOrder::new(
+                    valid_book_id,
+                    -100000,
+                    0,
+                    OrderDirection::Bid,
+                    Addr::unchecked("maker1"),
+                    Uint128::from(100u128),
+                ),
+                Uint128::zero(),
+            )],
+            expected_bank_msgs: vec![
+                BankMsg::Send {
+                    to_address: "maker1".to_string(),
+                    amount: vec![coin(
+                        multiply_by_price(Uint128::from(100u128), tick_to_price(-100000).unwrap())
+                            .unwrap()
+                            .u128(),
+                        base_denom.clone(),
+                    )],
+                },
+                BankMsg::Send {
+                    to_address: creator.to_string(),
+                    amount: vec![coin(
+                        divide_by_price(Uint128::from(100u128), tick_to_price(-100000).unwrap())
+                            .unwrap()
+                            .u128(),
+                        quote_denom.clone(),
+                    )],
+                },
+            ],
+            expected_liquidity: vec![(1, Uint128::zero())],
             expected_remainder: Uint128::zero(),
             expected_error: None,
         },
@@ -588,11 +599,51 @@ fn test_place_limit_fill() {
             expected_bank_msgs: vec![
                 BankMsg::Send {
                     to_address: "maker".to_string(),
-                    amount: vec![coin(50, "quote")],
+                    amount: vec![coin(49, "quote")],
                 },
                 BankMsg::Send {
                     to_address: "creator".to_string(),
-                    amount: vec![coin(50, "base")],
+                    amount: vec![coin(51, "base")],
+                },
+            ],
+            expected_liquidity: vec![(1, Uint128::zero())],
+            expected_remainder: Uint128::zero(),
+            expected_error: None,
+        },
+        FillLimitOrderTestCase {
+            name: "standard fulfilled order higher tick BID",
+            tick_id: 100000,
+            order_direction: OrderDirection::Bid,
+            quantity: Uint128::from(100u128),
+            expected_fulfillments: vec![Fulfillment::new(
+                LimitOrder::new(
+                    valid_book_id,
+                    100000,
+                    0,
+                    OrderDirection::Ask,
+                    Addr::unchecked("maker1"),
+                    Uint128::from(100u128),
+                ),
+                Uint128::zero(),
+            )],
+            expected_bank_msgs: vec![
+                BankMsg::Send {
+                    to_address: "maker1".to_string(),
+                    amount: vec![coin(
+                        divide_by_price(Uint128::from(100u128), tick_to_price(100000).unwrap())
+                            .unwrap()
+                            .u128(),
+                        quote_denom.clone(),
+                    )],
+                },
+                BankMsg::Send {
+                    to_address: creator.to_string(),
+                    amount: vec![coin(
+                        multiply_by_price(Uint128::from(100u128), tick_to_price(100000).unwrap())
+                            .unwrap()
+                            .u128(),
+                        base_denom.clone(),
+                    )],
                 },
             ],
             expected_liquidity: vec![(1, Uint128::zero())],
@@ -631,15 +682,15 @@ fn test_place_limit_fill() {
             expected_bank_msgs: vec![
                 BankMsg::Send {
                     to_address: "maker1".to_string(),
-                    amount: vec![coin(25, "quote")],
+                    amount: vec![coin(24, "quote")],
                 },
                 BankMsg::Send {
                     to_address: "maker2".to_string(),
-                    amount: vec![coin(75, "quote")],
+                    amount: vec![coin(74, "quote")],
                 },
                 BankMsg::Send {
                     to_address: "creator".to_string(),
-                    amount: vec![coin(100, "base")],
+                    amount: vec![coin(102, "base")],
                 },
             ],
             expected_liquidity: vec![(1, Uint128::zero())],
@@ -678,15 +729,15 @@ fn test_place_limit_fill() {
             expected_bank_msgs: vec![
                 BankMsg::Send {
                     to_address: "maker1".to_string(),
-                    amount: vec![coin(25, "quote")],
+                    amount: vec![coin(24, "quote")],
                 },
                 BankMsg::Send {
                     to_address: "maker2".to_string(),
-                    amount: vec![coin(75, "quote")],
+                    amount: vec![coin(74, "quote")],
                 },
                 BankMsg::Send {
                     to_address: "creator".to_string(),
-                    amount: vec![coin(100, "base")],
+                    amount: vec![coin(102, "base")],
                 },
             ],
             expected_liquidity: vec![(1, Uint128::zero()), (2, Uint128::zero())],
@@ -725,15 +776,15 @@ fn test_place_limit_fill() {
             expected_bank_msgs: vec![
                 BankMsg::Send {
                     to_address: "maker1".to_string(),
-                    amount: vec![coin(25, "quote")],
+                    amount: vec![coin(24, "quote")],
                 },
                 BankMsg::Send {
                     to_address: "maker2".to_string(),
-                    amount: vec![coin(75, "quote")],
+                    amount: vec![coin(74, "quote")],
                 },
                 BankMsg::Send {
                     to_address: "creator".to_string(),
-                    amount: vec![coin(100, "base")],
+                    amount: vec![coin(102, "base")],
                 },
             ],
             expected_liquidity: vec![(1, Uint128::from(75u128))],
@@ -772,15 +823,15 @@ fn test_place_limit_fill() {
             expected_bank_msgs: vec![
                 BankMsg::Send {
                     to_address: "maker1".to_string(),
-                    amount: vec![coin(25, "quote")],
+                    amount: vec![coin(24, "quote")],
                 },
                 BankMsg::Send {
                     to_address: "maker2".to_string(),
-                    amount: vec![coin(150, "quote")],
+                    amount: vec![coin(149, "quote")],
                 },
                 BankMsg::Send {
                     to_address: "creator".to_string(),
-                    amount: vec![coin(175, "base")],
+                    amount: vec![coin(177, "base")],
                 },
             ],
             expected_liquidity: vec![(1, Uint128::zero()), (2, Uint128::from(825u128))],
@@ -1574,7 +1625,7 @@ fn test_resolve_fulfillments() {
             // Check message is generated as expected
             let mut order = order.clone();
             let denom = orderbook.get_opposite_denom(&order.order_direction);
-            let msg = order.fill(denom, *amount, Decimal::one()).unwrap();
+            let msg = order.fill(denom, *amount).unwrap();
 
             assert_eq!(response[idx], msg, "{}", format_test_name(test.name));
         }

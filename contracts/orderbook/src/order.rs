@@ -2,9 +2,10 @@ use crate::constants::{MAX_TICK, MIN_TICK};
 use crate::error::ContractError;
 use crate::state::ORDERBOOKS;
 use crate::state::*;
+use crate::tick_math::{amount_to_value, tick_to_price};
 use crate::types::{Fulfillment, LimitOrder, MarketOrder, OrderDirection, REPLY_ID_REFUND};
 use cosmwasm_std::{
-    coin, ensure, ensure_eq, ensure_ne, BankMsg, Decimal, DepsMut, Env, MessageInfo, Order,
+    coin, ensure, ensure_eq, ensure_ne, BankMsg, Decimal256, DepsMut, Env, MessageInfo, Order,
     Response, Storage, SubMsg, Uint128,
 };
 use cw_storage_plus::Bound;
@@ -193,6 +194,7 @@ pub fn run_market_order(
 ) -> Result<(Vec<Fulfillment>, BankMsg), ContractError> {
     let mut fulfillments: Vec<Fulfillment> = vec![];
     let mut amount_fulfilled: Uint128 = Uint128::zero();
+    let mut amount_to_send: Uint128 = Uint128::zero();
     let orderbook = ORDERBOOKS.load(storage, &order.book_id)?;
     let placed_order_fulfilled_denom = orderbook.get_opposite_denom(&order.order_direction);
 
@@ -235,7 +237,7 @@ pub fn run_market_order(
 
     for maybe_current_tick in ticks {
         let current_tick = maybe_current_tick?.0;
-
+        let tick_price: Decimal256 = tick_to_price(current_tick)?;
         // Create orders iterator for all orders on current tick
         let tick_orders = orders().prefix((order.book_id, current_tick)).range(
             storage,
@@ -254,42 +256,44 @@ pub fn run_market_order(
             let fill_quantity = order.quantity.min(current_order.quantity);
             // Add to total amount fulfilled from placed order
             amount_fulfilled = amount_fulfilled.checked_add(fill_quantity)?;
+            amount_to_send = amount_to_send.checked_add(amount_to_value(
+                order.order_direction,
+                fill_quantity,
+                tick_price,
+            )?)?;
             // Generate fulfillment for current order
             let fulfillment = Fulfillment::new(current_order, fill_quantity);
             fulfillments.push(fulfillment);
 
             // Update remaining order quantity
             order.quantity = order.quantity.checked_sub(fill_quantity)?;
-            // TODO: Price detection
             if order.quantity.is_zero() {
                 return Ok((
                     fulfillments,
                     BankMsg::Send {
                         to_address: order.owner.to_string(),
-                        amount: vec![coin(amount_fulfilled.u128(), placed_order_fulfilled_denom)],
+                        amount: vec![coin(amount_to_send.u128(), placed_order_fulfilled_denom)],
                     },
                 ));
             }
         }
 
-        // TODO: Price detection
         if order.quantity.is_zero() {
             return Ok((
                 fulfillments,
                 BankMsg::Send {
                     to_address: order.owner.to_string(),
-                    amount: vec![coin(amount_fulfilled.u128(), placed_order_fulfilled_denom)],
+                    amount: vec![coin(amount_to_send.u128(), placed_order_fulfilled_denom)],
                 },
             ));
         }
     }
 
-    // TODO: Price detection
     Ok((
         fulfillments,
         BankMsg::Send {
             to_address: order.owner.to_string(),
-            amount: vec![coin(amount_fulfilled.u128(), placed_order_fulfilled_denom)],
+            amount: vec![coin(amount_to_send.u128(), placed_order_fulfilled_denom)],
         },
     ))
 }
@@ -314,9 +318,7 @@ pub fn resolve_fulfillments(
         );
         let denom = orderbook.get_opposite_denom(&fulfillment.order.order_direction);
         // TODO: Add price detection for tick
-        let msg = fulfillment
-            .order
-            .fill(&denom, fulfillment.amount, Decimal::one())?;
+        let msg = fulfillment.order.fill(&denom, fulfillment.amount)?;
         msgs.push(msg);
         if fulfillment.order.quantity.is_zero() {
             orders().remove(

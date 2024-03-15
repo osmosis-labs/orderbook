@@ -19,10 +19,6 @@ pub struct TickState {
     /// - Every swap increments ETAS by the swap amount.
     /// - There will be other ways to update ETAS as described below.
     pub effective_total_amount_swapped: Decimal256,
-    // Next Limit ID at tick
-    // - Used to assign unique identifiers to new limit orders at this tick.
-    // TODO:  is this necessary?
-    // pub next_limit_id: u64,
 }
 
 impl Default for TickState {

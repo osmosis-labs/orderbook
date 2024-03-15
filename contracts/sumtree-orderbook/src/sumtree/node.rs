@@ -284,7 +284,7 @@ impl TreeNode {
         // Case 4
         if left_is_leaf {
             let mut left = maybe_left.unwrap();
-            let new_left = left.split(storage, new_node)?;
+            let new_left = left.split(storage, new_node, self.key)?;
             self.left = Some(new_left);
             self.save(storage)?;
             return Ok(());
@@ -307,7 +307,7 @@ impl TreeNode {
         // Case 5
         if !is_in_left_range && right_is_leaf {
             let mut right = maybe_right.unwrap();
-            let new_right = right.split(storage, new_node)?;
+            let new_right = right.split(storage, new_node, self.key)?;
             self.right = Some(new_right);
             self.save(storage)?;
             return Ok(());
@@ -324,6 +324,7 @@ impl TreeNode {
         &mut self,
         storage: &mut dyn Storage,
         new_node: &mut TreeNode,
+        parent_id: u64,
     ) -> ContractResult<u64> {
         ensure!(!self.is_internal(), ContractError::InvalidNodeType);
         let id = generate_node_id(storage, self.book_id, self.tick_id)?;
@@ -353,6 +354,7 @@ impl TreeNode {
         new_node.parent = Some(id);
         new_parent.left = Some(new_left);
         new_parent.right = Some(new_right);
+        new_parent.parent = Some(parent_id);
 
         new_parent.save(storage)?;
         self.save(storage)?;

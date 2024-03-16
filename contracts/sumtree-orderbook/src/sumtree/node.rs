@@ -193,9 +193,10 @@ impl TreeNode {
         self.set_value(self.get_value().checked_add(value)?)
     }
 
-    // TODO: This can likely be optimized
     /// Recalculates the range and accumulated value for a node and propagates it up the tree
-    pub fn recalculate_values(&mut self, storage: &mut dyn Storage) -> ContractResult<()> {
+    ///
+    /// Must be an internal node
+    pub fn sync_range_and_value(&mut self, storage: &mut dyn Storage) -> ContractResult<()> {
         ensure!(self.is_internal(), ContractError::InvalidNodeType);
         let maybe_left = self.get_left(storage)?;
         let maybe_right = self.get_right(storage)?;
@@ -240,7 +241,7 @@ impl TreeNode {
         self.save(storage)?;
 
         if let Some(mut parent) = self.get_parent(storage)? {
-            parent.recalculate_values(storage)?;
+            parent.sync_range_and_value(storage)?;
         }
 
         Ok(())
@@ -449,7 +450,7 @@ impl TreeNode {
                 parent.delete(storage)?;
             } else {
                 // Update parents values after removing node
-                parent.recalculate_values(storage)?;
+                parent.sync_range_and_value(storage)?;
             }
         }
 

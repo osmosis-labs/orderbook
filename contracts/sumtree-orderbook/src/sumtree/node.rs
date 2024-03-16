@@ -196,6 +196,7 @@ impl TreeNode {
     // TODO: This can likely be optimized
     /// Recalculates the range and accumulated value for a node and propagates it up the tree
     pub fn recalculate_values(&mut self, storage: &mut dyn Storage) -> ContractResult<()> {
+        ensure!(self.is_internal(), ContractError::InvalidNodeType);
         let maybe_left = self.get_left(storage)?;
         let maybe_right = self.get_right(storage)?;
 

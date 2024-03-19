@@ -201,32 +201,28 @@ impl TreeNode {
         let maybe_left = self.get_left(storage)?;
         let maybe_right = self.get_right(storage)?;
 
-        // Calculate min from remaining children
-        // Attempt to get min value or default to Uint128::MAX for both nodes
-        // Take min from both returned values
-        let min = maybe_left
-            .clone()
-            .map(|n| n.get_min_range())
-            .unwrap_or(Uint128::MAX)
-            .min(
-                maybe_right
-                    .clone()
-                    .map(|n| n.get_min_range())
-                    .unwrap_or(Uint128::MAX),
-            );
-        // Calculate max from remaining children
-        // Attempt to get max value or default to Uint128::MIN for both nodes
-        // Take max from both returned values
-        let max = maybe_left
-            .clone()
-            .map(|n| n.get_max_range())
-            .unwrap_or(Uint128::MIN)
-            .max(
-                maybe_right
-                    .clone()
-                    .map(|n| n.get_max_range())
-                    .unwrap_or(Uint128::MIN),
-            );
+        let left_exists = maybe_left.is_some();
+        let right_exists = maybe_right.is_some();
+
+        if !self.has_child() {
+            return Err(ContractError::ChildlessInternalNode);
+        }
+
+        let (min, max) = if left_exists && !right_exists {
+            let left = maybe_left.clone().unwrap();
+            (left.get_min_range(), left.get_max_range())
+        } else if right_exists && !left_exists {
+            let right = maybe_right.clone().unwrap();
+            (right.get_min_range(), right.get_max_range())
+        } else {
+            let left = maybe_left.clone().unwrap();
+            let right = maybe_right.clone().unwrap();
+
+            (
+                left.get_min_range().min(right.get_min_range()),
+                left.get_max_range().max(right.get_max_range()),
+            )
+        };
 
         self.set_min_range(min)?;
         self.set_max_range(max)?;

@@ -4,6 +4,10 @@ use crate::{
     order::*,
     orderbook::*,
     state::*,
+    sumtree::{
+        node::{NodeType, TreeNode},
+        tree::TREE,
+    },
     types::{OrderDirection, REPLY_ID_REFUND},
 };
 use cosmwasm_std::{coin, Addr, BankMsg, Coin, Empty, SubMsg, Uint128, Uint256};
@@ -296,6 +300,7 @@ fn test_place_limit() {
             "{}",
             format_test_name(test.name)
         );
+        assert_eq!(order.etas, Decimal256::zero());
 
         // Validate liquidity updated as intended
         let state = TICK_STATE
@@ -569,5 +574,32 @@ fn test_cancel_limit() {
             "{}",
             format_test_name(test.name)
         );
+
+        // -- Sumtree --
+
+        // Ensure tree is saved correctly
+        let tree = TREE
+            .load(deps.as_ref().storage, &(valid_book_id, test.tick_id))
+            .unwrap();
+
+        // Traverse the tree to check its form
+        let res = tree.traverse(deps.as_ref().storage).unwrap();
+        let mut root_node = TreeNode::new(
+            valid_book_id,
+            test.tick_id,
+            1,
+            NodeType::internal(test.quantity, (0u128, test.quantity)),
+        );
+        let mut cancelled_node = TreeNode::new(
+            valid_book_id,
+            test.tick_id,
+            2,
+            NodeType::leaf(0u128, test.quantity),
+        );
+        root_node.left = Some(cancelled_node.key);
+        cancelled_node.parent = Some(root_node.key);
+
+        // Ensure tree traversal returns expected ordering
+        assert_eq!(res, vec![root_node, cancelled_node])
     }
 }

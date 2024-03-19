@@ -207,6 +207,9 @@ pub fn cancel_limit(
         &curr_tick_state,
     )?;
 
+    tree.save(deps.storage)?;
+    TREE.save(deps.storage, &(book_id, tick_id), &tree)?;
+
     Ok(Response::new()
         .add_attribute("method", "cancelLimit")
         .add_attribute("owner", info.sender)

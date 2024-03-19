@@ -65,6 +65,7 @@ pub fn place_limit(
         order_direction,
         info.sender.clone(),
         quantity,
+        // To be set POST fill when appropriate
         Decimal256::zero(),
     );
 
@@ -83,20 +84,17 @@ pub fn place_limit(
     let quantity_fullfilled = quantity.checked_sub(limit_order.quantity)?;
 
     // Update ETAS post fill
+    // This must be read POST fill to ensure it is up to date with orders filled on current tick
     let mut tick_state = TICK_STATE
         .load(deps.storage, &(book_id, tick_id))
         .unwrap_or_default();
-    limit_order.etas = tick_state.effective_total_amount_swapped;
+    limit_order.etas = tick_state.cumulative_total_value;
 
     // Only save the order if not fully filled
     if limit_order.quantity > Uint128::zero() {
         // Save the order to the orderbook
         orders().save(deps.storage, &(book_id, tick_id, order_id), &limit_order)?;
-    }
 
-    // Update tick state
-    // Increment total available liquidity by remaining quantity in order post fill
-    if !limit_order.quantity.is_zero() {
         tick_state.total_amount_of_liquidity = tick_state
             .total_amount_of_liquidity
             .checked_add(Decimal256::from_ratio(
@@ -106,8 +104,8 @@ pub fn place_limit(
             .unwrap();
     }
 
-    tick_state.cumulative_total_limits = tick_state
-        .cumulative_total_limits
+    tick_state.cumulative_total_value = tick_state
+        .cumulative_total_value
         .checked_add(Decimal256::from_ratio(quantity, Uint256::one()))?;
 
     TICK_STATE.save(deps.storage, &(book_id, tick_id), &tick_state)?;
@@ -164,10 +162,6 @@ pub fn cancel_limit(
             tick_id: order.tick_id,
         })?;
 
-    // TODO: Awful type conversion here
-    // either swap tree to Decimal256 or state to Uint128
-    // TODO: Should this be part of the LimitOrder struct rather than pulled from current tick state?
-    // i.e. ETAS is recorded when order placed instead of when cancelled
     let etas = Uint128::from_str(&order.etas.to_string())?;
 
     let mut new_node = TreeNode::new(
@@ -206,6 +200,7 @@ pub fn cancel_limit(
     curr_tick_state.total_amount_of_liquidity = curr_tick_state
         .total_amount_of_liquidity
         .checked_sub(Decimal256::from_ratio(order.quantity, Uint256::one()))?;
+
     TICK_STATE.save(
         deps.storage,
         &(order.book_id, order.tick_id),

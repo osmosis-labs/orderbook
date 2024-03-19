@@ -1,7 +1,7 @@
 use crate::state::*;
 use crate::types::{FilterOwnerOrders, LimitOrder, OrderDirection, TickState};
 use cosmwasm_std::testing::MockStorage;
-use cosmwasm_std::{Addr, Order, Uint128};
+use cosmwasm_std::{Addr, Decimal256, Order, Uint128};
 
 #[test]
 fn test_new_orderbook_id() {
@@ -61,6 +61,7 @@ fn test_order_iteration() {
             owner: Addr::unchecked(format!("maker{i}")),
             quantity: Uint128::new(i as u128),
             order_direction: OrderDirection::Ask,
+            etas: Decimal256::zero(),
         };
         orders()
             .save(&mut storage, &(book_id, tick, i), &order)
@@ -103,6 +104,7 @@ fn test_get_orders_by_owner_all() {
             OrderDirection::Ask,
             current_owner,
             Uint128::new(i as u128),
+            Decimal256::zero(),
         );
         orders()
             .save(&mut storage, &(order.book_id, 0, i as u64), &order)
@@ -147,6 +149,7 @@ fn test_get_orders_by_owner_by_book() {
             OrderDirection::Ask,
             current_owner,
             Uint128::new(i as u128),
+            Decimal256::zero(),
         );
         orders()
             .save(&mut storage, &(order.book_id, 0, i as u64), &order)
@@ -192,6 +195,7 @@ fn test_get_orders_by_owner_by_tick() {
             OrderDirection::Ask,
             current_owner,
             Uint128::new(i as u128),
+            Decimal256::zero(),
         );
         orders()
             .save(&mut storage, &(book_id, tick, i as u64), &order)
@@ -234,6 +238,7 @@ fn test_get_orders_by_owner_with_pagination() {
             OrderDirection::Ask,
             Addr::unchecked(owner),
             Uint128::new(i as u128),
+            Decimal256::zero(),
         );
         orders()
             .save(&mut storage, &(book_id, tick, i as u64), &order)

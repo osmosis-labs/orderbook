@@ -5,7 +5,7 @@ use crate::error::ContractError;
 use crate::state::{new_order_id, orders, ORDERBOOKS, TICK_STATE};
 use crate::sumtree::node::{generate_node_id, NodeType, TreeNode};
 use crate::sumtree::tree::TREE;
-use crate::types::{LimitOrder, OrderDirection, TickState, REPLY_ID_REFUND};
+use crate::types::{LimitOrder, OrderDirection, REPLY_ID_REFUND};
 use cosmwasm_std::{
     coin, ensure, ensure_eq, BankMsg, Decimal256, DepsMut, Env, MessageInfo, Response, SubMsg,
     Uint128, Uint256,
@@ -54,17 +54,24 @@ pub fn place_limit(
         }
     );
 
+    let mut tick_state = TICK_STATE
+        .load(deps.storage, &(book_id, tick_id))
+        .unwrap_or_default();
+
     // Generate a new order ID
     let order_id = new_order_id(deps.storage)?;
 
     // Build limit order
-    let limit_order = LimitOrder::new(
+    let mut limit_order = LimitOrder::new(
         book_id,
         tick_id,
         order_id,
         order_direction,
         info.sender.clone(),
         quantity,
+        // Record ETAS at point of order placement
+        // TODO: Does this need update post fill logic?
+        tick_state.effective_total_amount_swapped,
     );
 
     // Determine if the order needs to be filled
@@ -79,35 +86,37 @@ pub fn place_limit(
         todo!()
     }
 
+    let quantity_fullfilled = quantity.checked_sub(limit_order.quantity)?;
+
+    // Update ETAS post fill
+    limit_order.etas = limit_order.etas.checked_add(Decimal256::from_ratio(
+        Uint256::from_uint128(quantity_fullfilled),
+        Uint128::one(),
+    ))?;
+
     // Only save the order if not fully filled
     if limit_order.quantity > Uint128::zero() {
         // Save the order to the orderbook
         orders().save(deps.storage, &(book_id, tick_id, order_id), &limit_order)?;
     }
 
-    let quantity_fullfilled = quantity.checked_sub(limit_order.quantity)?;
-
-    // Update tick liquidity
-    TICK_STATE.update(deps.storage, &(book_id, tick_id), |state| {
-        let mut curr_state = state.unwrap_or_default();
-        // Increment total available liquidity by remaining quantity in order post fill
-        curr_state.total_amount_of_liquidity = curr_state
+    // Update tick state
+    // Increment total available liquidity by remaining quantity in order post fill
+    if !limit_order.quantity.is_zero() {
+        tick_state.total_amount_of_liquidity = tick_state
             .total_amount_of_liquidity
             .checked_add(Decimal256::from_ratio(
                 limit_order.quantity.u128(),
                 Uint256::one(),
             ))
             .unwrap();
-        // Increment amount swapped by amount fulfilled for order
-        curr_state.effective_total_amount_swapped = curr_state
-            .effective_total_amount_swapped
-            .checked_add(Decimal256::from_ratio(quantity_fullfilled, Uint256::one()))?;
-        curr_state.cumulative_total_limits = curr_state
-            .cumulative_total_limits
-            .checked_add(Decimal256::from_ratio(quantity, Uint256::one()))?;
+    }
 
-        Ok::<TickState, ContractError>(curr_state)
-    })?;
+    tick_state.cumulative_total_limits = tick_state
+        .cumulative_total_limits
+        .checked_add(Decimal256::from_ratio(quantity, Uint256::one()))?;
+
+    TICK_STATE.save(deps.storage, &(book_id, tick_id), &tick_state)?;
 
     Ok(response
         .add_attribute("method", "placeLimit")
@@ -160,17 +169,13 @@ pub fn cancel_limit(
         .ok_or(ContractError::InvalidTickId {
             tick_id: order.tick_id,
         })?;
+
     // TODO: Awful type conversion here
     // either swap tree to Decimal256 or state to Uint128
     // TODO: Should this be part of the LimitOrder struct rather than pulled from current tick state?
     // i.e. ETAS is recorded when order placed instead of when cancelled
-    let etas = Uint128::from_str(
-        curr_tick_state
-            .effective_total_amount_swapped
-            .to_uint_ceil()
-            .to_string()
-            .as_str(),
-    )?;
+    let etas = Uint128::from_str(&order.etas.to_string())?;
+
     let mut new_node = TreeNode::new(
         order.book_id,
         order.tick_id,

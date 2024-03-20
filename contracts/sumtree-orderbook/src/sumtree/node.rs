@@ -118,6 +118,18 @@ impl TreeNode {
         }
     }
 
+    pub fn get_parent(&self, storage: &dyn Storage) -> ContractResult<Option<TreeNode>> {
+        if let Some(parent) = self.parent {
+            Ok(NODES.may_load(storage, &(self.book_id, self.tick_id, parent))?)
+        } else {
+            Ok(None)
+        }
+    }
+
+    pub fn has_child(&self) -> bool {
+        self.left.is_some() || self.right.is_some()
+    }
+
     pub fn save(&self, storage: &mut dyn Storage) -> ContractResult<()> {
         Ok(NODES.save(storage, &(self.book_id, self.tick_id, self.key), self)?)
     }
@@ -164,17 +176,71 @@ impl TreeNode {
         }
     }
 
-    /// Adds a given value to an internal node's accumulator
-    ///
-    /// Errors if given node is not internal
-    pub fn add_value(&mut self, value: Uint128) -> ContractResult<()> {
+    pub fn set_value(&mut self, value: Uint128) -> ContractResult<()> {
         match &mut self.node_type {
             NodeType::Internal { accumulator, .. } => {
-                *accumulator = accumulator.checked_add(value)?;
+                *accumulator = value;
                 Ok(())
             }
             NodeType::Leaf { .. } => Err(ContractError::InvalidNodeType),
         }
+    }
+
+    /// Adds a given value to an internal node's accumulator
+    ///
+    /// Errors if given node is not internal
+    pub fn add_value(&mut self, value: Uint128) -> ContractResult<()> {
+        self.set_value(self.get_value().checked_add(value)?)
+    }
+
+    /// Recalculates the range and accumulated value for a node and propagates it up the tree
+    ///
+    /// Must be an internal node
+    pub fn sync_range_and_value(&mut self, storage: &mut dyn Storage) -> ContractResult<()> {
+        ensure!(self.is_internal(), ContractError::InvalidNodeType);
+        let maybe_left = self.get_left(storage)?;
+        let maybe_right = self.get_right(storage)?;
+
+        let left_exists = maybe_left.is_some();
+        let right_exists = maybe_right.is_some();
+
+        if !self.has_child() {
+            return Err(ContractError::ChildlessInternalNode);
+        }
+
+        let (min, max) = if left_exists && !right_exists {
+            let left = maybe_left.clone().unwrap();
+            (left.get_min_range(), left.get_max_range())
+        } else if right_exists && !left_exists {
+            let right = maybe_right.clone().unwrap();
+            (right.get_min_range(), right.get_max_range())
+        } else {
+            let left = maybe_left.clone().unwrap();
+            let right = maybe_right.clone().unwrap();
+
+            (
+                left.get_min_range().min(right.get_min_range()),
+                left.get_max_range().max(right.get_max_range()),
+            )
+        };
+
+        self.set_min_range(min)?;
+        self.set_max_range(max)?;
+
+        let value = maybe_left
+            .map(|n| n.get_value())
+            .unwrap_or_default()
+            .checked_add(maybe_right.map(|n| n.get_value()).unwrap_or_default())?;
+        self.set_value(value)?;
+
+        // Must save before propagating as parent will read this node
+        self.save(storage)?;
+
+        if let Some(mut parent) = self.get_parent(storage)? {
+            parent.sync_range_and_value(storage)?;
+        }
+
+        Ok(())
     }
 
     /// Gets the value for a given node.
@@ -284,7 +350,7 @@ impl TreeNode {
         // Case 4
         if left_is_leaf {
             let mut left = maybe_left.unwrap();
-            let new_left = left.split(storage, new_node, self.key)?;
+            let new_left = left.split(storage, new_node)?;
             self.left = Some(new_left);
             self.save(storage)?;
             return Ok(());
@@ -307,7 +373,7 @@ impl TreeNode {
         // Case 5
         if !is_in_left_range && right_is_leaf {
             let mut right = maybe_right.unwrap();
-            let new_right = right.split(storage, new_node, self.key)?;
+            let new_right = right.split(storage, new_node)?;
             self.right = Some(new_right);
             self.save(storage)?;
             return Ok(());
@@ -324,7 +390,6 @@ impl TreeNode {
         &mut self,
         storage: &mut dyn Storage,
         new_node: &mut TreeNode,
-        parent_id: u64,
     ) -> ContractResult<u64> {
         ensure!(!self.is_internal(), ContractError::InvalidNodeType);
         let id = generate_node_id(storage, self.book_id, self.tick_id)?;
@@ -350,17 +415,44 @@ impl TreeNode {
         );
 
         // Save new key references
-        self.parent = Some(id);
-        new_node.parent = Some(id);
+        new_parent.parent = self.parent;
         new_parent.left = Some(new_left);
         new_parent.right = Some(new_right);
-        new_parent.parent = Some(parent_id);
+        self.parent = Some(id);
+        new_node.parent = Some(id);
 
         new_parent.save(storage)?;
         self.save(storage)?;
         new_node.save(storage)?;
 
         Ok(id)
+    }
+
+    /// Deletes a given node from the tree and propagates value changes up through its parent nodes.
+    ///
+    /// If the parent node has no children after removal it is also deleted recursively, to prune empty branches.
+    pub fn delete(&self, storage: &mut dyn Storage) -> ContractResult<()> {
+        let maybe_parent = self.get_parent(storage)?;
+        if let Some(mut parent) = maybe_parent {
+            // Remove node reference from parent
+            if parent.left == Some(self.key) {
+                parent.left = None;
+            } else if parent.right == Some(self.key) {
+                parent.right = None;
+            }
+
+            if !parent.has_child() {
+                // Remove no-children parents
+                parent.delete(storage)?;
+            } else {
+                // Update parents values after removing node
+                parent.sync_range_and_value(storage)?;
+            }
+        }
+
+        NODES.remove(storage, &(self.book_id, self.tick_id, self.key));
+
+        Ok(())
     }
 
     #[cfg(test)]

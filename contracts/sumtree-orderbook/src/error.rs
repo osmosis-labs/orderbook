@@ -77,6 +77,9 @@ pub enum ContractError {
 
     #[error("Invalid Node Type")]
     InvalidNodeType,
+
+    #[error("Childless Internal Node")]
+    ChildlessInternalNode,
 }
 
 pub type ContractResult<T> = Result<T, ContractError>;

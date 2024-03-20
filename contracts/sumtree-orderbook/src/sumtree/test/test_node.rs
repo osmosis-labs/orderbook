@@ -1,6 +1,9 @@
 use cosmwasm_std::{testing::mock_dependencies, Uint128};
 
-use crate::sumtree::node::{generate_node_id, NodeType, TreeNode, NODES};
+use crate::sumtree::{
+    node::{generate_node_id, NodeType, TreeNode, NODES},
+    tree::get_root_node,
+};
 
 struct TestNodeInsertCase {
     name: &'static str,
@@ -598,5 +601,164 @@ fn test_node_deletion_valid() {
             assert_eq!(internal_node.get_min_range(), min);
             assert_eq!(internal_node.get_max_range(), max);
         }
+    }
+}
+
+enum BalanceDirection {
+    Left,
+    Right,
+}
+
+struct TreeRebalancingTestCase {
+    name: &'static str,
+    nodes: Vec<NodeType>,
+    // Depth first search ordering of node IDs (Could be improved?)
+    expected: Vec<u64>,
+    // Whether to print the tree
+    print: bool,
+    direction: BalanceDirection,
+}
+
+#[test]
+fn test_tree_rebalancing() {
+    let book_id = 1;
+    let tick_id = 1;
+    let test_cases: Vec<TreeRebalancingTestCase> = vec![
+        TreeRebalancingTestCase {
+            name: "Left heavy tree",
+            nodes: vec![
+                NodeType::leaf(1u32, 1u32),
+                NodeType::leaf(9u32, 1u32),
+                NodeType::leaf(6u32, 1u32),
+                NodeType::leaf(3u32, 1u32),
+                NodeType::leaf(2u32, 1u32),
+                NodeType::leaf(4u32, 1u32),
+            ],
+            expected: vec![],
+            print: true,
+            direction: BalanceDirection::Right,
+        },
+        TreeRebalancingTestCase {
+            name: "Right heavy tree",
+            nodes: vec![
+                NodeType::leaf(1u32, 1u32),
+                NodeType::leaf(5u32, 1u32),
+                NodeType::leaf(9u32, 1u32),
+                NodeType::leaf(6u32, 1u32),
+                // NodeType::leaf(3u32, 1u32),
+                // NodeType::leaf(2u32, 1u32),
+                // NodeType::leaf(4u32, 1u32),
+            ],
+            expected: vec![],
+            print: true,
+            direction: BalanceDirection::Left,
+        },
+    ];
+
+    for test in test_cases {
+        let mut deps = mock_dependencies();
+        let mut tree = TreeNode::new(
+            book_id,
+            tick_id,
+            generate_node_id(deps.as_mut().storage, book_id, tick_id).unwrap(),
+            NodeType::internal(Uint128::zero(), (u32::MAX, u32::MIN)),
+        );
+
+        for node in test.nodes {
+            let mut tree_node = TreeNode::new(
+                book_id,
+                tick_id,
+                generate_node_id(deps.as_mut().storage, book_id, tick_id).unwrap(),
+                node,
+            );
+            NODES
+                .save(
+                    deps.as_mut().storage,
+                    &(book_id, tick_id, tree_node.key),
+                    &tree_node,
+                )
+                .unwrap();
+            tree.insert(deps.as_mut().storage, &mut tree_node).unwrap();
+        }
+
+        if test.print {
+            println!("Pre-Rotation Tree: {}", test.name);
+            println!("--------------------------");
+            let nodes = tree.traverse_bfs(deps.as_ref().storage).unwrap();
+            for (idx, row) in nodes.iter().enumerate() {
+                print_tree_row(row.clone(), idx == 0, (nodes.len() - idx - 1) as u32);
+            }
+            println!();
+        }
+
+        match test.direction {
+            BalanceDirection::Left => tree.rotate_left(deps.as_mut().storage).unwrap(),
+            BalanceDirection::Right => tree.rotate_right(deps.as_mut().storage).unwrap(),
+        }
+
+        let tree = get_root_node(deps.as_ref().storage, book_id, tick_id).unwrap();
+
+        if test.print {
+            println!("Post-Rotation Tree: {}", test.name);
+            println!("--------------------------");
+            let nodes = tree.traverse_bfs(deps.as_ref().storage).unwrap();
+            for (idx, row) in nodes.iter().enumerate() {
+                print_tree_row(row.clone(), idx == 0, (nodes.len() - idx - 1) as u32);
+            }
+            println!();
+        }
+
+        // let result = tree.traverse(deps.as_ref().storage).unwrap();
+
+        // assert_eq!(
+        //     result,
+        //     test.expected
+        //         .iter()
+        //         .map(|key| NODES
+        //             .load(deps.as_ref().storage, &(book_id, tick_id, *key))
+        //             .unwrap())
+        //         .collect::<Vec<TreeNode>>()
+        // );
+
+        // Uncomment post rebalancing implementation
+        // let internals: Vec<&TreeNode> = result.iter().filter(|x| x.is_internal()).collect();
+        // for internal_node in internals {
+        //     let left_node = internal_node.get_left(deps.as_ref().storage).unwrap();
+        //     let right_node = internal_node.get_right(deps.as_ref().storage).unwrap();
+
+        //     let accumulated_value = left_node
+        //         .clone()
+        //         .map(|x| x.get_value())
+        //         .unwrap_or_default()
+        //         .checked_add(
+        //             right_node
+        //                 .clone()
+        //                 .map(|x| x.get_value())
+        //                 .unwrap_or_default(),
+        //         )
+        //         .unwrap();
+        //     assert_eq!(internal_node.get_value(), accumulated_value);
+
+        //     let min = left_node
+        //         .clone()
+        //         .map(|n| n.get_min_range())
+        //         .unwrap_or(Uint128::MAX)
+        //         .min(
+        //             right_node
+        //                 .clone()
+        //                 .map(|n| n.get_min_range())
+        //                 .unwrap_or(Uint128::MAX),
+        //         );
+        //     let max = left_node
+        //         .map(|n| n.get_max_range())
+        //         .unwrap_or(Uint128::MIN)
+        //         .max(
+        //             right_node
+        //                 .map(|n| n.get_max_range())
+        //                 .unwrap_or(Uint128::MIN),
+        //         );
+        //     assert_eq!(internal_node.get_min_range(), min);
+        //     assert_eq!(internal_node.get_max_range(), max);
+        // }
     }
 }

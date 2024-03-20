@@ -9,7 +9,7 @@ use cosmwasm_schema::cw_serde;
 use cosmwasm_std::{ensure, Storage, Uint128};
 use cw_storage_plus::Map;
 
-use crate::{error::ContractResult, ContractError};
+use crate::{error::ContractResult, sumtree::tree::TREE, ContractError};
 
 pub const NODES: Map<&(u64, i64, u64), TreeNode> = Map::new("nodes");
 pub const NODE_ID_COUNTER: Map<&(u64, i64), u64> = Map::new("node_id");
@@ -40,6 +40,8 @@ pub enum NodeType {
         accumulator: Uint128,
         // Range from min ETAS to max ETAS + value of max ETAS
         range: (Uint128, Uint128),
+        // Amount of child nodes
+        weight: u64,
     },
 }
 
@@ -58,6 +60,7 @@ impl NodeType {
         Self::Internal {
             range: (range.0.into(), range.1.into()),
             accumulator: accumulator.into(),
+            weight: 0,
         }
     }
 }
@@ -67,6 +70,7 @@ impl Default for NodeType {
         Self::Internal {
             accumulator: Uint128::zero(),
             range: (Uint128::MAX, Uint128::MIN),
+            weight: 0,
         }
     }
 }
@@ -193,6 +197,23 @@ impl TreeNode {
         self.set_value(self.get_value().checked_add(value)?)
     }
 
+    pub fn get_weight(&self) -> u64 {
+        match self.node_type {
+            NodeType::Internal { weight, .. } => weight,
+            NodeType::Leaf { .. } => 0,
+        }
+    }
+
+    pub fn set_weight(&mut self, new_weight: u64) -> ContractResult<()> {
+        match &mut self.node_type {
+            NodeType::Internal { weight, .. } => {
+                *weight = new_weight;
+                Ok(())
+            }
+            NodeType::Leaf { .. } => Err(ContractError::InvalidNodeType),
+        }
+    }
+
     /// Recalculates the range and accumulated value for a node and propagates it up the tree
     ///
     /// Must be an internal node
@@ -283,6 +304,8 @@ impl TreeNode {
             self.set_max_range(new_node.get_max_range())?;
         }
 
+        self.set_weight(self.get_weight() + 1)?;
+
         let maybe_left = self.get_left(storage)?;
         let maybe_right = self.get_right(storage)?;
 
@@ -346,9 +369,12 @@ impl TreeNode {
         let right_is_leaf = maybe_right
             .clone()
             .map_or(false, |right| !right.is_internal());
+        let is_higher_than_right_leaf = maybe_right.clone().map_or(false, |r| {
+            !r.is_internal() && new_node.get_min_range() >= r.get_max_range()
+        });
 
         // Case 4
-        if left_is_leaf {
+        if left_is_leaf && !is_higher_than_right_leaf {
             let mut left = maybe_left.unwrap();
             let new_left = left.split(storage, new_node)?;
             self.left = Some(new_left);
@@ -358,9 +384,6 @@ impl TreeNode {
 
         // Case 5: Reordering
         // TODO: Add edge case test for this
-        let is_higher_than_right_leaf = maybe_right.clone().map_or(false, |r| {
-            !r.is_internal() && new_node.get_min_range() >= r.get_max_range()
-        });
         if is_higher_than_right_leaf && maybe_left.is_none() {
             self.left = self.right;
             self.right = Some(new_node.key);
@@ -455,6 +478,64 @@ impl TreeNode {
         Ok(())
     }
 
+    pub fn rotate_right(&mut self, storage: &mut dyn Storage) -> ContractResult<()> {
+        let maybe_left = self.get_left(storage)?;
+        ensure!(maybe_left.is_some(), ContractError::InvalidNodeType);
+
+        let mut left = maybe_left.unwrap();
+
+        left.parent = self.parent;
+        self.parent = Some(left.key);
+        self.left = left.right;
+
+        if let Some(mut right) = left.get_right(storage)? {
+            right.parent = Some(self.key);
+            right.save(storage)?;
+        }
+
+        left.right = Some(self.key);
+
+        left.save(storage)?;
+        self.save(storage)?;
+
+        self.sync_range_and_value(storage)?;
+
+        if left.parent.is_none() {
+            TREE.save(storage, &(left.book_id, left.tick_id), &left.key)?;
+        }
+
+        Ok(())
+    }
+
+    pub fn rotate_left(&mut self, storage: &mut dyn Storage) -> ContractResult<()> {
+        let maybe_right = self.get_right(storage)?;
+        ensure!(maybe_right.is_some(), ContractError::InvalidNodeType);
+
+        let mut right = maybe_right.unwrap();
+
+        right.parent = self.parent;
+        self.parent = Some(right.key);
+        self.right = right.left;
+
+        if let Some(mut left) = right.get_left(storage)? {
+            left.parent = Some(self.key);
+            left.save(storage)?;
+        }
+
+        right.left = Some(self.key);
+
+        right.save(storage)?;
+        self.save(storage)?;
+
+        self.sync_range_and_value(storage)?;
+
+        if right.parent.is_none() {
+            TREE.save(storage, &(right.book_id, right.tick_id), &right.key)?;
+        }
+
+        Ok(())
+    }
+
     #[cfg(test)]
     /// Depth first search traversal of tree
     pub fn traverse(&self, storage: &dyn Storage) -> ContractResult<Vec<TreeNode>> {
@@ -515,7 +596,9 @@ impl Display for NodeType {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         match self {
             NodeType::Leaf { value, etas } => write!(f, "{etas} {value}"),
-            NodeType::Internal { accumulator, range } => {
+            NodeType::Internal {
+                accumulator, range, ..
+            } => {
                 write!(f, "{} {}-{}", accumulator, range.0, range.1)
             }
         }

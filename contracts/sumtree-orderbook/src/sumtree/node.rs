@@ -40,7 +40,7 @@ pub enum NodeType {
         accumulator: Uint128,
         // Range from min ETAS to max ETAS + value of max ETAS
         range: (Uint128, Uint128),
-        // Amount of child nodes
+        // Amount of leaf ancestors
         weight: u64,
     },
 }
@@ -200,7 +200,7 @@ impl TreeNode {
     pub fn get_weight(&self) -> u64 {
         match self.node_type {
             NodeType::Internal { weight, .. } => weight,
-            NodeType::Leaf { .. } => 0,
+            NodeType::Leaf { .. } => 1,
         }
     }
 
@@ -229,6 +229,7 @@ impl TreeNode {
             return Err(ContractError::ChildlessInternalNode);
         }
 
+        // Calculate new range
         let (min, max) = if left_exists && !right_exists {
             let left = maybe_left.clone().unwrap();
             (left.get_min_range(), left.get_max_range())
@@ -244,15 +245,26 @@ impl TreeNode {
                 left.get_max_range().max(right.get_max_range()),
             )
         };
-
         self.set_min_range(min)?;
         self.set_max_range(max)?;
 
+        // Calculate new value
         let value = maybe_left
+            .clone()
             .map(|n| n.get_value())
             .unwrap_or_default()
-            .checked_add(maybe_right.map(|n| n.get_value()).unwrap_or_default())?;
+            .checked_add(
+                maybe_right
+                    .clone()
+                    .map(|n| n.get_value())
+                    .unwrap_or_default(),
+            )?;
         self.set_value(value)?;
+
+        // Calculate new weight
+        let weight = maybe_left.map(|n| n.get_weight()).unwrap_or_default()
+            + maybe_right.map(|n| n.get_weight()).unwrap_or_default();
+        self.set_weight(weight)?;
 
         // Must save before propagating as parent will read this node
         self.save(storage)?;
@@ -304,6 +316,7 @@ impl TreeNode {
             self.set_max_range(new_node.get_max_range())?;
         }
 
+        // Increment weight as node will be ancestor of current
         self.set_weight(self.get_weight() + 1)?;
 
         let maybe_left = self.get_left(storage)?;
@@ -443,7 +456,7 @@ impl TreeNode {
         new_parent.right = Some(new_right);
         self.parent = Some(id);
         new_node.parent = Some(id);
-
+        new_parent.set_weight(2)?;
         new_parent.save(storage)?;
         self.save(storage)?;
         new_node.save(storage)?;
@@ -587,6 +600,19 @@ impl TreeNode {
             result.push(level);
         }
         Ok(result)
+    }
+
+    #[cfg(test)]
+    pub fn count_leaf_nodes(&self, storage: &dyn Storage) -> u64 {
+        match self.node_type {
+            NodeType::Leaf { .. } => 1,
+            NodeType::Internal { .. } => self
+                .traverse(storage)
+                .unwrap()
+                .iter()
+                .filter(|n| !n.is_internal())
+                .count() as u64,
+        }
     }
 }
 

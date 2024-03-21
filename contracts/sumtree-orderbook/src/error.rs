@@ -78,6 +78,9 @@ pub enum ContractError {
     #[error("Invalid Node Type")]
     InvalidNodeType,
 
+    #[error("Childless Internal Node")]
+    ChildlessInternalNode,
+
     #[error("Cannot cancel an order that has partially or fully been filled")]
     CancelFilledOrder,
 }

@@ -193,38 +193,36 @@ impl TreeNode {
         self.set_value(self.get_value().checked_add(value)?)
     }
 
-    // TODO: This can likely be optimized
     /// Recalculates the range and accumulated value for a node and propagates it up the tree
-    pub fn recalculate_values(&mut self, storage: &mut dyn Storage) -> ContractResult<()> {
+    ///
+    /// Must be an internal node
+    pub fn sync_range_and_value(&mut self, storage: &mut dyn Storage) -> ContractResult<()> {
+        ensure!(self.is_internal(), ContractError::InvalidNodeType);
         let maybe_left = self.get_left(storage)?;
         let maybe_right = self.get_right(storage)?;
 
-        // Calculate min from remaining children
-        // Attempt to get min value or default to Uint128::MAX for both nodes
-        // Take min from both returned values
-        let min = maybe_left
-            .clone()
-            .map(|n| n.get_min_range())
-            .unwrap_or(Uint128::MAX)
-            .min(
-                maybe_right
-                    .clone()
-                    .map(|n| n.get_min_range())
-                    .unwrap_or(Uint128::MAX),
-            );
-        // Calculate max from remaining children
-        // Attempt to get max value or default to Uint128::MIN for both nodes
-        // Take max from both returned values
-        let max = maybe_left
-            .clone()
-            .map(|n| n.get_max_range())
-            .unwrap_or(Uint128::MIN)
-            .max(
-                maybe_right
-                    .clone()
-                    .map(|n| n.get_max_range())
-                    .unwrap_or(Uint128::MIN),
-            );
+        let left_exists = maybe_left.is_some();
+        let right_exists = maybe_right.is_some();
+
+        if !self.has_child() {
+            return Err(ContractError::ChildlessInternalNode);
+        }
+
+        let (min, max) = if left_exists && !right_exists {
+            let left = maybe_left.clone().unwrap();
+            (left.get_min_range(), left.get_max_range())
+        } else if right_exists && !left_exists {
+            let right = maybe_right.clone().unwrap();
+            (right.get_min_range(), right.get_max_range())
+        } else {
+            let left = maybe_left.clone().unwrap();
+            let right = maybe_right.clone().unwrap();
+
+            (
+                left.get_min_range().min(right.get_min_range()),
+                left.get_max_range().max(right.get_max_range()),
+            )
+        };
 
         self.set_min_range(min)?;
         self.set_max_range(max)?;
@@ -239,7 +237,7 @@ impl TreeNode {
         self.save(storage)?;
 
         if let Some(mut parent) = self.get_parent(storage)? {
-            parent.recalculate_values(storage)?;
+            parent.sync_range_and_value(storage)?;
         }
 
         Ok(())
@@ -322,6 +320,19 @@ impl TreeNode {
             return Ok(());
         }
 
+        // Case 3: reordering
+        let is_lower_than_left_leaf = maybe_left.clone().map_or(false, |l| {
+            !l.is_internal() && new_node.get_max_range() <= l.get_min_range()
+        });
+        if is_lower_than_left_leaf && maybe_right.is_none() {
+            self.right = self.left;
+            self.left = Some(new_node.key);
+            new_node.parent = Some(self.key);
+            new_node.save(storage)?;
+            self.save(storage)?;
+            return Ok(());
+        }
+
         // Case 3
         if !is_in_left_range && maybe_right.is_none() {
             self.right = Some(new_node.key);
@@ -341,6 +352,20 @@ impl TreeNode {
             let mut left = maybe_left.unwrap();
             let new_left = left.split(storage, new_node)?;
             self.left = Some(new_left);
+            self.save(storage)?;
+            return Ok(());
+        }
+
+        // Case 5: Reordering
+        // TODO: Add edge case test for this
+        let is_higher_than_right_leaf = maybe_right.clone().map_or(false, |r| {
+            !r.is_internal() && new_node.get_min_range() >= r.get_max_range()
+        });
+        if is_higher_than_right_leaf && maybe_left.is_none() {
+            self.left = self.right;
+            self.right = Some(new_node.key);
+            new_node.parent = Some(self.key);
+            new_node.save(storage)?;
             self.save(storage)?;
             return Ok(());
         }
@@ -421,7 +446,7 @@ impl TreeNode {
                 parent.delete(storage)?;
             } else {
                 // Update parents values after removing node
-                parent.recalculate_values(storage)?;
+                parent.sync_range_and_value(storage)?;
             }
         }
 

@@ -140,6 +140,17 @@ pub fn cancel_limit(
     // Ensure the sender is the order owner
     ensure_eq!(info.sender, order.owner, ContractError::Unauthorized {});
 
+    // Ensure the order has not been filled.
+    // TODO: support cancelling partially filled orders by claiming above
+    // if a partial fill is detected. Tracked in issue https://github.com/osmosis-labs/orderbook/issues/75
+    let tick_state = TICK_STATE
+        .load(deps.storage, &(book_id, tick_id))
+        .unwrap_or_default();
+    ensure!(
+        tick_state.effective_total_amount_swapped <= order.etas,
+        ContractError::CancelFilledOrder
+    );
+
     // Fetch the sumtree from storage, or create one if it does not exist
     let mut tree = TREE
         .load(deps.storage, &(order.book_id, order.tick_id))

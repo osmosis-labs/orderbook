@@ -1,5 +1,5 @@
 use cosmwasm_schema::cw_serde;
-use cosmwasm_std::{coin, ensure, Addr, BankMsg, Uint128};
+use cosmwasm_std::{coin, ensure, Addr, BankMsg, Decimal256, Uint128};
 
 use crate::{
     tick_math::{amount_to_value, tick_to_price},
@@ -21,6 +21,7 @@ pub struct LimitOrder {
     pub order_direction: OrderDirection,
     pub owner: Addr,
     pub quantity: Uint128,
+    pub etas: Decimal256,
 }
 
 impl LimitOrder {
@@ -31,6 +32,7 @@ impl LimitOrder {
         order_direction: OrderDirection,
         owner: Addr,
         quantity: Uint128,
+        etas: Decimal256,
     ) -> Self {
         LimitOrder {
             book_id,
@@ -39,6 +41,7 @@ impl LimitOrder {
             order_direction,
             owner,
             quantity,
+            etas,
         }
     }
 

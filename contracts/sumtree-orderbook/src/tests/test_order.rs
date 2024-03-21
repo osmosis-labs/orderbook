@@ -201,7 +201,7 @@ fn test_place_limit() {
                 .unwrap();
             assert!(order_result.is_none(), "{}", format_test_name(test.name));
 
-            // Verifiy liquidity was not updated
+            // Verify liquidity was not updated
             let state = TICK_STATE
                 .load(&deps.storage, &(test.book_id, test.tick_id))
                 .unwrap_or_default();

@@ -63,7 +63,7 @@ pub fn place_limit(
         .unwrap_or_default();
 
     // Build limit order
-    let mut limit_order = LimitOrder::new(
+    let limit_order = LimitOrder::new(
         book_id,
         tick_id,
         order_id,

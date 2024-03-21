@@ -57,6 +57,11 @@ pub fn place_limit(
     // Generate a new order ID
     let order_id = new_order_id(deps.storage)?;
 
+    // Update ETAS from Tick State
+    let mut tick_state = TICK_STATE
+        .load(deps.storage, &(book_id, tick_id))
+        .unwrap_or_default();
+
     // Build limit order
     let mut limit_order = LimitOrder::new(
         book_id,
@@ -65,8 +70,7 @@ pub fn place_limit(
         order_direction,
         info.sender.clone(),
         quantity,
-        // To be set POST fill when appropriate
-        Decimal256::zero(),
+        tick_state.cumulative_total_value,
     );
 
     // Determine if the order needs to be filled
@@ -82,13 +86,6 @@ pub fn place_limit(
     }
 
     let quantity_fullfilled = quantity.checked_sub(limit_order.quantity)?;
-
-    // Update ETAS post fill
-    // This must be read POST fill to ensure it is up to date with orders filled on current tick
-    let mut tick_state = TICK_STATE
-        .load(deps.storage, &(book_id, tick_id))
-        .unwrap_or_default();
-    limit_order.etas = tick_state.cumulative_total_value;
 
     // Only save the order if not fully filled
     if limit_order.quantity > Uint128::zero() {

@@ -126,6 +126,7 @@ pub fn cancel_limit(
     tick_id: i64,
     order_id: u64,
 ) -> Result<Response, ContractError> {
+    /*  Commenting until resolved in Connor's rebalancing PR
     nonpayable(&info)?;
     let key = (book_id, tick_id, order_id);
     // Check for the order, error if not found
@@ -225,6 +226,9 @@ pub fn cancel_limit(
         .add_attribute("tick_id", tick_id.to_string())
         .add_attribute("order_id", order_id.to_string())
         .add_submessage(refund_msg))
+
+    */
+    Ok(Response::new())
 }
 
 pub fn place_market(

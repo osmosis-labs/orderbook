@@ -566,7 +566,7 @@ impl TreeNode {
         if is_right_leaning && right_balance_factor >= 0 {
             self.rotate_left(storage)?;
         }
-        // Case 2: Left Left (Right rotation needed)
+        // Case 2: Left-Left (Right rotation needed)
         else if is_left_leaning && left_balance_factor <= 0 {
             self.rotate_right(storage)?;
         }

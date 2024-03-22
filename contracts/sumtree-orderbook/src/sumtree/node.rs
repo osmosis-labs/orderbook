@@ -371,8 +371,6 @@ impl TreeNode {
             new_node.parent = Some(self.key);
             new_node.save(storage)?;
             self.save(storage)?;
-            #[cfg(test)]
-            println!("Inserted {} left on {}", new_node, self);
             self.rebalance(storage)?;
             return Ok(());
         }
@@ -387,8 +385,6 @@ impl TreeNode {
             new_node.parent = Some(self.key);
             new_node.save(storage)?;
             self.save(storage)?;
-            #[cfg(test)]
-            println!("Inserted {} right on {}", new_node, self);
             self.rebalance(storage)?;
             return Ok(());
         }
@@ -399,8 +395,6 @@ impl TreeNode {
             new_node.parent = Some(self.key);
             new_node.save(storage)?;
             self.save(storage)?;
-            #[cfg(test)]
-            println!("Inserted {} right on {}", new_node, self);
             self.rebalance(storage)?;
             return Ok(());
         }
@@ -419,11 +413,6 @@ impl TreeNode {
             let new_left = left.split(storage, new_node)?;
             self.left = Some(new_left);
             self.save(storage)?;
-            #[cfg(test)]
-            println!(
-                "Split {} left on {} generating {}",
-                new_node, self, new_left
-            );
             self.rebalance(storage)?;
             return Ok(());
         }
@@ -436,8 +425,6 @@ impl TreeNode {
             new_node.parent = Some(self.key);
             new_node.save(storage)?;
             self.save(storage)?;
-            #[cfg(test)]
-            println!("Inserted {} right on {} after reordering", new_node, self);
             self.rebalance(storage)?;
             return Ok(());
         }
@@ -448,11 +435,6 @@ impl TreeNode {
             let new_right = right.split(storage, new_node)?;
             self.right = Some(new_right);
             self.save(storage)?;
-            #[cfg(test)]
-            println!(
-                "Split {} right on {} generating {}",
-                new_node, self, new_right
-            );
             self.rebalance(storage)?;
             return Ok(());
         }

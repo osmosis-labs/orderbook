@@ -494,10 +494,10 @@ fn test_tree_rebalancing() {
                 NodeType::leaf(6u32, 1u32),
                 NodeType::leaf(3u32, 1u32),
                 NodeType::leaf(5u32, 1u32),
+                NodeType::leaf(20u32, 1u32),
+                NodeType::leaf(13u32, 1u32),
                 NodeType::leaf(4u32, 1u32),
                 NodeType::leaf(7u32, 1u32),
-                NodeType::leaf(12u32, 1u32),
-                // NodeType::leaf(20u32, 1u32),
             ],
             print: true,
         },
@@ -511,8 +511,9 @@ fn test_tree_rebalancing() {
                 NodeType::leaf(3u32, 1u32),
                 NodeType::leaf(2u32, 1u32),
                 NodeType::leaf(4u32, 1u32),
+                NodeType::leaf(12u32, 1u32),
             ],
-            print: false,
+            print: true,
         },
     ];
 
@@ -538,7 +539,7 @@ fn test_tree_rebalancing() {
                 generate_node_id(deps.as_mut().storage, book_id, tick_id).unwrap(),
                 node,
             );
-            println!("Inserting: {} into {}", tree_node, tree);
+            // println!("Inserting: {} into {}", tree_node, tree);
 
             tree.insert(deps.as_mut().storage, &mut tree_node).unwrap();
             tree = get_root_node(deps.as_ref().storage, book_id, tick_id).unwrap();

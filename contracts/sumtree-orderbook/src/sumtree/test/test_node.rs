@@ -539,7 +539,8 @@ fn test_tree_rebalancing() {
 
             tree.insert(deps.as_mut().storage, &mut tree_node).unwrap();
             tree = get_root_node(deps.as_ref().storage, book_id, tick_id).unwrap();
-            print_tree("Mid insertion", test.name, &tree, &deps.as_ref());
+            println!("Inserting node {} in to above tree", tree_node);
+            print_tree("Post insertion", test.name, &tree, &deps.as_ref());
         }
 
         if test.print {

@@ -5,11 +5,13 @@ use crate::error::ContractError;
 use crate::state::{new_order_id, orders, ORDERBOOKS, TICK_STATE};
 use crate::sumtree::node::{generate_node_id, NodeType, TreeNode};
 use crate::sumtree::tree::TREE;
-use crate::types::{LimitOrder, OrderDirection, REPLY_ID_REFUND};
+use crate::tick_math::{amount_to_value, tick_to_price};
+use crate::types::{LimitOrder, MarketOrder, OrderDirection, REPLY_ID_REFUND};
 use cosmwasm_std::{
-    coin, ensure, ensure_eq, BankMsg, Decimal256, DepsMut, Env, MessageInfo, Response, SubMsg,
-    Uint128, Uint256,
+    coin, ensure, ensure_eq, BankMsg, Decimal256, DepsMut, Env, MessageInfo, Order, Response,
+    Storage, SubMsg, Uint128, Uint256,
 };
+use cw_storage_plus::Bound;
 use cw_utils::{must_pay, nonpayable};
 
 #[allow(clippy::manual_range_contains)]
@@ -237,4 +239,116 @@ pub fn place_market(
     Ok(Response::new()
         .add_attribute("method", "placeMarket")
         .add_attribute("owner", info.sender))
+}
+
+// run_market_order processes a market order from the current active tick on the order's orderbook
+// up to the passed in `tick_bound`. This allows for this function to be useful both for regular
+// market orders and as a helper to partially fill any limit orders that are placed past the best
+// current price on an orderbook.
+//
+// Note that this mutates the `order` object, so in the case where this function is used to partially
+// fill a limit order, it should leave the order in a valid and up-to-date state to be placed on the
+// orderbook.
+//
+// Returns:
+// * The output after the order has been processed
+// * Bank send message to process the balance transfer
+//
+// Returns error if:
+// * Orderbook with given ID doesn't exist (order.book_id)
+// * Tick to price conversion fails for any tick
+#[allow(clippy::manual_range_contains)]
+pub fn run_market_order(
+    storage: &mut dyn Storage,
+    order: &mut MarketOrder,
+    tick_bound: i64,
+) -> Result<(Uint128, BankMsg), ContractError> {
+    let orderbook = ORDERBOOKS.load(storage, &order.book_id)?;
+    let output_denom = orderbook.get_opposite_denom(&order.order_direction);
+
+    // Ensure the given tick bound is within global limits
+    ensure!(
+        tick_bound <= MAX_TICK && tick_bound >= MIN_TICK,
+        ContractError::InvalidTickId {
+            tick_id: tick_bound
+        }
+    );
+
+    // Derive appropriate bounds for tick iterator based on order direction:
+    // * If the order is an Ask, we iterate from [next_bid_tick, tick_bound] in descending order.
+    // * If the order is a Bid, we iterate from [tick_bound, next_ask_tick] in ascending order.
+    let (min_tick, max_tick, ordering) = match order.order_direction {
+        OrderDirection::Ask => {
+            ensure!(
+                tick_bound <= orderbook.next_bid_tick,
+                ContractError::InvalidTickId {
+                    tick_id: tick_bound
+                }
+            );
+            (tick_bound, orderbook.next_bid_tick, Order::Descending)
+        }
+        OrderDirection::Bid => {
+            ensure!(
+                tick_bound >= orderbook.next_ask_tick,
+                ContractError::InvalidTickId {
+                    tick_id: tick_bound
+                }
+            );
+            (orderbook.next_ask_tick, tick_bound, Order::Ascending)
+        }
+    };
+
+    // Create tick iterator between first tick and requested tick
+    let ticks = TICK_STATE.prefix(order.book_id).range(
+        storage,
+        Some(min_tick).map(Bound::inclusive),
+        Some(max_tick).map(Bound::inclusive),
+        ordering,
+    );
+
+    // Iterate through ticks and fill the market order as appropriate.
+    // Due to our sumtree-based design, this process carries only O(1) overhead per tick.
+    let mut total_output: Uint128 = Uint128::zero();
+    for maybe_current_tick in ticks {
+        let (current_tick_id, mut current_tick) = maybe_current_tick?;
+        let tick_price = tick_to_price(current_tick_id)?;
+        let quantity_dec =
+            Decimal256::from_ratio(Uint256::from_uint128(order.quantity), Uint256::one());
+
+        // If order quantity is less than the current tick's liquidity, fill the whole order.
+        // Otherwise, fill the whole tick.
+        let fill_amount_dec = if quantity_dec < current_tick.total_amount_of_liquidity {
+            quantity_dec
+        } else {
+            current_tick.total_amount_of_liquidity
+        };
+
+        // Update tick and order state to process the fill
+        current_tick.total_amount_of_liquidity = current_tick
+            .total_amount_of_liquidity
+            .checked_sub(fill_amount_dec)?;
+        current_tick.effective_total_amount_swapped = current_tick
+            .effective_total_amount_swapped
+            .checked_add(fill_amount_dec)?;
+
+        // TODO: make amount_to_value return error instead of panicking
+        total_output = total_output.checked_add(amount_to_value(
+            order.order_direction,
+            fill_amount_dec,
+            tick_price,
+        )?)?;
+
+        // Note: this conversion errors if fill_amount_dec does not fit into Uint128
+        // By the time we get here, this should not be possible.
+        let fill_amount = Uint128::try_from(fill_amount_dec.to_uint_ceil())?;
+        order.quantity = order.quantity.checked_sub(fill_amount)?;
+    }
+
+    Ok((
+        total_output,
+        BankMsg::Send {
+            to_address: order.owner.to_string(),
+            amount: vec![coin(total_output.u128(), output_denom)],
+        },
+    ))
 }

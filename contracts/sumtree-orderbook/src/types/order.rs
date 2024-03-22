@@ -1,10 +1,5 @@
 use cosmwasm_schema::cw_serde;
-use cosmwasm_std::{coin, ensure, Addr, BankMsg, Decimal256, Uint128};
-
-use crate::{
-    tick_math::{amount_to_value, tick_to_price},
-    ContractError,
-};
+use cosmwasm_std::{Addr, Decimal256, Uint128};
 
 #[cw_serde]
 #[derive(Copy)]
@@ -43,33 +38,6 @@ impl LimitOrder {
             quantity,
             etas,
         }
-    }
-
-    // Transfers the specified quantity of the order's asset to the owner
-    pub fn fill(
-        &mut self,
-        denom: impl Into<String>,
-        quantity: Uint128,
-    ) -> Result<BankMsg, ContractError> {
-        ensure!(
-            self.quantity >= quantity,
-            ContractError::InvalidFulfillment {
-                order_id: self.order_id,
-                book_id: self.book_id,
-                amount_required: quantity,
-                amount_remaining: self.quantity,
-                reason: Some("Order does not have enough funds".to_string())
-            }
-        );
-        self.quantity = self.quantity.checked_sub(quantity)?;
-        // Determine price
-        let price = tick_to_price(self.tick_id)?;
-        // Multiply quantity by price
-        let amount_to_send = amount_to_value(self.order_direction, quantity, price)?;
-        Ok(BankMsg::Send {
-            to_address: self.owner.to_string(),
-            amount: vec![coin(amount_to_send.u128(), denom.into())],
-        })
     }
 }
 

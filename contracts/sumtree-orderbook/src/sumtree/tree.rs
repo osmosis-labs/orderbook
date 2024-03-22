@@ -5,9 +5,10 @@ use crate::error::ContractResult;
 
 use super::node::{TreeNode, NODES};
 
-#[allow(dead_code)]
 pub const TREE: Map<&(u64, i64), u64> = Map::new("tree");
 
+#[allow(dead_code)]
+/// Retrieves the root node of a specific book and tick from storage.
 pub fn get_root_node(
     storage: &dyn Storage,
     book_id: u64,

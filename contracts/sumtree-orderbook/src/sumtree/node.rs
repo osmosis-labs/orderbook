@@ -515,68 +515,70 @@ impl TreeNode {
         Ok(())
     }
 
+    /// Returns the balance factor of a node: `(left weight - right weight)`
+    ///
+    /// Empty nodes return a weight of 0, so a childless node/leaf will return a balance factor of 0
     pub fn get_balance_factor(&self, storage: &dyn Storage) -> ContractResult<i32> {
         let left_weight = self.get_left(storage)?.map_or(0, |n| n.get_weight());
         let right_weight = self.get_right(storage)?.map_or(0, |n| n.get_weight());
         Ok(left_weight as i32 - right_weight as i32)
     }
 
+    /// Rebalances the tree starting from the current node.
+    ///
+    /// This method ensures that the AVL tree properties are maintained after insertions or deletions
+    /// have been performed. It checks the balance factor of the current node and performs rotations
+    /// as necessary to bring the tree back into balance.
     pub fn rebalance(&mut self, storage: &mut dyn Storage) -> ContractResult<()> {
-        // ensure!(self.is_internal(), ContractError::InvalidNodeType);
+        // Synchronize the current node's state with storage before rebalancing.
         self.sync(storage)?;
 
+        // Skip rebalancing for leaf nodes or nodes without children.
         if !self.has_child() || !self.is_internal() {
             return Ok(());
         }
 
-        let maybe_left = self.get_left(storage)?;
-        let maybe_right = self.get_right(storage)?;
-
-        //Type as i32 to allow negative
+        // Calculate the balance factor to determine if rebalancing is needed.
         let balance_factor = self.get_balance_factor(storage)?;
-
-        if balance_factor <= 1 {
+        // Early return if the tree is already balanced.
+        if balance_factor.abs() <= 1 {
             return Ok(());
         }
 
-        let is_right_leaning = balance_factor.is_negative();
-        let is_left_leaning = balance_factor.is_positive();
+        // Retrieve optional references to left and right children.
+        let maybe_left = self.get_left(storage)?;
+        let maybe_right = self.get_right(storage)?;
 
+        // Determine the direction of imbalance.
+        let is_right_leaning = balance_factor < 0;
+        let is_left_leaning = balance_factor > 0;
+
+        // Calculate balance factors for child nodes to determine rotation type.
         let right_balance_factor = maybe_right
-            .clone()
-            .map_or(0, |n| n.get_balance_factor(storage).unwrap());
+            .as_ref()
+            .map_or(0, |n| n.get_balance_factor(storage).unwrap_or(0));
         let left_balance_factor = maybe_left
-            .clone()
-            .map_or(0, |n| n.get_balance_factor(storage).unwrap());
+            .as_ref()
+            .map_or(0, |n| n.get_balance_factor(storage).unwrap_or(0));
 
-        // Case 1: Left Left
-        if is_right_leaning && right_balance_factor >= 0 {
-            self.rotate_left(storage)?;
-        }
-
-        // Case 2: Right Right
+        // Perform rotations based on the type of imbalance detected.
+        // Case 1: Left-Left (Right rotation needed)
         if is_left_leaning && left_balance_factor >= 0 {
             self.rotate_right(storage)?;
         }
-
-        // Case 3: Right Left
-        if is_right_leaning && right_balance_factor < 0 {
-            let mut right = maybe_right.unwrap();
-            if !right.is_internal() {
-                return Ok(());
-            }
-            right.rotate_right(storage)?;
+        // Case 2: Right-Right (Left rotation needed)
+        else if is_right_leaning && right_balance_factor >= 0 {
+            self.rotate_left(storage)?;
+        }
+        // Case 3: Right-Left (Right rotation on right child followed by Left rotation on self)
+        else if is_right_leaning && right_balance_factor < 0 {
+            maybe_right.unwrap().rotate_right(storage)?;
             self.sync(storage)?;
             self.rotate_left(storage)?;
         }
-
-        // Case 4: Left Right
-        if is_left_leaning && left_balance_factor < 0 {
-            let mut left = maybe_left.unwrap();
-            if !left.is_internal() {
-                return Ok(());
-            }
-            left.rotate_left(storage)?;
+        // Case 4: Left-Right (Left rotation on left child followed by Right rotation on self)
+        else if is_left_leaning && left_balance_factor < 0 {
+            maybe_left.unwrap().rotate_left(storage)?;
             self.sync(storage)?;
             self.rotate_right(storage)?;
         }
@@ -584,8 +586,15 @@ impl TreeNode {
         Ok(())
     }
 
+    /// Performs a right rotation on the current node. **Called by the root of the subtree to be rotated.**
+    ///
+    /// This operation is used to rebalance the tree when the left subtree
+    /// has a greater height than the right subtree. It adjusts the pointers
+    /// accordingly to ensure the tree remains a valid binary search tree.
     pub fn rotate_right(&mut self, storage: &mut dyn Storage) -> ContractResult<()> {
+        // Retrieve the parent node, if any.
         let maybe_parent = self.get_parent(storage)?;
+        // Determine if the current node is a left or right child of its parent.
         let is_left_child = maybe_parent
             .clone()
             .map_or(false, |p| p.left == Some(self.key));
@@ -593,37 +602,42 @@ impl TreeNode {
             .clone()
             .map_or(false, |p| p.right == Some(self.key));
 
+        // Ensure the current node has a left child to rotate.
         let maybe_left = self.get_left(storage)?;
         ensure!(maybe_left.is_some(), ContractError::InvalidNodeType);
 
+        // Perform the rotation.
         let mut left = maybe_left.unwrap();
-
         left.parent = self.parent;
         self.parent = Some(left.key);
         self.left = left.right;
 
+        // Update the parent of the new left child, if it exists.
         if let Some(mut new_left) = self.get_left(storage)? {
             new_left.parent = Some(self.key);
             new_left.save(storage)?;
         }
 
+        // Complete the rotation by setting the right child of the left node to the current node.
         left.right = Some(self.key);
-
+        // Save the changes to both nodes.
         left.save(storage)?;
         self.save(storage)?;
 
+        // Synchronize the range and value of the current node.
         self.sync_range_and_value(storage)?;
 
+        // If the left node has no parent, it becomes the new root.
         if left.parent.is_none() {
             TREE.save(storage, &(left.book_id, left.tick_id), &left.key)?;
         }
 
+        // Update the parent's child pointers.
         if is_left_child {
             let mut parent = maybe_parent.clone().unwrap();
             parent.left = Some(left.key);
             parent.save(storage)?;
         }
-
         if is_right_child {
             let mut parent = maybe_parent.unwrap();
             parent.right = Some(left.key);
@@ -633,7 +647,13 @@ impl TreeNode {
         Ok(())
     }
 
+    /// Performs a left rotation on the current node within the binary tree. **Called by the root of the subtree to be rotated.**
+    ///
+    /// This operation is used to rebalance the tree when the right subtree
+    /// has a greater height than the left subtree. It adjusts the pointers
+    /// accordingly to ensure the tree remains a valid binary search tree.
     pub fn rotate_left(&mut self, storage: &mut dyn Storage) -> ContractResult<()> {
+        // Retrieve the parent node, if any, to determine the current node's relationship.
         let maybe_parent = self.get_parent(storage)?;
         let is_left_child = maybe_parent
             .clone()
@@ -642,37 +662,43 @@ impl TreeNode {
             .clone()
             .map_or(false, |p| p.right == Some(self.key));
 
+        // Ensure the current node has a right child to perform the rotation.
         let maybe_right = self.get_right(storage)?;
         ensure!(maybe_right.is_some(), ContractError::InvalidNodeType);
 
+        // Perform the rotation by reassigning parent and child references.
         let mut right = maybe_right.unwrap();
-
         right.parent = self.parent;
         self.parent = Some(right.key);
         self.right = right.left;
 
+        // Update the parent reference of the new right child, if it exists.
         if let Some(mut new_right) = self.get_left(storage)? {
             new_right.parent = Some(self.key);
             new_right.save(storage)?;
         }
 
+        // Complete the rotation by setting the left child of the right node to the current node.
         right.left = Some(self.key);
 
+        // Persist the changes to both nodes.
         right.save(storage)?;
         self.save(storage)?;
 
+        // Synchronize the range and value of the current node to reflect the rotation.
         self.sync_range_and_value(storage)?;
 
+        // If the right node has no parent after the rotation, it becomes the new root.
         if right.parent.is_none() {
             TREE.save(storage, &(right.book_id, right.tick_id), &right.key)?;
         }
 
+        // Update the child references of the parent node to reflect the rotation.
         if is_left_child {
             let mut parent = maybe_parent.clone().unwrap();
             parent.left = Some(right.key);
             parent.save(storage)?;
         }
-
         if is_right_child {
             let mut parent = maybe_parent.unwrap();
             parent.right = Some(right.key);
@@ -736,7 +762,7 @@ impl TreeNode {
     }
 
     #[cfg(test)]
-    pub fn count_leaf_nodes(&self, storage: &dyn Storage) -> u64 {
+    pub fn count_ancestral_leaves(&self, storage: &dyn Storage) -> u64 {
         match self.node_type {
             NodeType::Leaf { .. } => 1,
             NodeType::Internal { .. } => self

@@ -47,7 +47,7 @@ fn assert_internal_values(test_name: &'static str, deps: Deps, internals: Vec<&T
 
         assert_eq!(
             internal_node.get_weight(),
-            internal_node.count_leaf_nodes(deps.storage),
+            internal_node.count_ancestral_leaves(deps.storage),
             "{}: Internal weight incorrect for {}",
             test_name,
             internal_node.key

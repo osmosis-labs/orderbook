@@ -2,7 +2,7 @@ use cosmwasm_std::{testing::mock_dependencies, Deps, Uint128};
 
 use crate::sumtree::{
     node::{generate_node_id, NodeType, TreeNode, NODES},
-    tree::get_root_node,
+    tree::{get_root_node, TREE},
 };
 
 struct TestNodeInsertCase {
@@ -474,19 +474,11 @@ fn test_node_deletion_valid() {
     }
 }
 
-enum BalanceDirection {
-    Left,
-    Right,
-}
-
 struct TreeRebalancingTestCase {
     name: &'static str,
     nodes: Vec<NodeType>,
-    // Depth first search ordering of node IDs (Could be improved?)
-    expected: Vec<u64>,
     // Whether to print the tree
     print: bool,
-    direction: BalanceDirection,
 }
 
 #[test]
@@ -501,12 +493,13 @@ fn test_tree_rebalancing() {
                 NodeType::leaf(9u32, 1u32),
                 NodeType::leaf(6u32, 1u32),
                 NodeType::leaf(3u32, 1u32),
-                NodeType::leaf(2u32, 1u32),
+                NodeType::leaf(5u32, 1u32),
                 NodeType::leaf(4u32, 1u32),
+                NodeType::leaf(7u32, 1u32),
+                NodeType::leaf(12u32, 1u32),
+                // NodeType::leaf(20u32, 1u32),
             ],
-            expected: vec![],
             print: true,
-            direction: BalanceDirection::Right,
         },
         TreeRebalancingTestCase {
             name: "Right heavy tree",
@@ -515,13 +508,11 @@ fn test_tree_rebalancing() {
                 NodeType::leaf(5u32, 1u32),
                 NodeType::leaf(9u32, 1u32),
                 NodeType::leaf(6u32, 1u32),
-                // NodeType::leaf(3u32, 1u32),
-                // NodeType::leaf(2u32, 1u32),
-                // NodeType::leaf(4u32, 1u32),
+                NodeType::leaf(3u32, 1u32),
+                NodeType::leaf(2u32, 1u32),
+                NodeType::leaf(4u32, 1u32),
             ],
-            expected: vec![],
-            print: true,
-            direction: BalanceDirection::Left,
+            print: false,
         },
     ];
 
@@ -534,6 +525,12 @@ fn test_tree_rebalancing() {
             NodeType::internal(Uint128::zero(), (u32::MAX, u32::MIN)),
         );
 
+        TREE.save(deps.as_mut().storage, &(book_id, tick_id), &tree.key)
+            .unwrap();
+        NODES
+            .save(deps.as_mut().storage, &(book_id, tick_id, tree.key), &tree)
+            .unwrap();
+
         for node in test.nodes {
             let mut tree_node = TreeNode::new(
                 book_id,
@@ -541,41 +538,15 @@ fn test_tree_rebalancing() {
                 generate_node_id(deps.as_mut().storage, book_id, tick_id).unwrap(),
                 node,
             );
-            NODES
-                .save(
-                    deps.as_mut().storage,
-                    &(book_id, tick_id, tree_node.key),
-                    &tree_node,
-                )
-                .unwrap();
+            println!("Inserting: {} into {}", tree_node, tree);
+
             tree.insert(deps.as_mut().storage, &mut tree_node).unwrap();
+            tree = get_root_node(deps.as_ref().storage, book_id, tick_id).unwrap();
+            print_tree("Mid insertion", test.name, &tree, &deps.as_ref());
         }
 
         if test.print {
-            println!("Pre-Rotation Tree: {}", test.name);
-            println!("--------------------------");
-            let nodes = tree.traverse_bfs(deps.as_ref().storage).unwrap();
-            for (idx, row) in nodes.iter().enumerate() {
-                print_tree_row(row.clone(), idx == 0, (nodes.len() - idx - 1) as u32);
-            }
-            println!();
-        }
-
-        match test.direction {
-            BalanceDirection::Left => tree.rotate_left(deps.as_mut().storage).unwrap(),
-            BalanceDirection::Right => tree.rotate_right(deps.as_mut().storage).unwrap(),
-        }
-
-        let tree = get_root_node(deps.as_ref().storage, book_id, tick_id).unwrap();
-
-        if test.print {
-            println!("Post-Rotation Tree: {}", test.name);
-            println!("--------------------------");
-            let nodes = tree.traverse_bfs(deps.as_ref().storage).unwrap();
-            for (idx, row) in nodes.iter().enumerate() {
-                print_tree_row(row.clone(), idx == 0, (nodes.len() - idx - 1) as u32);
-            }
-            println!();
+            print_tree("Post-Rotation Tree", test.name, &tree, &deps.as_ref());
         }
 
         // let result = tree.traverse(deps.as_ref().storage).unwrap();

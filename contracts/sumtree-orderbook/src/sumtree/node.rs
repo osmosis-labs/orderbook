@@ -138,6 +138,12 @@ impl TreeNode {
         Ok(NODES.save(storage, &(self.book_id, self.tick_id, self.key), self)?)
     }
 
+    /// Resyncs a node with values stored in CosmWasm Storage
+    pub fn sync(&mut self, storage: &mut dyn Storage) -> ContractResult<()> {
+        *self = NODES.load(storage, &(self.book_id, self.tick_id, self.key))?;
+        Ok(())
+    }
+
     /// Returns the maximum range value of a node.
     ///
     /// For `Internal` nodes, this is the maximum value of the associated range.
@@ -226,7 +232,7 @@ impl TreeNode {
         let right_exists = maybe_right.is_some();
 
         if !self.has_child() {
-            return Err(ContractError::ChildlessInternalNode);
+            return Ok(());
         }
 
         // Calculate new range
@@ -322,28 +328,40 @@ impl TreeNode {
         let maybe_left = self.get_left(storage)?;
         let maybe_right = self.get_right(storage)?;
 
+        let is_left_internal = maybe_left.clone().map_or(false, |l| l.is_internal());
+        let is_right_internal = maybe_right.clone().map_or(false, |r| r.is_internal());
         let is_in_left_range = maybe_left.clone().map_or(false, |left| {
-            left.is_internal() && new_node.get_min_range() < left.get_max_range()
+            new_node.get_min_range() <= left.get_max_range()
         });
         let is_in_right_range = maybe_right.clone().map_or(false, |right| {
-            right.is_internal() && new_node.get_min_range() > right.get_min_range()
+            new_node.get_min_range() >= right.get_min_range()
         });
 
         // Case 1 Left
-        if is_in_left_range {
+        if is_left_internal && is_in_left_range {
+            self.save(storage)?;
             // Can unwrap as node must exist
             let mut left = maybe_left.unwrap();
-
             left.insert(storage, new_node)?;
-            self.save(storage)?;
+            self.rebalance(storage)?;
             return Ok(());
         }
+
         // Case 1 Right
-        if is_in_right_range {
+        if is_right_internal && is_in_right_range {
+            self.save(storage)?;
             // Can unwrap as node must exist
             let mut right = maybe_right.unwrap();
             right.insert(storage, new_node)?;
+            self.rebalance(storage)?;
+            return Ok(());
+        }
+
+        if is_right_internal && is_left_internal {
             self.save(storage)?;
+            let mut left = maybe_left.unwrap();
+            left.insert(storage, new_node)?;
+            self.rebalance(storage)?;
             return Ok(());
         }
 
@@ -353,6 +371,7 @@ impl TreeNode {
             new_node.parent = Some(self.key);
             new_node.save(storage)?;
             self.save(storage)?;
+            self.rebalance(storage)?;
             return Ok(());
         }
 
@@ -366,6 +385,7 @@ impl TreeNode {
             new_node.parent = Some(self.key);
             new_node.save(storage)?;
             self.save(storage)?;
+            self.rebalance(storage)?;
             return Ok(());
         }
 
@@ -375,6 +395,7 @@ impl TreeNode {
             new_node.parent = Some(self.key);
             new_node.save(storage)?;
             self.save(storage)?;
+            self.rebalance(storage)?;
             return Ok(());
         }
 
@@ -392,6 +413,7 @@ impl TreeNode {
             let new_left = left.split(storage, new_node)?;
             self.left = Some(new_left);
             self.save(storage)?;
+            self.rebalance(storage)?;
             return Ok(());
         }
 
@@ -403,6 +425,7 @@ impl TreeNode {
             new_node.parent = Some(self.key);
             new_node.save(storage)?;
             self.save(storage)?;
+            self.rebalance(storage)?;
             return Ok(());
         }
 
@@ -412,6 +435,7 @@ impl TreeNode {
             let new_right = right.split(storage, new_node)?;
             self.right = Some(new_right);
             self.save(storage)?;
+            self.rebalance(storage)?;
             return Ok(());
         }
 
@@ -449,6 +473,7 @@ impl TreeNode {
             id,
             NodeType::internal(accumulator, (new_min, new_max)),
         );
+        new_parent.set_weight(2)?;
 
         // Save new key references
         new_parent.parent = self.parent;
@@ -456,7 +481,6 @@ impl TreeNode {
         new_parent.right = Some(new_right);
         self.parent = Some(id);
         new_node.parent = Some(id);
-        new_parent.set_weight(2)?;
         new_parent.save(storage)?;
         self.save(storage)?;
         new_node.save(storage)?;
@@ -491,7 +515,84 @@ impl TreeNode {
         Ok(())
     }
 
+    pub fn get_balance_factor(&self, storage: &dyn Storage) -> ContractResult<i32> {
+        let left_weight = self.get_left(storage)?.map_or(0, |n| n.get_weight());
+        let right_weight = self.get_right(storage)?.map_or(0, |n| n.get_weight());
+        Ok(left_weight as i32 - right_weight as i32)
+    }
+
+    pub fn rebalance(&mut self, storage: &mut dyn Storage) -> ContractResult<()> {
+        // ensure!(self.is_internal(), ContractError::InvalidNodeType);
+        self.sync(storage)?;
+
+        if !self.has_child() || !self.is_internal() {
+            return Ok(());
+        }
+
+        let maybe_left = self.get_left(storage)?;
+        let maybe_right = self.get_right(storage)?;
+
+        //Type as i32 to allow negative
+        let balance_factor = self.get_balance_factor(storage)?;
+
+        if balance_factor <= 1 {
+            return Ok(());
+        }
+
+        let is_right_leaning = balance_factor.is_negative();
+        let is_left_leaning = balance_factor.is_positive();
+
+        let right_balance_factor = maybe_right
+            .clone()
+            .map_or(0, |n| n.get_balance_factor(storage).unwrap());
+        let left_balance_factor = maybe_left
+            .clone()
+            .map_or(0, |n| n.get_balance_factor(storage).unwrap());
+
+        // Case 1: Left Left
+        if is_right_leaning && right_balance_factor >= 0 {
+            self.rotate_left(storage)?;
+        }
+
+        // Case 2: Right Right
+        if is_left_leaning && left_balance_factor >= 0 {
+            self.rotate_right(storage)?;
+        }
+
+        // Case 3: Right Left
+        if is_right_leaning && right_balance_factor < 0 {
+            let mut right = maybe_right.unwrap();
+            if !right.is_internal() {
+                return Ok(());
+            }
+            right.rotate_right(storage)?;
+            self.sync(storage)?;
+            self.rotate_left(storage)?;
+        }
+
+        // Case 4: Left Right
+        if is_left_leaning && left_balance_factor < 0 {
+            let mut left = maybe_left.unwrap();
+            if !left.is_internal() {
+                return Ok(());
+            }
+            left.rotate_left(storage)?;
+            self.sync(storage)?;
+            self.rotate_right(storage)?;
+        }
+
+        Ok(())
+    }
+
     pub fn rotate_right(&mut self, storage: &mut dyn Storage) -> ContractResult<()> {
+        let maybe_parent = self.get_parent(storage)?;
+        let is_left_child = maybe_parent
+            .clone()
+            .map_or(false, |p| p.left == Some(self.key));
+        let is_right_child = maybe_parent
+            .clone()
+            .map_or(false, |p| p.right == Some(self.key));
+
         let maybe_left = self.get_left(storage)?;
         ensure!(maybe_left.is_some(), ContractError::InvalidNodeType);
 
@@ -501,9 +602,9 @@ impl TreeNode {
         self.parent = Some(left.key);
         self.left = left.right;
 
-        if let Some(mut right) = left.get_right(storage)? {
-            right.parent = Some(self.key);
-            right.save(storage)?;
+        if let Some(mut new_left) = self.get_left(storage)? {
+            new_left.parent = Some(self.key);
+            new_left.save(storage)?;
         }
 
         left.right = Some(self.key);
@@ -517,10 +618,30 @@ impl TreeNode {
             TREE.save(storage, &(left.book_id, left.tick_id), &left.key)?;
         }
 
+        if is_left_child {
+            let mut parent = maybe_parent.clone().unwrap();
+            parent.left = Some(left.key);
+            parent.save(storage)?;
+        }
+
+        if is_right_child {
+            let mut parent = maybe_parent.unwrap();
+            parent.right = Some(left.key);
+            parent.save(storage)?;
+        }
+
         Ok(())
     }
 
     pub fn rotate_left(&mut self, storage: &mut dyn Storage) -> ContractResult<()> {
+        let maybe_parent = self.get_parent(storage)?;
+        let is_left_child = maybe_parent
+            .clone()
+            .map_or(false, |p| p.left == Some(self.key));
+        let is_right_child = maybe_parent
+            .clone()
+            .map_or(false, |p| p.right == Some(self.key));
+
         let maybe_right = self.get_right(storage)?;
         ensure!(maybe_right.is_some(), ContractError::InvalidNodeType);
 
@@ -530,9 +651,9 @@ impl TreeNode {
         self.parent = Some(right.key);
         self.right = right.left;
 
-        if let Some(mut left) = right.get_left(storage)? {
-            left.parent = Some(self.key);
-            left.save(storage)?;
+        if let Some(mut new_right) = self.get_left(storage)? {
+            new_right.parent = Some(self.key);
+            new_right.save(storage)?;
         }
 
         right.left = Some(self.key);
@@ -544,6 +665,18 @@ impl TreeNode {
 
         if right.parent.is_none() {
             TREE.save(storage, &(right.book_id, right.tick_id), &right.key)?;
+        }
+
+        if is_left_child {
+            let mut parent = maybe_parent.clone().unwrap();
+            parent.left = Some(right.key);
+            parent.save(storage)?;
+        }
+
+        if is_right_child {
+            let mut parent = maybe_parent.unwrap();
+            parent.right = Some(right.key);
+            parent.save(storage)?;
         }
 
         Ok(())

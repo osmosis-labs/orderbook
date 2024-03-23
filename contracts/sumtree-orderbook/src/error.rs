@@ -80,6 +80,9 @@ pub enum ContractError {
 
     #[error("Childless Internal Node")]
     ChildlessInternalNode,
+
+    #[error("Cannot cancel an order that has partially or fully been filled")]
+    CancelFilledOrder,
 }
 
 pub type ContractResult<T> = Result<T, ContractError>;

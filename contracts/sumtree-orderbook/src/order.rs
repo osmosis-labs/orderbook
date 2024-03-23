@@ -1,8 +1,15 @@
+use std::str::FromStr;
+
 use crate::constants::{MAX_TICK, MIN_TICK};
 use crate::error::ContractError;
-use crate::state::{new_order_id, orders, ORDERBOOKS};
-use crate::types::{LimitOrder, OrderDirection};
-use cosmwasm_std::{ensure, ensure_eq, DepsMut, Env, MessageInfo, Response, Uint128};
+use crate::state::{new_order_id, orders, ORDERBOOKS, TICK_STATE};
+use crate::sumtree::node::{generate_node_id, NodeType, TreeNode};
+use crate::sumtree::tree::TREE;
+use crate::types::{LimitOrder, OrderDirection, REPLY_ID_REFUND};
+use cosmwasm_std::{
+    coin, ensure, ensure_eq, BankMsg, Decimal256, DepsMut, Env, MessageInfo, Response, SubMsg,
+    Uint128, Uint256,
+};
 use cw_utils::{must_pay, nonpayable};
 
 #[allow(clippy::manual_range_contains)]
@@ -50,6 +57,11 @@ pub fn place_limit(
     // Generate a new order ID
     let order_id = new_order_id(deps.storage)?;
 
+    // Update ETAS from Tick State
+    let mut tick_state = TICK_STATE
+        .load(deps.storage, &(book_id, tick_id))
+        .unwrap_or_default();
+
     // Build limit order
     let limit_order = LimitOrder::new(
         book_id,
@@ -58,6 +70,7 @@ pub fn place_limit(
         order_direction,
         info.sender.clone(),
         quantity,
+        tick_state.cumulative_total_value,
     );
 
     // Determine if the order needs to be filled
@@ -72,17 +85,27 @@ pub fn place_limit(
         todo!()
     }
 
+    let quantity_fullfilled = quantity.checked_sub(limit_order.quantity)?;
+
     // Only save the order if not fully filled
     if limit_order.quantity > Uint128::zero() {
         // Save the order to the orderbook
         orders().save(deps.storage, &(book_id, tick_id, order_id), &limit_order)?;
+
+        tick_state.total_amount_of_liquidity = tick_state
+            .total_amount_of_liquidity
+            .checked_add(Decimal256::from_ratio(
+                limit_order.quantity.u128(),
+                Uint256::one(),
+            ))
+            .unwrap();
     }
 
-    // TODO: Update Tick State
-    // Update tick liquidity
-    // TICK_STATE.update(deps.storage, &(book_id, tick_id), |state| {
-    //     let curr_state = state.unwrap_or_default();
-    // })?;
+    tick_state.cumulative_total_value = tick_state
+        .cumulative_total_value
+        .checked_add(Decimal256::from_ratio(quantity, Uint256::one()))?;
+
+    TICK_STATE.save(deps.storage, &(book_id, tick_id), &tick_state)?;
 
     Ok(response
         .add_attribute("method", "placeLimit")
@@ -92,10 +115,7 @@ pub fn place_limit(
         .add_attribute("order_id", order_id.to_string())
         .add_attribute("order_direction", format!("{order_direction:?}"))
         .add_attribute("quantity", quantity.to_string())
-        .add_attribute(
-            "quantity_fulfilled",
-            quantity.checked_sub(limit_order.quantity)?,
-        ))
+        .add_attribute("quantity_fulfilled", quantity_fullfilled))
 }
 
 pub fn cancel_limit(
@@ -120,7 +140,91 @@ pub fn cancel_limit(
     // Ensure the sender is the order owner
     ensure_eq!(info.sender, order.owner, ContractError::Unauthorized {});
 
-    todo!();
+    // Ensure the order has not been filled.
+    // TODO: support cancelling partially filled orders by claiming above
+    // if a partial fill is detected. Tracked in issue https://github.com/osmosis-labs/orderbook/issues/75
+    let tick_state = TICK_STATE
+        .load(deps.storage, &(book_id, tick_id))
+        .unwrap_or_default();
+    ensure!(
+        tick_state.effective_total_amount_swapped <= order.etas,
+        ContractError::CancelFilledOrder
+    );
+
+    // Fetch the sumtree from storage, or create one if it does not exist
+    let mut tree = TREE
+        .load(deps.storage, &(order.book_id, order.tick_id))
+        .unwrap_or(TreeNode::new(
+            order.book_id,
+            order.tick_id,
+            generate_node_id(deps.storage, order.book_id, order.tick_id)?,
+            NodeType::default(),
+        ));
+
+    // Generate info for new node to insert to sumtree
+    let node_id = generate_node_id(deps.storage, order.book_id, order.tick_id)?;
+    let mut curr_tick_state = TICK_STATE
+        .load(deps.storage, &(order.book_id, order.tick_id))
+        .ok()
+        .ok_or(ContractError::InvalidTickId {
+            tick_id: order.tick_id,
+        })?;
+
+    let etas = Uint128::from_str(&order.etas.to_string())?;
+
+    let mut new_node = TreeNode::new(
+        order.book_id,
+        order.tick_id,
+        node_id,
+        NodeType::leaf(etas, order.quantity),
+    );
+
+    // Insert new node
+    tree.insert(deps.storage, &mut new_node)?;
+
+    // Get orderbook info for correct denomination
+    let orderbook =
+        ORDERBOOKS
+            .may_load(deps.storage, &order.book_id)?
+            .ok_or(ContractError::InvalidBookId {
+                book_id: order.book_id,
+            })?;
+
+    // Generate refund
+    let expected_denom = orderbook.get_expected_denom(&order.order_direction);
+    let refund_msg = SubMsg::reply_on_error(
+        BankMsg::Send {
+            to_address: order.owner.to_string(),
+            amount: vec![coin(order.quantity.u128(), expected_denom)],
+        },
+        REPLY_ID_REFUND,
+    );
+
+    orders().remove(
+        deps.storage,
+        &(order.book_id, order.tick_id, order.order_id),
+    )?;
+
+    curr_tick_state.total_amount_of_liquidity = curr_tick_state
+        .total_amount_of_liquidity
+        .checked_sub(Decimal256::from_ratio(order.quantity, Uint256::one()))?;
+
+    TICK_STATE.save(
+        deps.storage,
+        &(order.book_id, order.tick_id),
+        &curr_tick_state,
+    )?;
+
+    tree.save(deps.storage)?;
+    TREE.save(deps.storage, &(book_id, tick_id), &tree)?;
+
+    Ok(Response::new()
+        .add_attribute("method", "cancelLimit")
+        .add_attribute("owner", info.sender)
+        .add_attribute("book_id", book_id.to_string())
+        .add_attribute("tick_id", tick_id.to_string())
+        .add_attribute("order_id", order_id.to_string())
+        .add_submessage(refund_msg))
 }
 
 pub fn place_market(

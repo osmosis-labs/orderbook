@@ -13,7 +13,7 @@ pub struct TickState {
     /// Cumulative Total Limits at tick (CTT)
     /// - Every limit order placement increments this value.
     /// - There might be an edge-case optimization to lower this value.
-    pub cumulative_total_limits: Decimal256,
+    pub cumulative_total_value: Decimal256,
 
     /// Effective Total Amount Swapped at tick (ETAS)
     /// - Every swap increments ETAS by the swap amount.
@@ -25,7 +25,7 @@ impl Default for TickState {
     fn default() -> Self {
         TickState {
             total_amount_of_liquidity: Decimal256::zero(),
-            cumulative_total_limits: Decimal256::zero(),
+            cumulative_total_value: Decimal256::zero(),
             effective_total_amount_swapped: Decimal256::zero(),
         }
     }

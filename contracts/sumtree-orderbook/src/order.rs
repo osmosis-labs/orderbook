@@ -331,17 +331,17 @@ pub fn run_market_order(
             .effective_total_amount_swapped
             .checked_add(fill_amount_dec)?;
 
-        // TODO: make amount_to_value return error instead of panicking
-        total_output = total_output.checked_add(amount_to_value(
-            order.order_direction,
-            fill_amount_dec,
-            tick_price,
-        )?)?;
-
         // Note: this conversion errors if fill_amount_dec does not fit into Uint128
         // By the time we get here, this should not be possible.
         let fill_amount = Uint128::try_from(fill_amount_dec.to_uint_ceil())?;
         order.quantity = order.quantity.checked_sub(fill_amount)?;
+
+        // TODO: make amount_to_value return error instead of panicking
+        total_output = total_output.checked_add(amount_to_value(
+            order.order_direction,
+            fill_amount,
+            tick_price,
+        )?)?;
     }
 
     Ok((

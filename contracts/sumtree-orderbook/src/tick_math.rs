@@ -1,9 +1,11 @@
+use std::str::FromStr;
+
 use crate::constants::{
     EXPONENT_AT_PRICE_ONE, GEOMETRIC_EXPONENT_INCREMENT_DISTANCE_IN_TICKS, MAX_TICK, MIN_TICK,
 };
 use crate::error::*;
 use crate::types::OrderDirection;
-use cosmwasm_std::{ensure, Decimal256, Uint128, Uint256};
+use cosmwasm_std::{ensure, Decimal256, OverflowError, OverflowOperation, Uint128, Uint256};
 
 // tick_to_price converts a tick index to a price.
 // If tick_index is zero, the function returns Decimal256::one().
@@ -75,47 +77,43 @@ pub fn pow_ten(expo: i32) -> ContractResult<Decimal256> {
 }
 
 // Multiplies a given tick amount by the price for that tick
-pub fn multiply_by_price(
-    amount: Decimal256,
-    price: Decimal256,
-    round_up: bool,
-) -> ContractResult<Uint128> {
-    // Multiply amount by the price
-    // TODO: need to handle rounding here (currently does either bankers or floor)
-    let amount_to_send_d256 = price.checked_mul(amount)?;
+pub fn multiply_by_price(amount: Uint128, price: Decimal256) -> ContractResult<Uint128> {
+    let amount_to_send_u256 = price
+        .checked_mul(Decimal256::from_ratio(
+            Uint256::from_uint128(amount),
+            Uint256::one(),
+        ))?
+        .to_uint_ceil();
 
-    // Convert to Uint256 with proper rounding
-    let amount_to_send_u256 = if round_up {
-        amount_to_send_d256.to_uint_ceil()
-    } else {
-        amount_to_send_d256.to_uint_floor()
-    };
-
-    // Run checked conversion to Uint128
-    let amount_to_send = Uint128::try_from(amount_to_send_u256).unwrap();
+    // TODO: Rounding?
+    ensure!(
+        amount_to_send_u256 <= Uint256::from_u128(Uint128::MAX.u128()),
+        ContractError::Overflow(OverflowError {
+            operation: OverflowOperation::Mul,
+            operand1: amount.to_string(),
+            operand2: price.to_string(),
+        })
+    );
+    let amount_to_send = Uint128::from_str(amount_to_send_u256.to_string().as_str()).unwrap();
 
     Ok(amount_to_send)
 }
 
 // Divides a given tick amount by the price for that tick
-pub fn divide_by_price(
-    amount: Decimal256,
-    price: Decimal256,
-    round_up: bool,
-) -> ContractResult<Uint128> {
-    // Divide amount by the price
-    // TODO: need to handle rounding here (currently does either bankers or floor)
-    let amount_to_send_d256 = amount.checked_div(price)?;
+pub fn divide_by_price(amount: Uint128, price: Decimal256) -> ContractResult<Uint128> {
+    let amount_to_send_u256 = Decimal256::from_ratio(amount, Uint256::one())
+        .checked_div(price)?
+        .to_uint_floor();
 
-    // Convert to Uint256 with proper rounding
-    let amount_to_send_u256 = if round_up {
-        amount_to_send_d256.to_uint_ceil()
-    } else {
-        amount_to_send_d256.to_uint_floor()
-    };
-
-    // Run checked conversion to Uint128
-    let amount_to_send = Uint128::try_from(amount_to_send_u256).unwrap();
+    ensure!(
+        amount_to_send_u256 <= Uint256::from_u128(Uint128::MAX.u128()),
+        ContractError::Overflow(OverflowError {
+            operation: OverflowOperation::Mul,
+            operand1: amount.to_string(),
+            operand2: price.to_string(),
+        })
+    );
+    let amount_to_send = Uint128::from_str(amount_to_send_u256.to_string().as_str()).unwrap();
 
     Ok(amount_to_send)
 }
@@ -123,13 +121,11 @@ pub fn divide_by_price(
 /// Converts a tick amount to it's value given a price and order direction
 pub fn amount_to_value(
     order: OrderDirection,
-    amount: Decimal256,
+    amount: Uint128,
     price: Decimal256,
 ) -> ContractResult<Uint128> {
-    // TODO: vet rounding direction and review internal math rounding
-    let round_up = order == OrderDirection::Ask;
     match order {
-        OrderDirection::Bid => multiply_by_price(amount, price, round_up),
-        OrderDirection::Ask => divide_by_price(amount, price, round_up),
+        OrderDirection::Bid => multiply_by_price(amount, price),
+        OrderDirection::Ask => divide_by_price(amount, price),
     }
 }

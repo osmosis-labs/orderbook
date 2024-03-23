@@ -59,6 +59,8 @@ fn prefix_sum_walk(
         return Ok(current_sum);
     }
 
+    // --- Attempt walk left ---
+
     // We fetch both children here since we need to access both regardless of
     // whether we walk left or right.
     let left_child = node.get_left(storage)?;
@@ -74,6 +76,9 @@ fn prefix_sum_walk(
         if target_etas < left_child.get_min_range() {
             // If the target ETAS is below the left child's range, nothing in the
             // entire tree should be included in the prefix sum, so we return zero.
+            //
+            // TODO: This should not be possible now that the check above is added.
+            // Consider removing or erroring here.
             return Ok(Uint128::zero());
         }
 
@@ -95,7 +100,7 @@ fn prefix_sum_walk(
         }
     }
 
-    // --- Walk right ---
+    // --- Attempt walk right ---
 
     // If right child either doesn't exist, the current prefix sum is simply the sum of the left child,
     // which is fully below the target ETAS, so we return the prefix sum as is.

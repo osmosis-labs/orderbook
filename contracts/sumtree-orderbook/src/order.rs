@@ -4,7 +4,7 @@ use crate::constants::{MAX_TICK, MIN_TICK};
 use crate::error::ContractError;
 use crate::state::{new_order_id, orders, ORDERBOOKS, TICK_STATE};
 use crate::sumtree::node::{generate_node_id, NodeType, TreeNode};
-use crate::sumtree::tree::TREE;
+use crate::sumtree::tree::{get_root_node, TREE};
 use crate::types::{LimitOrder, OrderDirection, REPLY_ID_REFUND};
 use cosmwasm_std::{
     coin, ensure, ensure_eq, BankMsg, Decimal256, DepsMut, Env, MessageInfo, Response, SubMsg,
@@ -126,7 +126,6 @@ pub fn cancel_limit(
     tick_id: i64,
     order_id: u64,
 ) -> Result<Response, ContractError> {
-    /*  Commenting until resolved in Connor's rebalancing PR
     nonpayable(&info)?;
     let key = (book_id, tick_id, order_id);
     // Check for the order, error if not found
@@ -153,14 +152,18 @@ pub fn cancel_limit(
     );
 
     // Fetch the sumtree from storage, or create one if it does not exist
-    let mut tree = TREE
-        .load(deps.storage, &(order.book_id, order.tick_id))
-        .unwrap_or(TreeNode::new(
+    let mut tree = if let Ok(tree) = get_root_node(deps.storage, book_id, tick_id) {
+        tree
+    } else {
+        let new_root = TreeNode::new(
             order.book_id,
             order.tick_id,
-            generate_node_id(deps.storage, order.book_id, order.tick_id)?,
+            generate_node_id(deps.storage, book_id, tick_id)?,
             NodeType::default(),
-        ));
+        );
+        TREE.save(deps.storage, &(book_id, tick_id), &new_root.key)?;
+        new_root
+    };
 
     // Generate info for new node to insert to sumtree
     let node_id = generate_node_id(deps.storage, order.book_id, order.tick_id)?;
@@ -216,9 +219,6 @@ pub fn cancel_limit(
         &curr_tick_state,
     )?;
 
-    tree.save(deps.storage)?;
-    TREE.save(deps.storage, &(book_id, tick_id), &tree)?;
-
     Ok(Response::new()
         .add_attribute("method", "cancelLimit")
         .add_attribute("owner", info.sender)
@@ -226,9 +226,6 @@ pub fn cancel_limit(
         .add_attribute("tick_id", tick_id.to_string())
         .add_attribute("order_id", order_id.to_string())
         .add_submessage(refund_msg))
-
-    */
-    Ok(Response::new())
 }
 
 pub fn place_market(

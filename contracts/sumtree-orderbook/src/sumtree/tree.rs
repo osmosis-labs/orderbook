@@ -1,6 +1,6 @@
 use super::node::{TreeNode, NODES};
 use crate::error::ContractResult;
-use cosmwasm_std::{ensure, Storage, Uint128};
+use cosmwasm_std::{Storage, Uint128};
 use cw_storage_plus::Map;
 
 pub const TREE: Map<&(u64, i64), u64> = Map::new("tree");
@@ -71,8 +71,7 @@ fn prefix_sum_walk(
     // * Else if target ETAS <= upper bound, subtract right child sum from prefix sum and walk left
     //
     // If neither of the above conditions are met, we continue to logic around walking right.
-    if !left_child.is_none() {
-        let left_child = left_child.unwrap();
+    if let Some(left_child) = left_child {
         if target_etas < left_child.get_min_range() {
             // If the target ETAS is below the left child's range, nothing in the
             // entire tree should be included in the prefix sum, so we return zero.
@@ -85,11 +84,7 @@ fn prefix_sum_walk(
         if target_etas <= left_child.get_max_range() {
             // Since the target ETAS is within the left child's range, we can safely conclude
             // that everything below the right child should not be in our prefix sum.
-            let right_sum = if right_child.is_none() {
-                Uint128::zero()
-            } else {
-                TreeNode::get_value(&right_child.unwrap())
-            };
+            let right_sum = right_child.map_or(Uint128::zero(), |r| r.get_value());
 
             current_sum = current_sum.checked_sub(right_sum)?;
 
@@ -117,7 +112,7 @@ fn prefix_sum_walk(
         // If the ETAS is below the right child's range, we know that anything below the right child
         // should not be included in the prefix sum. We subtract the right child's sum from the prefix sum.
         current_sum = current_sum.checked_sub(TreeNode::get_value(&right_child))?;
-        return Ok(current_sum);
+        Ok(current_sum)
     } else if target_etas <= right_child.get_max_range() {
         // If the target ETAS falls in the right child's range, we need to walk right.
         // We do not need to update the prefix sum here because we do not know how much

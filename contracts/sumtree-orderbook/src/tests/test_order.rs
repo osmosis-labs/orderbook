@@ -6,7 +6,7 @@ use crate::{
     state::*,
     sumtree::{
         node::{NodeType, TreeNode},
-        tree::TREE,
+        tree::get_root_node,
     },
     types::{OrderDirection, REPLY_ID_REFUND},
 };
@@ -578,10 +578,7 @@ fn test_cancel_limit() {
         // -- Sumtree --
 
         // Ensure tree is saved correctly
-        let tree = TREE
-            .load(deps.as_ref().storage, &(valid_book_id, test.tick_id))
-            .unwrap();
-
+        let tree = get_root_node(deps.as_ref().storage, valid_book_id, test.tick_id).unwrap();
         // Traverse the tree to check its form
         let res = tree.traverse(deps.as_ref().storage).unwrap();
         let mut root_node = TreeNode::new(

@@ -139,7 +139,7 @@ impl TreeNode {
     }
 
     /// Resyncs a node with values stored in CosmWasm Storage
-    pub fn sync(&mut self, storage: &mut dyn Storage) -> ContractResult<()> {
+    pub fn sync(&mut self, storage: &dyn Storage) -> ContractResult<()> {
         *self = NODES.load(storage, &(self.book_id, self.tick_id, self.key))?;
         Ok(())
     }
@@ -706,6 +706,15 @@ impl TreeNode {
         }
 
         Ok(())
+    }
+
+    #[cfg(test)]
+    pub fn with_children(self, left: Option<u64>, right: Option<u64>) -> Self {
+        Self {
+            left,
+            right,
+            ..self
+        }
     }
 
     #[cfg(test)]

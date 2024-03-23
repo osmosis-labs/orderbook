@@ -152,9 +152,7 @@ pub fn cancel_limit(
     );
 
     // Fetch the sumtree from storage, or create one if it does not exist
-    let maybe_tree = get_root_node(deps.as_ref().storage, book_id, tick_id);
-
-    let mut tree = if let Ok(tree) = maybe_tree {
+    let mut tree = if let Ok(tree) = get_root_node(deps.storage, book_id, tick_id) {
         tree
     } else {
         let new_root = TreeNode::new(
@@ -163,7 +161,7 @@ pub fn cancel_limit(
             generate_node_id(deps.storage, book_id, tick_id)?,
             NodeType::default(),
         );
-        TREE.save(deps.storage, &(order.book_id, order.tick_id), &new_root.key)?;
+        TREE.save(deps.storage, &(book_id, tick_id), &new_root.key)?;
         new_root
     };
 

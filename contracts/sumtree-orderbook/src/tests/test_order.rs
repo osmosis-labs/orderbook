@@ -1,3 +1,5 @@
+use std::i64::MAX;
+
 use crate::{
     constants::{MAX_TICK, MIN_TICK},
     error::ContractError,
@@ -8,9 +10,9 @@ use crate::{
         node::{NodeType, TreeNode},
         tree::TREE,
     },
-    types::{OrderDirection, REPLY_ID_REFUND},
+    types::{LimitOrder, MarketOrder, OrderDirection, REPLY_ID_REFUND},
 };
-use cosmwasm_std::{coin, Addr, BankMsg, Coin, Empty, SubMsg, Uint128, Uint256};
+use cosmwasm_std::{coin, Addr, BankMsg, Coin, DepsMut, Empty, Env, SubMsg, Uint128, Uint256};
 use cosmwasm_std::{
     testing::{mock_dependencies_with_balances, mock_env, mock_info},
     Decimal256,
@@ -175,7 +177,7 @@ fn test_place_limit() {
         // --- System under test ---
 
         let response = place_limit(
-            deps.as_mut(),
+            &mut deps.as_mut(),
             env.clone(),
             info.clone(),
             test.book_id,
@@ -430,7 +432,7 @@ fn test_cancel_limit() {
                 &[coin(test.quantity.u128(), base_denom.clone())],
             );
             place_limit(
-                deps.as_mut(),
+                &mut deps.as_mut(),
                 env.clone(),
                 place_info,
                 test.book_id,
@@ -602,4 +604,273 @@ fn test_cancel_limit() {
         // Ensure tree traversal returns expected ordering
         assert_eq!(res, vec![root_node, cancelled_node])
     }
+}
+
+struct RunMarketOrderTestCase {
+    name: &'static str,
+    placed_order: MarketOrder,
+    tick_bound: i64,
+    orders: Vec<LimitOrder>,
+    sent: Uint128,
+
+    expected_output: Uint128,
+    expected_error: Option<ContractError>,
+}
+
+#[test]
+fn test_run_market_order() {
+    let valid_book_id = 0;
+    let invalid_book_id = valid_book_id + 1;
+    // TODO: move these defaults to global scope or helper file
+    let default_current_tick = 0;
+    let default_orders_per_tick = 1;
+    let default_owner = "creator";
+    let default_sender = "sender";
+    let default_quantity = Uint128::new(1000);
+    let test_cases = vec![
+        RunMarketOrderTestCase {
+            name: "happy path bid at negative tick",
+            sent: Uint128::new(1000),
+            placed_order: MarketOrder::new(
+                valid_book_id,
+                Uint128::new(1000),
+                OrderDirection::Bid,
+                Addr::unchecked(default_sender),
+            ),
+            tick_bound: MAX_TICK,
+
+            // Orders to fill against
+            orders: generate_limit_orders(
+                valid_book_id,
+                &[-1500000],
+                // Current tick is below the active limit orders
+                -2500000,
+                // 1000 units of liquidity total
+                10,
+                default_quantity,
+            ),
+
+            // Bidding 1000 units of input into tick -1500000, which corresponds to $0.85,
+            // implies 1000*0.85 = 850 units of output.
+            expected_output: Uint128::new(850),
+            expected_error: None,
+        },
+        RunMarketOrderTestCase {
+            name: "happy path bid at positive tick",
+            sent: Uint128::new(1000),
+            placed_order: MarketOrder::new(
+                valid_book_id,
+                Uint128::new(1000),
+                OrderDirection::Bid,
+                Addr::unchecked(default_sender),
+            ),
+            tick_bound: MAX_TICK,
+
+            // Orders to fill against
+            orders: generate_limit_orders(
+                valid_book_id,
+                &[40000000],
+                // Current tick is below the active limit orders
+                default_current_tick,
+                // Two orders with sufficient total liquidity to process the
+                // full market order
+                2,
+                Uint128::new(25_000_000),
+            ),
+
+            // Bidding 1000 units of input into tick 40,000,000, which corresponds to a
+            // price of $50000 (from tick math test cases).
+            //
+            // This implies 1000*50000 = 50,000,000 units of output.
+            expected_output: Uint128::new(50_000_000),
+            expected_error: None,
+        },
+        RunMarketOrderTestCase {
+            name: "happy path bid at positive tick",
+            sent: Uint128::new(1000),
+            placed_order: MarketOrder::new(
+                valid_book_id,
+                Uint128::new(1000),
+                OrderDirection::Bid,
+                Addr::unchecked(default_sender),
+            ),
+            tick_bound: MAX_TICK,
+
+            // Orders to fill against
+            orders: generate_limit_orders(
+                valid_book_id,
+                &[-17765433],
+                // Current tick is below the active limit orders
+                -20000000,
+                // Four limit orders with sufficient total liquidity to process the
+                // full market order
+                4,
+                Uint128::new(3),
+            ),
+
+            // Bidding 1000 units of input into tick -17765433, which corresponds to a
+            // price of $0.012345670000000000 (from tick math test cases).
+            //
+            // This implies 1000*0.012345670000000000 = 12.34567 units of output,
+            // truncated to 12 units.
+            expected_output: Uint128::new(12),
+            expected_error: None,
+        },
+        // Happy path cases in the ask direction
+
+        // Cases where the full order can't be filled in either direction
+        // * requires adding refund, could do in follow up PR
+
+        // Error cases:
+        // * Invalid book id
+        // * Invalid tick bound (both in bid and ask directions)
+        // * Insufficient funds sent
+
+        // Edge cases:
+        // * Empty orderbook
+        // * Exactly min tick/max tick
+    ];
+
+    for test in test_cases {
+        // --- Setup ---
+
+        // Create a mock environment and info
+        let coin_vec = vec![coin(
+            test.sent.u128(),
+            if test.placed_order.order_direction == OrderDirection::Ask {
+                "base"
+            } else {
+                "quote"
+            },
+        )];
+        let balances = [(default_sender, coin_vec.as_slice())];
+        let mut deps = mock_dependencies_with_balances(&balances);
+        let env = mock_env();
+        let info = mock_info(default_sender, &coin_vec);
+
+        // Create an orderbook to operate on
+        let quote_denom = "quote".to_string();
+        let base_denom = "base".to_string();
+        let _create_response = create_orderbook(
+            deps.as_mut(),
+            env.clone(),
+            info.clone(),
+            quote_denom,
+            base_denom,
+        )
+        .unwrap();
+
+        // Place limit orders on orderbook
+        place_multiple_limit_orders(
+            &mut deps.as_mut(),
+            env.clone(),
+            default_owner,
+            valid_book_id,
+            test.orders,
+        )
+        .unwrap();
+
+        // --- System under test ---
+
+        let mut market_order = test.placed_order.clone();
+        let response = run_market_order(deps.as_mut().storage, &mut market_order, test.tick_bound);
+
+        // --- Assertions ---
+
+        // TODO: handle error cases
+
+        // Assert no error
+        let response = response.unwrap();
+
+        // We expect the output denom to be the opposite of the input denom,
+        // although we derive it directly from the order direction to ensure correctness.
+        let quote_denom = "quote".to_string();
+        let base_denom = "base".to_string();
+        let expected_denom = match test.placed_order.order_direction {
+            OrderDirection::Bid => base_denom.clone(),
+            OrderDirection::Ask => quote_denom.clone(),
+        };
+        let expected_msg = BankMsg::Send {
+            to_address: default_sender.to_string(),
+            amount: vec![coin(test.expected_output.u128(), expected_denom)],
+        };
+
+        // Ensure output is as expected
+        assert_eq!(
+            response.0,
+            test.expected_output,
+            "{}",
+            format_test_name(test.name)
+        );
+        assert_eq!(response.1, expected_msg, "{}", format_test_name(test.name));
+    }
+}
+
+/// Generates a set of `LimitOrder` objects for testing purposes.
+/// `orders_per_tick` orders are generated for each tick in `tick_ids`,
+/// with order direction being determined such that they are all placed
+/// around `current_tick`.
+fn generate_limit_orders(
+    book_id: u64,
+    tick_ids: &[i64],
+    current_tick: i64,
+    orders_per_tick: usize,
+    quantity_per_order: Uint128,
+) -> Vec<LimitOrder> {
+    let mut orders = Vec::new();
+    for &tick_id in tick_ids {
+        let order_direction = if tick_id < current_tick {
+            OrderDirection::Bid
+        } else {
+            OrderDirection::Ask
+        };
+
+        for order_num in 0..orders_per_tick {
+            let order = LimitOrder {
+                book_id: book_id,
+                tick_id,
+                order_id: order_num as u64,
+                order_direction: order_direction.clone(),
+                owner: Addr::unchecked("creator"),
+                quantity: quantity_per_order,
+
+                // We set this to zero since it will be unused anyway
+                etas: Decimal256::zero(),
+            };
+            orders.push(order);
+        }
+    }
+    orders
+}
+
+/// Places a vector of limit orders on the given book_id for a specified owner.
+fn place_multiple_limit_orders(
+    deps: &mut DepsMut,
+    env: Env,
+    owner: &str,
+    book_id: u64,
+    orders: Vec<LimitOrder>,
+) -> Result<(), ContractError> {
+    for order in orders {
+        let coin_vec = vec![coin(
+            order.quantity.u128(),
+            match order.order_direction {
+                OrderDirection::Ask => "base",
+                OrderDirection::Bid => "quote",
+            },
+        )];
+        let info = mock_info(owner, &coin_vec);
+
+        // Place the limit order
+        place_limit(
+            deps,
+            env.clone(),
+            info,
+            book_id,
+            order.tick_id,
+            order.order_direction.clone(),
+            order.quantity,
+        )?;
+    }
+    Ok(())
 }

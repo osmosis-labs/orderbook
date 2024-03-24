@@ -1,6 +1,8 @@
 #[cfg(not(feature = "library"))]
 use cosmwasm_std::entry_point;
-use cosmwasm_std::{ensure, Binary, Deps, DepsMut, Env, MessageInfo, Reply, Response, StdResult};
+use cosmwasm_std::{
+    ensure, Binary, Deps, DepsMut, Env, MessageInfo, Reply, Response, StdResult, Uint128,
+};
 use cw2::set_contract_version;
 
 use crate::error::ContractError;
@@ -8,6 +10,7 @@ use crate::msg::{ExecuteMsg, InstantiateMsg, MigrateMsg, QueryMsg};
 
 use crate::order;
 use crate::orderbook;
+use crate::types::OrderDirection;
 
 // version info for migration info
 const CONTRACT_NAME: &str = "crates.io:sumtree-orderbook";
@@ -68,7 +71,7 @@ pub fn execute(
             tick_id,
             order_direction,
             quantity,
-        } => order::place_limit(deps, env, info, book_id, tick_id, order_direction, quantity),
+        } => dispatch_place_limit(deps, env, info, book_id, tick_id, order_direction, quantity),
 
         // Cancels limit order with given ID
         ExecuteMsg::CancelLimit {
@@ -108,4 +111,24 @@ pub fn reply(_deps: DepsMut, _env: Env, msg: Reply) -> Result<Response, Contract
         }
     );
     todo!()
+}
+
+pub fn dispatch_place_limit(
+    mut deps: DepsMut,
+    env: Env,
+    info: MessageInfo,
+    book_id: u64,
+    tick_id: i64,
+    order_direction: OrderDirection,
+    quantity: Uint128,
+) -> Result<Response, ContractError> {
+    order::place_limit(
+        &mut deps,
+        env,
+        info,
+        book_id,
+        tick_id,
+        order_direction,
+        quantity,
+    )
 }

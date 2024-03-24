@@ -8,6 +8,16 @@ pub enum OrderDirection {
     Ask,
 }
 
+impl OrderDirection {
+    /// Returns the opposite order direction.
+    pub fn opposite(&self) -> Self {
+        match self {
+            OrderDirection::Bid => OrderDirection::Ask,
+            OrderDirection::Ask => OrderDirection::Bid,
+        }
+    }
+}
+
 #[cw_serde]
 pub struct LimitOrder {
     pub book_id: u64,

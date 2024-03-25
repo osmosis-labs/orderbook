@@ -716,19 +716,143 @@ fn test_run_market_order() {
             expected_output: Uint128::new(12),
             expected_error: None,
         },
-        // Happy path cases in the ask direction
+        RunMarketOrderTestCase {
+            name: "happy path ask at positive tick",
+            sent: Uint128::new(100000),
+            placed_order: MarketOrder::new(
+                valid_book_id,
+                Uint128::new(100000),
+                OrderDirection::Ask,
+                Addr::unchecked(default_sender),
+            ),
+            tick_bound: MIN_TICK,
 
-        // Cases where the full order can't be filled in either direction
-        // * requires adding refund, could do in follow up PR
+            // Orders to fill against
+            orders: generate_limit_orders(
+                valid_book_id,
+                &[40000000],
+                // Current tick is below the active limit orders
+                40000000 + 1,
+                // Two orders with sufficient total liquidity to process the
+                // full market order
+                2,
+                Uint128::new(1),
+            ),
 
-        // Error cases:
-        // * Invalid book id
-        // * Invalid tick bound (both in bid and ask directions)
-        // * Insufficient funds sent
+            // Asking 100,000 units of input into tick 40,000,000, which corresponds to a
+            // price of $1/50000 (from tick math test cases).
+            //
+            // This implies 100,000/50000 = 2 units of output.
+            expected_output: Uint128::new(2),
+            expected_error: None,
+        },
+        RunMarketOrderTestCase {
+            name: "invalid book id",
+            sent: Uint128::new(1000),
+            placed_order: MarketOrder::new(
+                invalid_book_id,
+                Uint128::new(1000),
+                OrderDirection::Bid,
+                Addr::unchecked(default_sender),
+            ),
+            tick_bound: MAX_TICK,
+            orders: vec![],
+            expected_output: Uint128::zero(),
+            expected_error: Some(ContractError::InvalidBookId {
+                book_id: invalid_book_id,
+            }),
+        },
+        RunMarketOrderTestCase {
+            name: "invalid tick bound for bid",
+            sent: Uint128::new(1000),
+            placed_order: MarketOrder::new(
+                valid_book_id,
+                Uint128::new(1000),
+                OrderDirection::Bid,
+                Addr::unchecked(default_sender),
+            ),
+            tick_bound: MIN_TICK - 1,
+            orders: vec![],
+            expected_output: Uint128::zero(),
+            expected_error: Some(ContractError::InvalidTickId {
+                tick_id: MIN_TICK - 1,
+            }),
+        },
+        RunMarketOrderTestCase {
+            name: "invalid tick bound for ask",
+            sent: Uint128::new(1000),
+            placed_order: MarketOrder::new(
+                valid_book_id,
+                Uint128::new(1000),
+                OrderDirection::Ask,
+                Addr::unchecked(default_sender),
+            ),
+            tick_bound: MAX_TICK + 1,
+            orders: vec![],
+            expected_output: Uint128::zero(),
+            expected_error: Some(ContractError::InvalidTickId {
+                tick_id: MAX_TICK + 1,
+            }),
+        },
+        RunMarketOrderTestCase {
+            name: "invalid tick bound due to bid direction",
+            sent: Uint128::new(1000),
+            placed_order: MarketOrder::new(
+                valid_book_id,
+                Uint128::new(1000),
+                OrderDirection::Bid,
+                Addr::unchecked(default_sender),
+            ),
+            // We expect the target tick for a market bid to be above the current tick,
+            // but this is below.
+            tick_bound: MIN_TICK,
 
-        // Edge cases:
-        // * Empty orderbook
-        // * Exactly min tick/max tick
+            // Orders to fill against
+            orders: generate_limit_orders(
+                valid_book_id,
+                &[-1500000],
+                // Current tick is below the active limit orders
+                -2500000,
+                // 1000 units of liquidity total
+                10,
+                default_quantity,
+            ),
+
+            expected_output: Uint128::zero(),
+            expected_error: Some(ContractError::InvalidTickId { tick_id: MIN_TICK }),
+        },
+        RunMarketOrderTestCase {
+            name: "bid at positive tick that can only partially be filled",
+            sent: Uint128::new(1000),
+            placed_order: MarketOrder::new(
+                valid_book_id,
+                Uint128::new(1000),
+                OrderDirection::Bid,
+                Addr::unchecked(default_sender),
+            ),
+            tick_bound: MAX_TICK,
+
+            // Orders to fill against
+            orders: generate_limit_orders(
+                valid_book_id,
+                &[40000000],
+                // Current tick is below the active limit orders
+                default_current_tick,
+                // Only half the required liquidity to process the full input.
+                1,
+                Uint128::new(25_000_000),
+            ),
+
+            // Bidding 1000 units of input into tick 40,000,000, which corresponds to a
+            // price of $50000 (from tick math test cases).
+            //
+            // This implies 1000*50000 = 50,000,000 units of output.
+            //
+            // However, since the book only has 25,000,000 units of liquidity, that is how much
+            // is filled.
+            expected_output: Uint128::new(25_000_000),
+            expected_error: None,
+        },
     ];
 
     for test in test_cases {
@@ -777,7 +901,16 @@ fn test_run_market_order() {
 
         // --- Assertions ---
 
-        // TODO: handle error cases
+        // Error case assertions if applicable
+        if let Some(expected_error) = &test.expected_error {
+            assert_eq!(
+                *expected_error,
+                response.unwrap_err(),
+                "{}",
+                format_test_name(test.name)
+            );
+            continue;
+        }
 
         // Assert no error
         let response = response.unwrap();
@@ -797,12 +930,12 @@ fn test_run_market_order() {
 
         // Ensure output is as expected
         assert_eq!(
-            response.0,
             test.expected_output,
+            response.0,
             "{}",
             format_test_name(test.name)
         );
-        assert_eq!(response.1, expected_msg, "{}", format_test_name(test.name));
+        assert_eq!(expected_msg, response.1, "{}", format_test_name(test.name));
     }
 }
 

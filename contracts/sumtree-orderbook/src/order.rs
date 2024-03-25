@@ -273,19 +273,21 @@ pub fn place_market(
 // Returns error if:
 // * Orderbook with given ID doesn't exist (order.book_id)
 // * Tick to price conversion fails for any tick
+//
+// CONTRACT: The caller must ensure that the necessary input funds were actually supplied.
 #[allow(clippy::manual_range_contains)]
 pub fn run_market_order(
     storage: &mut dyn Storage,
     order: &mut MarketOrder,
     tick_bound: i64,
 ) -> Result<(Uint128, BankMsg), ContractError> {
-    println!(
-        "Running market order with book_id: {}, order_direction: {:?}, tick_bound: {}",
-        order.book_id, order.order_direction, tick_bound
-    );
-    let orderbook = ORDERBOOKS.load(storage, &order.book_id)?;
+    let orderbook =
+        ORDERBOOKS
+            .load(storage, &order.book_id)
+            .map_err(|_| ContractError::InvalidBookId {
+                book_id: order.book_id,
+            })?;
     let output_denom = orderbook.get_opposite_denom(&order.order_direction);
-    println!("Output denom: {}", output_denom);
 
     // Ensure the given tick bound is within global limits
     ensure!(
@@ -293,10 +295,6 @@ pub fn run_market_order(
         ContractError::InvalidTickId {
             tick_id: tick_bound
         }
-    );
-    println!(
-        "Tick bound is within global limits: [{} - {}]",
-        MIN_TICK, MAX_TICK
     );
 
     // Derive appropriate bounds for tick iterator based on order direction:
@@ -310,7 +308,6 @@ pub fn run_market_order(
                     tick_id: tick_bound
                 }
             );
-            println!("Order is an Ask. Iterating from [next_bid_tick: {}, tick_bound: {}] in descending order.", orderbook.next_bid_tick, tick_bound);
             (tick_bound, orderbook.next_bid_tick, Order::Descending)
         }
         OrderDirection::Bid => {
@@ -320,7 +317,6 @@ pub fn run_market_order(
                     tick_id: tick_bound
                 }
             );
-            println!("Order is a Bid. Iterating from [tick_bound: {}, next_ask_tick: {}] in ascending order.", tick_bound, orderbook.next_ask_tick);
             (orderbook.next_ask_tick, tick_bound, Order::Ascending)
         }
     };
@@ -338,15 +334,9 @@ pub fn run_market_order(
     let mut total_output: Uint128 = Uint128::zero();
     for maybe_current_tick in ticks {
         let (current_tick_id, mut current_tick) = maybe_current_tick?;
-        println!(
-            "Processing tick_id: {}, with total_amount_of_liquidity: {}",
-            current_tick_id, current_tick.total_amount_of_liquidity
-        );
         let tick_price = tick_to_price(current_tick_id)?;
-        println!("Tick price: {}", tick_price);
 
         let output_quantity = amount_to_value(order.order_direction, order.quantity, tick_price)?;
-        println!("Output quantity: {}", output_quantity);
 
         let output_quantity_dec =
             Decimal256::from_ratio(Uint256::from_uint128(output_quantity), Uint256::one());
@@ -354,12 +344,8 @@ pub fn run_market_order(
         // If order quantity is less than the current tick's liquidity, fill the whole order.
         // Otherwise, fill the whole tick.
         let fill_amount_dec = if output_quantity_dec < current_tick.total_amount_of_liquidity {
-            println!("Order quantity is less than the current tick's liquidity. Filling the whole order.");
             output_quantity_dec
         } else {
-            println!(
-                "Order quantity is more than the current tick's liquidity. Filling the whole tick."
-            );
             current_tick.total_amount_of_liquidity
         };
 
@@ -373,27 +359,18 @@ pub fn run_market_order(
 
         // Note: this conversion errors if fill_amount_dec does not fit into Uint128
         // By the time we get here, this should not be possible.
-        println!("Fill amount dec: {}", fill_amount_dec);
         let fill_amount = Uint128::try_from(fill_amount_dec.to_uint_floor())?;
-        println!("Fill amount: {}", fill_amount);
 
         let input_filled =
             amount_to_value(order.order_direction.opposite(), fill_amount, tick_price)?;
-        println!("Input filled: {}", input_filled);
         order.quantity = order.quantity.checked_sub(input_filled)?;
-        println!("Remaining order quantity: {}", order.quantity);
 
         // TODO: make amount_to_value return error instead of panicking
         total_output = total_output.checked_add(fill_amount)?;
-        println!(
-            "Total output after processing current tick: {}",
-            total_output
-        );
     }
 
-    println!("Final total output: {}", total_output);
-
-    // TODO: Implement refund logic for partially filled orders
+    // TODO: If we intend to support refunds for partial fills, we will need to return
+    // the consumed input here as well. If we choose not to, we should error in this case.
     Ok((
         total_output,
         BankMsg::Send {

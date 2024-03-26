@@ -541,13 +541,12 @@ fn test_rotate_right() {
                 .with_children(Some(2), None),
                 // Left
                 TreeNode::new(book_id, tick_id, 2, NodeType::internal(2u32, (1u32, 3u32)))
-                    .with_children(Some(3), Some(4)),
+                    .with_children(Some(3), Some(4))
+                    .with_parent(1),
                 // Left-Left
-                TreeNode::new(book_id, tick_id, 3, NodeType::leaf(1u32, 1u32))
-                    .with_children(None, None),
+                TreeNode::new(book_id, tick_id, 3, NodeType::leaf(1u32, 1u32)).with_parent(2),
                 // Left-Right
-                TreeNode::new(book_id, tick_id, 4, NodeType::leaf(2u32, 1u32))
-                    .with_children(None, None),
+                TreeNode::new(book_id, tick_id, 4, NodeType::leaf(2u32, 1u32)).with_parent(2),
             ],
             expected: vec![2, 3, 1, 4],
             expected_error: None,
@@ -581,13 +580,12 @@ fn test_rotate_right() {
                 .with_children(Some(2), Some(4)),
                 // Left
                 TreeNode::new(book_id, tick_id, 2, NodeType::internal(2u32, (1u32, 3u32)))
-                    .with_children(Some(3), None),
+                    .with_children(Some(3), None)
+                    .with_parent(1),
                 // Left-Left
-                TreeNode::new(book_id, tick_id, 3, NodeType::leaf(1u32, 1u32))
-                    .with_children(None, None),
+                TreeNode::new(book_id, tick_id, 3, NodeType::leaf(1u32, 1u32)).with_parent(2),
                 // Right
-                TreeNode::new(book_id, tick_id, 4, NodeType::leaf(2u32, 1u32))
-                    .with_children(None, None),
+                TreeNode::new(book_id, tick_id, 4, NodeType::leaf(2u32, 1u32)).with_parent(1),
             ],
             expected: vec![2, 3, 1, 4],
             expected_error: None,
@@ -621,13 +619,12 @@ fn test_rotate_right() {
                 .with_children(Some(2), Some(4)),
                 // Left
                 TreeNode::new(book_id, tick_id, 2, NodeType::internal(2u32, (1u32, 3u32)))
-                    .with_children(None, Some(3)),
+                    .with_children(None, Some(3))
+                    .with_parent(1),
                 // Left-Right
-                TreeNode::new(book_id, tick_id, 3, NodeType::leaf(1u32, 1u32))
-                    .with_children(None, None),
+                TreeNode::new(book_id, tick_id, 3, NodeType::leaf(1u32, 1u32)).with_parent(2),
                 // Right
-                TreeNode::new(book_id, tick_id, 4, NodeType::leaf(2u32, 1u32))
-                    .with_children(None, None),
+                TreeNode::new(book_id, tick_id, 4, NodeType::leaf(2u32, 1u32)).with_parent(1),
             ],
             expected: vec![2, 1, 3, 4],
             expected_error: None,
@@ -661,16 +658,14 @@ fn test_rotate_right() {
                 .with_children(Some(2), Some(5)),
                 // Left
                 TreeNode::new(book_id, tick_id, 2, NodeType::internal(2u32, (1u32, 3u32)))
-                    .with_children(Some(3), Some(4)),
+                    .with_children(Some(3), Some(4))
+                    .with_parent(1),
                 // Left-Left
-                TreeNode::new(book_id, tick_id, 3, NodeType::leaf(1u32, 1u32))
-                    .with_children(None, None),
+                TreeNode::new(book_id, tick_id, 3, NodeType::leaf(1u32, 1u32)).with_parent(2),
                 // Left-Right
-                TreeNode::new(book_id, tick_id, 4, NodeType::leaf(2u32, 1u32))
-                    .with_children(None, None),
+                TreeNode::new(book_id, tick_id, 4, NodeType::leaf(2u32, 1u32)).with_parent(2),
                 // Right
-                TreeNode::new(book_id, tick_id, 5, NodeType::leaf(3u32, 1u32))
-                    .with_children(None, None),
+                TreeNode::new(book_id, tick_id, 5, NodeType::leaf(3u32, 1u32)).with_parent(1),
             ],
             expected: vec![2, 3, 1, 4, 5],
             expected_error: None,
@@ -706,22 +701,20 @@ fn test_rotate_right() {
                 .with_children(Some(2), Some(5)),
                 // Left
                 TreeNode::new(book_id, tick_id, 2, NodeType::internal(2u32, (1u32, 3u32)))
-                    .with_children(Some(3), Some(4)),
+                    .with_children(Some(3), Some(4))
+                    .with_parent(1),
                 // Left-Left
-                TreeNode::new(book_id, tick_id, 3, NodeType::leaf(1u32, 1u32))
-                    .with_children(None, None),
+                TreeNode::new(book_id, tick_id, 3, NodeType::leaf(1u32, 1u32)).with_parent(2),
                 // Left-Right
-                TreeNode::new(book_id, tick_id, 4, NodeType::leaf(2u32, 1u32))
-                    .with_children(None, None),
+                TreeNode::new(book_id, tick_id, 4, NodeType::leaf(2u32, 1u32)).with_parent(2),
                 // Right
                 TreeNode::new(book_id, tick_id, 5, NodeType::internal(2u32, (3u32, 5u32)))
-                    .with_children(Some(6), Some(7)),
+                    .with_children(Some(6), Some(7))
+                    .with_parent(1),
                 // Right-Left
-                TreeNode::new(book_id, tick_id, 6, NodeType::leaf(3u32, 1u32))
-                    .with_children(None, None),
+                TreeNode::new(book_id, tick_id, 6, NodeType::leaf(3u32, 1u32)).with_parent(5),
                 // Right-Right
-                TreeNode::new(book_id, tick_id, 7, NodeType::leaf(4u32, 1u32))
-                    .with_children(None, None),
+                TreeNode::new(book_id, tick_id, 7, NodeType::leaf(4u32, 1u32)).with_parent(5),
             ],
             expected: vec![2, 3, 1, 4, 5, 6, 7],
             expected_error: None,
@@ -757,19 +750,18 @@ fn test_rotate_right() {
                 .with_children(Some(2), Some(5)),
                 // Left
                 TreeNode::new(book_id, tick_id, 2, NodeType::internal(2u32, (1u32, 3u32)))
-                    .with_children(None, Some(4)),
+                    .with_children(None, Some(4))
+                    .with_parent(1),
                 // Left-Right
-                TreeNode::new(book_id, tick_id, 4, NodeType::leaf(2u32, 1u32))
-                    .with_children(None, None),
+                TreeNode::new(book_id, tick_id, 4, NodeType::leaf(2u32, 1u32)).with_parent(2),
                 // Right
                 TreeNode::new(book_id, tick_id, 5, NodeType::internal(2u32, (3u32, 5u32)))
-                    .with_children(Some(6), Some(7)),
+                    .with_children(Some(6), Some(7))
+                    .with_parent(1),
                 // Right-Left
-                TreeNode::new(book_id, tick_id, 6, NodeType::leaf(3u32, 1u32))
-                    .with_children(None, None),
+                TreeNode::new(book_id, tick_id, 6, NodeType::leaf(3u32, 1u32)).with_parent(5),
                 // Right-Right
-                TreeNode::new(book_id, tick_id, 7, NodeType::leaf(4u32, 1u32))
-                    .with_children(None, None),
+                TreeNode::new(book_id, tick_id, 7, NodeType::leaf(4u32, 1u32)).with_parent(5),
             ],
             expected: vec![2, 1, 4, 5, 6, 7],
             expected_error: None,
@@ -805,19 +797,18 @@ fn test_rotate_right() {
                 .with_children(Some(2), Some(5)),
                 // Left
                 TreeNode::new(book_id, tick_id, 2, NodeType::internal(2u32, (1u32, 3u32)))
-                    .with_children(Some(4), None),
+                    .with_children(Some(4), None)
+                    .with_parent(1),
                 // Left-Left
-                TreeNode::new(book_id, tick_id, 4, NodeType::leaf(2u32, 1u32))
-                    .with_children(None, None),
+                TreeNode::new(book_id, tick_id, 4, NodeType::leaf(2u32, 1u32)).with_parent(2),
                 // Right
                 TreeNode::new(book_id, tick_id, 5, NodeType::internal(2u32, (3u32, 5u32)))
-                    .with_children(Some(6), Some(7)),
+                    .with_children(Some(6), Some(7))
+                    .with_parent(1),
                 // Right-Left
-                TreeNode::new(book_id, tick_id, 6, NodeType::leaf(3u32, 1u32))
-                    .with_children(None, None),
+                TreeNode::new(book_id, tick_id, 6, NodeType::leaf(3u32, 1u32)).with_parent(5),
                 // Right-Right
-                TreeNode::new(book_id, tick_id, 7, NodeType::leaf(4u32, 1u32))
-                    .with_children(None, None),
+                TreeNode::new(book_id, tick_id, 7, NodeType::leaf(4u32, 1u32)).with_parent(5),
             ],
             expected: vec![2, 4, 1, 5, 6, 7],
             expected_error: None,
@@ -843,13 +834,12 @@ fn test_rotate_right() {
                 .with_children(None, Some(5)),
                 // Right
                 TreeNode::new(book_id, tick_id, 5, NodeType::internal(2u32, (3u32, 5u32)))
-                    .with_children(Some(6), Some(7)),
+                    .with_children(Some(6), Some(7))
+                    .with_parent(1),
                 // Right-Left
-                TreeNode::new(book_id, tick_id, 6, NodeType::leaf(3u32, 1u32))
-                    .with_children(None, None),
+                TreeNode::new(book_id, tick_id, 6, NodeType::leaf(3u32, 1u32)).with_parent(5),
                 // Right-Right
-                TreeNode::new(book_id, tick_id, 7, NodeType::leaf(4u32, 1u32))
-                    .with_children(None, None),
+                TreeNode::new(book_id, tick_id, 7, NodeType::leaf(4u32, 1u32)).with_parent(5),
             ],
             expected: vec![],
             expected_error: Some(ContractError::InvalidNodeType),
@@ -874,17 +864,15 @@ fn test_rotate_right() {
                 )
                 .with_children(Some(2), Some(5)),
                 // Left
-                TreeNode::new(book_id, tick_id, 2, NodeType::leaf(2u32, 1u32))
-                    .with_children(None, None),
+                TreeNode::new(book_id, tick_id, 2, NodeType::leaf(2u32, 1u32)).with_parent(1),
                 // Right
                 TreeNode::new(book_id, tick_id, 5, NodeType::internal(2u32, (3u32, 5u32)))
-                    .with_children(Some(6), Some(7)),
+                    .with_children(Some(6), Some(7))
+                    .with_parent(1),
                 // Right-Left
-                TreeNode::new(book_id, tick_id, 6, NodeType::leaf(3u32, 1u32))
-                    .with_children(None, None),
+                TreeNode::new(book_id, tick_id, 6, NodeType::leaf(3u32, 1u32)).with_parent(5),
                 // Right-Right
-                TreeNode::new(book_id, tick_id, 7, NodeType::leaf(4u32, 1u32))
-                    .with_children(None, None),
+                TreeNode::new(book_id, tick_id, 7, NodeType::leaf(4u32, 1u32)).with_parent(5),
             ],
             expected: vec![],
             expected_error: Some(ContractError::InvalidNodeType),
@@ -906,13 +894,14 @@ fn test_rotate_right() {
 
         // Sync weights post node storage
         for mut node in test.nodes {
-            if !node.is_internal() {
+            if node.is_internal() || node.parent.is_none() {
                 continue;
             }
             node.sync(deps.as_ref().storage).unwrap();
-            let weight = node.get_height(deps.as_ref().storage).unwrap();
-            node.set_weight(weight).unwrap();
-            node.save(deps.as_mut().storage).unwrap();
+            let mut parent = node.get_parent(deps.as_ref().storage).unwrap().unwrap();
+            parent
+                .sync_range_and_value_up(deps.as_mut().storage)
+                .unwrap();
         }
 
         let mut tree = get_root_node(deps.as_ref().storage, book_id, tick_id).unwrap();
@@ -982,13 +971,12 @@ fn test_rotate_left() {
                 .with_children(None, Some(2)),
                 // Right
                 TreeNode::new(book_id, tick_id, 2, NodeType::internal(2u32, (1u32, 3u32)))
-                    .with_children(Some(3), Some(4)),
+                    .with_children(Some(3), Some(4))
+                    .with_parent(1),
                 // Right-Left
-                TreeNode::new(book_id, tick_id, 3, NodeType::leaf(1u32, 1u32))
-                    .with_children(None, None),
+                TreeNode::new(book_id, tick_id, 3, NodeType::leaf(1u32, 1u32)).with_parent(2),
                 // Right-Right
-                TreeNode::new(book_id, tick_id, 4, NodeType::leaf(2u32, 1u32))
-                    .with_children(None, None),
+                TreeNode::new(book_id, tick_id, 4, NodeType::leaf(2u32, 1u32)).with_parent(2),
             ],
             expected: vec![2, 1, 3, 4],
             expected_error: None,
@@ -1022,33 +1010,17 @@ fn test_rotate_left() {
                 .with_children(Some(4), Some(2)),
                 // Right
                 TreeNode::new(book_id, tick_id, 2, NodeType::internal(2u32, (1u32, 3u32)))
-                    .with_children(Some(3), None),
+                    .with_children(Some(3), None)
+                    .with_parent(1),
                 // Right-Left
-                TreeNode::new(book_id, tick_id, 3, NodeType::leaf(1u32, 1u32))
-                    .with_children(None, None),
+                TreeNode::new(book_id, tick_id, 3, NodeType::leaf(1u32, 1u32)).with_parent(2),
                 // Left
-                TreeNode::new(book_id, tick_id, 4, NodeType::leaf(2u32, 1u32))
-                    .with_children(None, None),
+                TreeNode::new(book_id, tick_id, 4, NodeType::leaf(2u32, 1u32)).with_parent(1),
             ],
             expected: vec![2, 1, 4, 3],
             expected_error: None,
             print: true,
         },
-        // Pre-rotation
-        // --------------------------
-        //                        1: 0 4294967295-0
-        //                 ┌────────────────────────────────┐
-        //              4: 2 1                         2: 2 1-3
-        //                                                 ────────┐
-        //                                                      3: 1 1
-        //
-        // Post-rotation
-        // --------------------------
-        //                             2: 2 1-3
-        //                 ┌────────────────────────────────┐
-        //             1: 1 2-3                         3: 1 1
-        //         ┌────────
-        //      4: 2 1
         RotateLeftTestCase {
             name: "Right internal (no right-left ancestor) left leaf",
             nodes: vec![
@@ -1062,33 +1034,17 @@ fn test_rotate_left() {
                 .with_children(Some(4), Some(2)),
                 // Right
                 TreeNode::new(book_id, tick_id, 2, NodeType::internal(2u32, (1u32, 3u32)))
-                    .with_children(None, Some(3)),
+                    .with_children(None, Some(3))
+                    .with_parent(1),
                 // Right-Right
-                TreeNode::new(book_id, tick_id, 3, NodeType::leaf(1u32, 1u32))
-                    .with_children(None, None),
+                TreeNode::new(book_id, tick_id, 3, NodeType::leaf(1u32, 1u32)).with_parent(2),
                 // Left
-                TreeNode::new(book_id, tick_id, 4, NodeType::leaf(2u32, 1u32))
-                    .with_children(None, None),
+                TreeNode::new(book_id, tick_id, 4, NodeType::leaf(2u32, 1u32)).with_parent(1),
             ],
             expected: vec![2, 1, 4, 3],
             expected_error: None,
             print: true,
         },
-        // Pre-rotation
-        // --------------------------
-        //                        1: 0 4294967295-0
-        //                 ┌────────────────────────────────┐
-        //              5: 3 1                         2: 2 1-3
-        //                                         ┌────────────────┐
-        //                                      3: 1 1          4: 2 1
-        //
-        // Post-rotation
-        // --------------------------
-        //                             2: 3 1-4
-        //                 ┌────────────────────────────────┐
-        //             1: 2 1-4                         4: 2 1
-        //         ┌────────────────┐
-        //      5: 3 1          3: 1 1
         RotateLeftTestCase {
             name: "Right internal left leaf",
             nodes: vec![
@@ -1102,89 +1058,19 @@ fn test_rotate_left() {
                 .with_children(Some(5), Some(2)),
                 // Right
                 TreeNode::new(book_id, tick_id, 2, NodeType::internal(2u32, (1u32, 3u32)))
-                    .with_children(Some(3), Some(4)),
+                    .with_children(Some(3), Some(4))
+                    .with_parent(1),
                 // Right-Left
-                TreeNode::new(book_id, tick_id, 3, NodeType::leaf(1u32, 1u32))
-                    .with_children(None, None),
+                TreeNode::new(book_id, tick_id, 3, NodeType::leaf(1u32, 1u32)).with_parent(2),
                 // Right-Right
-                TreeNode::new(book_id, tick_id, 4, NodeType::leaf(2u32, 1u32))
-                    .with_children(None, None),
+                TreeNode::new(book_id, tick_id, 4, NodeType::leaf(2u32, 1u32)).with_parent(2),
                 // Left
-                TreeNode::new(book_id, tick_id, 5, NodeType::leaf(3u32, 1u32))
-                    .with_children(None, None),
+                TreeNode::new(book_id, tick_id, 5, NodeType::leaf(3u32, 1u32)).with_parent(1),
             ],
             expected: vec![2, 1, 5, 3, 4],
             expected_error: None,
             print: true,
         },
-        // Pre-rotation
-        // --------------------------
-        //                        1: 0 4294967295-0
-        //                 ┌────────────────────────────────┐
-        //             2: 2 1-3                        5: 2 3-5
-        //         ┌────────────────┐                ┌────────────────┐
-        //      3: 1 1          4: 2 1             6: 3 1          7: 4 1
-        //
-        // Post-rotation
-        // --------------------------
-        //                                                             5: 4 1-5
-        //                                 ┌────────────────────────────────────────────────────────────────┐
-        //                             1: 3 1-4                                                         7: 4 1
-        //                 ┌────────────────────────────────┐
-        //             2: 2 1-3                         6: 3 1
-        //         ┌────────────────┐
-        //      3: 1 1          4: 2 1
-        RotateLeftTestCase {
-            name: "Right internal left internal",
-            nodes: vec![
-                // Root
-                TreeNode::new(
-                    book_id,
-                    tick_id,
-                    1,
-                    NodeType::internal(Uint128::zero(), (u32::MAX, u32::MIN)),
-                )
-                .with_children(Some(2), Some(5)),
-                // Left
-                TreeNode::new(book_id, tick_id, 2, NodeType::internal(2u32, (1u32, 3u32)))
-                    .with_children(Some(3), Some(4)),
-                // Left-Left
-                TreeNode::new(book_id, tick_id, 3, NodeType::leaf(1u32, 1u32))
-                    .with_children(None, None),
-                // Left-Right
-                TreeNode::new(book_id, tick_id, 4, NodeType::leaf(2u32, 1u32))
-                    .with_children(None, None),
-                // Right
-                TreeNode::new(book_id, tick_id, 5, NodeType::internal(2u32, (3u32, 5u32)))
-                    .with_children(Some(6), Some(7)),
-                // Right-Left
-                TreeNode::new(book_id, tick_id, 6, NodeType::leaf(3u32, 1u32))
-                    .with_children(None, None),
-                // Right-Right
-                TreeNode::new(book_id, tick_id, 7, NodeType::leaf(4u32, 1u32))
-                    .with_children(None, None),
-            ],
-            expected: vec![5, 1, 2, 3, 4, 6, 7],
-            expected_error: None,
-            print: true,
-        },
-        // Pre-rotation
-        // --------------------------
-        //                        1: 0 4294967295-0
-        //                 ┌────────────────────────────────┐
-        //             5: 2 3-5                        2: 2 1-3
-        //         ┌────────────────┐                        ────────┐
-        //      6: 3 1          7: 4 1                             4: 2 1
-        //
-        // Post-rotation
-        // --------------------------
-        //                                                             2: 3 2-5
-        //                                 ┌────────────────────────────────────────────────────────────────┐
-        //                             1: 2 3-5                                                         4: 2 1
-        //                 ┌────────────────
-        //             5: 2 3-5
-        //         ┌────────────────┐
-        //      6: 3 1          7: 4 1
         RotateLeftTestCase {
             name: "Right internal (no right-left) left internal",
             nodes: vec![
@@ -1198,41 +1084,23 @@ fn test_rotate_left() {
                 .with_children(Some(5), Some(2)),
                 // Right
                 TreeNode::new(book_id, tick_id, 2, NodeType::internal(2u32, (1u32, 3u32)))
-                    .with_children(None, Some(4)),
+                    .with_children(None, Some(4))
+                    .with_parent(1),
                 // Right-Right
-                TreeNode::new(book_id, tick_id, 4, NodeType::leaf(2u32, 1u32))
-                    .with_children(None, None),
+                TreeNode::new(book_id, tick_id, 4, NodeType::leaf(2u32, 1u32)).with_parent(2),
                 // Left
                 TreeNode::new(book_id, tick_id, 5, NodeType::internal(2u32, (3u32, 5u32)))
-                    .with_children(Some(6), Some(7)),
+                    .with_children(Some(6), Some(7))
+                    .with_parent(1),
                 // Left-Left
-                TreeNode::new(book_id, tick_id, 6, NodeType::leaf(3u32, 1u32))
-                    .with_children(None, None),
+                TreeNode::new(book_id, tick_id, 6, NodeType::leaf(3u32, 1u32)).with_parent(5),
                 // Left-Right
-                TreeNode::new(book_id, tick_id, 7, NodeType::leaf(4u32, 1u32))
-                    .with_children(None, None),
+                TreeNode::new(book_id, tick_id, 7, NodeType::leaf(4u32, 1u32)).with_parent(5),
             ],
             expected: vec![2, 1, 5, 6, 7, 4],
             expected_error: None,
             print: true,
         },
-        // Pre-rotation
-        // --------------------------
-        //                        1: 0 4294967295-0
-        //                 ┌────────────────────────────────┐
-        //             5: 2 3-5                        2: 2 1-3
-        //         ┌────────────────┐                ┌────────
-        //      6: 3 1          7: 4 1             4: 2 1
-        //
-        // Post-rotation
-        // --------------------------
-        //                                                             2: 3 2-5
-        //                                 ┌────────────────────────────────
-        //                             1: 3 2-5
-        //                 ┌────────────────────────────────┐
-        //             5: 2 3-5                         4: 2 1
-        //         ┌────────────────┐
-        //      6: 3 1          7: 4 1
         RotateLeftTestCase {
             name: "Right internal (no right-right) left internal",
             nodes: vec![
@@ -1246,19 +1114,18 @@ fn test_rotate_left() {
                 .with_children(Some(5), Some(2)),
                 // Right
                 TreeNode::new(book_id, tick_id, 2, NodeType::internal(2u32, (1u32, 3u32)))
-                    .with_children(Some(4), None),
+                    .with_children(Some(4), None)
+                    .with_parent(1),
                 // Right-Left
-                TreeNode::new(book_id, tick_id, 4, NodeType::leaf(2u32, 1u32))
-                    .with_children(None, None),
+                TreeNode::new(book_id, tick_id, 4, NodeType::leaf(2u32, 1u32)).with_parent(2),
                 // Left
                 TreeNode::new(book_id, tick_id, 5, NodeType::internal(2u32, (3u32, 5u32)))
-                    .with_children(Some(6), Some(7)),
+                    .with_children(Some(6), Some(7))
+                    .with_parent(1),
                 // Left-Left
-                TreeNode::new(book_id, tick_id, 6, NodeType::leaf(3u32, 1u32))
-                    .with_children(None, None),
+                TreeNode::new(book_id, tick_id, 6, NodeType::leaf(3u32, 1u32)).with_parent(5),
                 // Left-Right
-                TreeNode::new(book_id, tick_id, 7, NodeType::leaf(4u32, 1u32))
-                    .with_children(None, None),
+                TreeNode::new(book_id, tick_id, 7, NodeType::leaf(4u32, 1u32)).with_parent(5),
             ],
             expected: vec![2, 1, 5, 6, 7, 4],
             expected_error: None,
@@ -1284,13 +1151,12 @@ fn test_rotate_left() {
                 .with_children(Some(5), None),
                 // Left
                 TreeNode::new(book_id, tick_id, 5, NodeType::internal(2u32, (3u32, 5u32)))
-                    .with_children(Some(6), Some(7)),
+                    .with_children(Some(6), Some(7))
+                    .with_parent(1),
                 // Left-Left
-                TreeNode::new(book_id, tick_id, 6, NodeType::leaf(3u32, 1u32))
-                    .with_children(None, None),
+                TreeNode::new(book_id, tick_id, 6, NodeType::leaf(3u32, 1u32)).with_parent(5),
                 // Left-Right
-                TreeNode::new(book_id, tick_id, 7, NodeType::leaf(4u32, 1u32))
-                    .with_children(None, None),
+                TreeNode::new(book_id, tick_id, 7, NodeType::leaf(4u32, 1u32)).with_parent(5),
             ],
             expected: vec![],
             expected_error: Some(ContractError::InvalidNodeType),
@@ -1315,17 +1181,15 @@ fn test_rotate_left() {
                 )
                 .with_children(Some(5), Some(2)),
                 // Right
-                TreeNode::new(book_id, tick_id, 2, NodeType::leaf(2u32, 1u32))
-                    .with_children(None, None),
+                TreeNode::new(book_id, tick_id, 2, NodeType::leaf(2u32, 1u32)).with_parent(1),
                 // Left
                 TreeNode::new(book_id, tick_id, 5, NodeType::internal(2u32, (3u32, 5u32)))
-                    .with_children(Some(6), Some(7)),
+                    .with_children(Some(6), Some(7))
+                    .with_parent(1),
                 // Left-Left
-                TreeNode::new(book_id, tick_id, 6, NodeType::leaf(3u32, 1u32))
-                    .with_children(None, None),
+                TreeNode::new(book_id, tick_id, 6, NodeType::leaf(3u32, 1u32)).with_parent(5),
                 // Left-Right
-                TreeNode::new(book_id, tick_id, 7, NodeType::leaf(4u32, 1u32))
-                    .with_children(None, None),
+                TreeNode::new(book_id, tick_id, 7, NodeType::leaf(4u32, 1u32)).with_parent(5),
             ],
             expected: vec![],
             expected_error: Some(ContractError::InvalidNodeType),
@@ -1347,13 +1211,14 @@ fn test_rotate_left() {
 
         // Sync weights post node storage
         for mut node in test.nodes {
-            if !node.is_internal() {
+            if node.is_internal() || node.parent.is_none() {
                 continue;
             }
             node.sync(deps.as_ref().storage).unwrap();
-            let weight = node.count_ancestral_leaves(deps.as_ref().storage);
-            node.set_weight(weight).unwrap();
-            node.save(deps.as_mut().storage).unwrap();
+            let mut parent = node.get_parent(deps.as_ref().storage).unwrap().unwrap();
+            parent
+                .sync_range_and_value_up(deps.as_mut().storage)
+                .unwrap();
         }
 
         let mut tree = get_root_node(deps.as_ref().storage, book_id, tick_id).unwrap();

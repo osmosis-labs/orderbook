@@ -1814,14 +1814,20 @@ fn generate_nodes(
     tick_id: i64,
     quantity: u32,
 ) -> Vec<TreeNode> {
+    use rand::seq::SliceRandom;
+    use rand::thread_rng;
+
+    let mut range: Vec<u32> = (0..quantity).collect();
+    range.shuffle(&mut thread_rng());
+
     let mut nodes = vec![];
-    for _ in 0..quantity {
+    for val in range {
         let id = generate_node_id(storage, book_id, tick_id).unwrap();
         nodes.push(TreeNode::new(
             book_id,
             tick_id,
             id,
-            NodeType::leaf(id, 1u32),
+            NodeType::leaf(val, 1u32),
         ));
     }
     nodes

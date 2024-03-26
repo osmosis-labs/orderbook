@@ -372,7 +372,6 @@ pub fn run_market_order(
         // Add the updated tick state to the vector
         tick_updates.push((current_tick_id, current_tick));
 
-        // TODO: make amount_to_value return error instead of panicking
         total_output = total_output.checked_add(fill_amount)?;
     }
 
@@ -384,6 +383,8 @@ pub fn run_market_order(
 
     // TODO: If we intend to support refunds for partial fills, we will need to return
     // the consumed input here as well. If we choose not to, we should error in this case.
+    //
+    // Tracked in issue https://github.com/osmosis-labs/orderbook/issues/86
     Ok((
         total_output,
         BankMsg::Send {

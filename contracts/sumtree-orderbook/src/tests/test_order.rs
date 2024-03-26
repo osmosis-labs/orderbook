@@ -588,13 +588,13 @@ fn test_cancel_limit() {
             valid_book_id,
             test.tick_id,
             1,
-            NodeType::internal(test.quantity, (0u128, test.quantity)),
+            NodeType::internal_uint256(test.quantity, (0u128, test.quantity)),
         );
         let mut cancelled_node = TreeNode::new(
             valid_book_id,
             test.tick_id,
             2,
-            NodeType::leaf(0u128, test.quantity),
+            NodeType::leaf_uint256(0u128, test.quantity),
         );
         root_node.left = Some(cancelled_node.key);
         cancelled_node.parent = Some(root_node.key);

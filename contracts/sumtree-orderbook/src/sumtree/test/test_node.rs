@@ -1,4 +1,4 @@
-use cosmwasm_std::{testing::mock_dependencies, Uint128};
+use cosmwasm_std::{testing::mock_dependencies, Decimal256, Uint256};
 
 use crate::sumtree::node::{generate_node_id, NodeType, TreeNode, NODES};
 
@@ -36,11 +36,11 @@ fn test_node_insert_valid() {
         TestNodeInsertCase {
             name: "Case 1a: Left Internal, Right Internal, Left Insert",
             nodes: vec![
-                NodeType::leaf(1u32, 5u32),
-                NodeType::leaf(20u32, 10u32),
-                NodeType::leaf(12u32, 8u32),
-                NodeType::leaf(30u32, 8u32),
-                NodeType::leaf(6u32, 6u32),
+                NodeType::leaf_uint256(1u32, 5u32),
+                NodeType::leaf_uint256(20u32, 10u32),
+                NodeType::leaf_uint256(12u32, 8u32),
+                NodeType::leaf_uint256(30u32, 8u32),
+                NodeType::leaf_uint256(6u32, 6u32),
             ],
             expected: vec![1, 5, 9, 2, 8, 4, 7, 3, 6],
             print: true,
@@ -65,11 +65,11 @@ fn test_node_insert_valid() {
         TestNodeInsertCase {
             name: "Case 1b: Left Internal, Right Internal, Right Insert",
             nodes: vec![
-                NodeType::leaf(1u32, 11u32),
-                NodeType::leaf(20u32, 5u32),
-                NodeType::leaf(12u32, 8u32),
-                NodeType::leaf(30u32, 8u32),
-                NodeType::leaf(25u32, 5u32),
+                NodeType::leaf_uint256(1u32, 11u32),
+                NodeType::leaf_uint256(20u32, 5u32),
+                NodeType::leaf_uint256(12u32, 8u32),
+                NodeType::leaf_uint256(30u32, 8u32),
+                NodeType::leaf_uint256(25u32, 5u32),
             ],
             expected: vec![1, 5, 2, 4, 7, 9, 3, 8, 6],
             print: true,
@@ -85,7 +85,7 @@ fn test_node_insert_valid() {
         // ->2: 1 10
         TestNodeInsertCase {
             name: "Case 2: First Node Insert",
-            nodes: vec![NodeType::leaf(1u32, 10u32)],
+            nodes: vec![NodeType::leaf_uint256(1u32, 10u32)],
             expected: vec![1, 2],
             print: true,
         },
@@ -102,7 +102,10 @@ fn test_node_insert_valid() {
         // 2: 1 10         ->3: 12 10
         TestNodeInsertCase {
             name: "Case 3: Left Leaf, Right Empty",
-            nodes: vec![NodeType::leaf(1u32, 10u32), NodeType::leaf(12u32, 10u32)],
+            nodes: vec![
+                NodeType::leaf_uint256(1u32, 10u32),
+                NodeType::leaf_uint256(12u32, 10u32),
+            ],
             expected: vec![1, 2, 3],
             print: true,
         },
@@ -119,7 +122,10 @@ fn test_node_insert_valid() {
         // ->2: 1 10         3: 12 10
         TestNodeInsertCase {
             name: "Case 3: Left Leaf, Right Empty, Larger Order First",
-            nodes: vec![NodeType::leaf(12u32, 10u32), NodeType::leaf(1u32, 10u32)],
+            nodes: vec![
+                NodeType::leaf_uint256(12u32, 10u32),
+                NodeType::leaf_uint256(1u32, 10u32),
+            ],
             expected: vec![1, 3, 2],
             print: true,
         },
@@ -139,9 +145,9 @@ fn test_node_insert_valid() {
         TestNodeInsertCase {
             name: "Case 4: Left Leaf, Right Leaf, Left Insert",
             nodes: vec![
-                NodeType::leaf(1u32, 10u32),
-                NodeType::leaf(20u32, 10u32),
-                NodeType::leaf(12u32, 8u32),
+                NodeType::leaf_uint256(1u32, 10u32),
+                NodeType::leaf_uint256(20u32, 10u32),
+                NodeType::leaf_uint256(12u32, 8u32),
             ],
             expected: vec![1, 5, 2, 4, 3],
             print: true,
@@ -164,10 +170,10 @@ fn test_node_insert_valid() {
         TestNodeInsertCase {
             name: "Case 5: Left Internal, Right Leaf, Right Insert",
             nodes: vec![
-                NodeType::leaf(1u32, 10u32),
-                NodeType::leaf(20u32, 10u32),
-                NodeType::leaf(12u32, 8u32),
-                NodeType::leaf(30u32, 8u32),
+                NodeType::leaf_uint256(1u32, 10u32),
+                NodeType::leaf_uint256(20u32, 10u32),
+                NodeType::leaf_uint256(12u32, 8u32),
+                NodeType::leaf_uint256(30u32, 8u32),
             ],
             expected: vec![1, 5, 2, 4, 7, 3, 6],
             print: true,
@@ -181,7 +187,7 @@ fn test_node_insert_valid() {
             book_id,
             tick_id,
             generate_node_id(deps.as_mut().storage, book_id, tick_id).unwrap(),
-            NodeType::internal(Uint128::zero(), (u32::MAX, u32::MIN)),
+            NodeType::internal_uint256(Uint256::zero(), (u32::MAX, u32::MIN)),
         );
 
         // Insert nodes into tree
@@ -246,26 +252,26 @@ fn test_node_insert_valid() {
 
             let accumulated_value = left_node
                 .clone()
-                .map_or(Uint128::zero(), |x| x.get_value())
+                .map_or(Decimal256::zero(), |x| x.get_value())
                 .checked_add(
                     right_node
                         .clone()
-                        .map_or(Uint128::zero(), |x| x.get_value()),
+                        .map_or(Decimal256::zero(), |x| x.get_value()),
                 )
                 .unwrap();
             assert_eq!(internal_node.get_value(), accumulated_value);
 
             let min = left_node
                 .clone()
-                .map_or(Uint128::MAX, |n| n.get_min_range())
+                .map_or(Decimal256::MAX, |n| n.get_min_range())
                 .min(
                     right_node
                         .clone()
-                        .map_or(Uint128::MAX, |n| n.get_min_range()),
+                        .map_or(Decimal256::MAX, |n| n.get_min_range()),
                 );
             let max = left_node
-                .map_or(Uint128::MIN, |n| n.get_max_range())
-                .max(right_node.map_or(Uint128::MIN, |n| n.get_max_range()));
+                .map_or(Decimal256::MIN, |n| n.get_max_range())
+                .max(right_node.map_or(Decimal256::MIN, |n| n.get_max_range()));
             assert_eq!(internal_node.get_min_range(), min);
             assert_eq!(internal_node.get_max_range(), max);
         }
@@ -378,7 +384,7 @@ fn test_node_deletion_valid() {
         // No tree
         NodeDeletionTestCase {
             name: "Remove only node",
-            nodes: vec![NodeType::leaf(1u32, 10u32)],
+            nodes: vec![NodeType::leaf_uint256(1u32, 10u32)],
             delete: vec![2],
             expected: vec![],
             print: true,
@@ -396,7 +402,10 @@ fn test_node_deletion_valid() {
         //          3: 11 5
         NodeDeletionTestCase {
             name: "Remove one of two nodes",
-            nodes: vec![NodeType::leaf(1u32, 10u32), NodeType::leaf(11u32, 5u32)],
+            nodes: vec![
+                NodeType::leaf_uint256(1u32, 10u32),
+                NodeType::leaf_uint256(11u32, 5u32),
+            ],
             delete: vec![2],
             expected: vec![1, 3],
             print: true,
@@ -419,9 +428,9 @@ fn test_node_deletion_valid() {
         NodeDeletionTestCase {
             name: "Remove nested node",
             nodes: vec![
-                NodeType::leaf(1u32, 10u32),
-                NodeType::leaf(21u32, 5u32),
-                NodeType::leaf(11u32, 10u32),
+                NodeType::leaf_uint256(1u32, 10u32),
+                NodeType::leaf_uint256(21u32, 5u32),
+                NodeType::leaf_uint256(11u32, 10u32),
             ],
             delete: vec![2],
             expected: vec![1, 5, 4, 3],
@@ -443,9 +452,9 @@ fn test_node_deletion_valid() {
         NodeDeletionTestCase {
             name: "Remove both children of internal",
             nodes: vec![
-                NodeType::leaf(1u32, 10u32),
-                NodeType::leaf(21u32, 5u32),
-                NodeType::leaf(11u32, 10u32),
+                NodeType::leaf_uint256(1u32, 10u32),
+                NodeType::leaf_uint256(21u32, 5u32),
+                NodeType::leaf_uint256(11u32, 10u32),
             ],
             delete: vec![2, 4],
             expected: vec![1, 3],
@@ -467,9 +476,9 @@ fn test_node_deletion_valid() {
         NodeDeletionTestCase {
             name: "Remove parent node",
             nodes: vec![
-                NodeType::leaf(1u32, 10u32),
-                NodeType::leaf(21u32, 5u32),
-                NodeType::leaf(11u32, 10u32),
+                NodeType::leaf_uint256(1u32, 10u32),
+                NodeType::leaf_uint256(21u32, 5u32),
+                NodeType::leaf_uint256(11u32, 10u32),
             ],
             delete: vec![5],
             expected: vec![1, 3],
@@ -483,7 +492,7 @@ fn test_node_deletion_valid() {
             book_id,
             tick_id,
             generate_node_id(deps.as_mut().storage, book_id, tick_id).unwrap(),
-            NodeType::internal(Uint128::zero(), (u32::MAX, u32::MIN)),
+            NodeType::internal_uint256(Uint256::zero(), (u32::MAX, u32::MIN)),
         );
 
         for node in test.nodes {
@@ -580,20 +589,20 @@ fn test_node_deletion_valid() {
             let min = left_node
                 .clone()
                 .map(|n| n.get_min_range())
-                .unwrap_or(Uint128::MAX)
+                .unwrap_or(Decimal256::MAX)
                 .min(
                     right_node
                         .clone()
                         .map(|n| n.get_min_range())
-                        .unwrap_or(Uint128::MAX),
+                        .unwrap_or(Decimal256::MAX),
                 );
             let max = left_node
                 .map(|n| n.get_max_range())
-                .unwrap_or(Uint128::MIN)
+                .unwrap_or(Decimal256::MIN)
                 .max(
                     right_node
                         .map(|n| n.get_max_range())
-                        .unwrap_or(Uint128::MIN),
+                        .unwrap_or(Decimal256::MIN),
                 );
             assert_eq!(internal_node.get_min_range(), min);
             assert_eq!(internal_node.get_max_range(), max);

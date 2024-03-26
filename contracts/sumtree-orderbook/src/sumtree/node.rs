@@ -329,9 +329,6 @@ impl TreeNode {
             self.set_max_range(new_node.get_max_range())?;
         }
 
-        // Increment weight as node will be ancestor of current
-        // self.set_weight(self.get_weight() + 1)?;
-
         let maybe_left = self.get_left(storage)?;
         let maybe_right = self.get_right(storage)?;
 

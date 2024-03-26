@@ -1,4 +1,4 @@
-use cosmwasm_std::{testing::mock_dependencies, Deps, Uint128};
+use cosmwasm_std::{testing::mock_dependencies, Deps, Storage, Uint128};
 
 use crate::{
     sumtree::{
@@ -1806,6 +1806,57 @@ fn test_rebalance() {
         let internals = nodes.iter().filter(|n| n.is_internal()).collect();
         assert_internal_values(test.name, deps.as_ref(), internals, true);
     }
+}
+
+fn generate_nodes(
+    storage: &mut dyn Storage,
+    book_id: u64,
+    tick_id: i64,
+    quantity: u32,
+) -> Vec<TreeNode> {
+    let mut nodes = vec![];
+    for _ in 0..quantity {
+        let id = generate_node_id(storage, book_id, tick_id).unwrap();
+        nodes.push(TreeNode::new(
+            book_id,
+            tick_id,
+            id,
+            NodeType::leaf(id, 1u32),
+        ));
+    }
+    nodes
+}
+
+#[test]
+fn test_node_insert_large_quantity() {
+    let book_id = 1;
+    let tick_id = 1;
+
+    let mut deps = mock_dependencies();
+    // Create tree root
+    let mut tree = TreeNode::new(
+        book_id,
+        tick_id,
+        generate_node_id(deps.as_mut().storage, book_id, tick_id).unwrap(),
+        NodeType::internal(Uint128::zero(), (u32::MAX, u32::MIN)),
+    );
+
+    let nodes = generate_nodes(deps.as_mut().storage, book_id, tick_id, 1000);
+
+    // Insert nodes into tree
+    for mut node in nodes {
+        NODES
+            .save(deps.as_mut().storage, &(book_id, tick_id, node.key), &node)
+            .unwrap();
+        tree.insert(deps.as_mut().storage, &mut node).unwrap();
+    }
+
+    // Return tree in vector form from Depth First Search
+    let result = tree.traverse(deps.as_ref().storage).unwrap();
+
+    // Ensure all internal nodes are correctly summed and contain correct ranges
+    let internals: Vec<&TreeNode> = result.iter().filter(|x| x.is_internal()).collect();
+    assert_internal_values("Large amount of nodes", deps.as_ref(), internals, true);
 }
 
 const SPACING: u32 = 2u32;

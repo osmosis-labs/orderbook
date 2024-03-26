@@ -50,7 +50,7 @@ fn assert_internal_values(test_name: &'static str, deps: Deps, internals: Vec<&T
 
         assert_eq!(
             internal_node.get_weight(),
-            internal_node.count_ancestral_leaves(deps.storage),
+            internal_node.get_height(deps.storage).unwrap(),
             "{}: Internal weight incorrect for {}",
             test_name,
             internal_node.key
@@ -1374,12 +1374,13 @@ fn test_tree_rebalancing() {
         TreeRebalancingTestCase {
             name: "Left heavy tree",
             nodes: vec![
-                NodeType::leaf(1u32, 1u32),
-                NodeType::leaf(9u32, 1u32),
-                NodeType::leaf(6u32, 1u32),
-                NodeType::leaf(3u32, 1u32),
+                NodeType::leaf(10u32, 1u32),
+                NodeType::leaf(90u32, 1u32),
+                NodeType::leaf(60u32, 1u32),
+                NodeType::leaf(30u32, 1u32),
+                NodeType::leaf(50u32, 1u32),
+                NodeType::leaf(40u32, 1u32),
                 NodeType::leaf(5u32, 1u32),
-                NodeType::leaf(4u32, 1u32),
             ],
             print: true,
         },
@@ -1387,8 +1388,8 @@ fn test_tree_rebalancing() {
             name: "Right heavy tree",
             nodes: vec![
                 NodeType::leaf(1u32, 1u32),
-                NodeType::leaf(5u32, 1u32),
                 NodeType::leaf(9u32, 1u32),
+                NodeType::leaf(5u32, 1u32),
                 NodeType::leaf(6u32, 1u32),
                 NodeType::leaf(3u32, 1u32),
                 NodeType::leaf(2u32, 1u32),

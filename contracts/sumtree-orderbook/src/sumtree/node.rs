@@ -232,6 +232,15 @@ impl TreeNode {
         }
     }
 
+    /// Synchronizes the range and value of the current node and recursively updates its ancestors.
+    pub fn sync_range_and_value_up(&mut self, storage: &mut dyn Storage) -> ContractResult<()> {
+        self.sync_range_and_value(storage)?;
+        if let Some(mut parent) = self.get_parent(storage)? {
+            parent.sync_range_and_value_up(storage)?;
+        }
+        Ok(())
+    }
+
     /// Recalculates the range and accumulated value for a node and propagates it up the tree
     ///
     /// Must be an internal node
@@ -280,16 +289,14 @@ impl TreeNode {
         self.set_value(value)?;
 
         // Calculate new weight
-        let weight = maybe_left.map(|n| n.get_weight()).unwrap_or_default()
-            + maybe_right.map(|n| n.get_weight()).unwrap_or_default();
-        self.set_weight(weight)?;
+        let weight = maybe_left
+            .map(|n| n.get_weight())
+            .unwrap_or_default()
+            .max(maybe_right.map(|n| n.get_weight()).unwrap_or_default());
+        self.set_weight(weight + 1)?;
 
         // Must save before propagating as parent will read this node
         self.save(storage)?;
-
-        if let Some(mut parent) = self.get_parent(storage)? {
-            parent.sync_range_and_value(storage)?;
-        }
 
         Ok(())
     }
@@ -323,7 +330,7 @@ impl TreeNode {
         }
 
         // Increment weight as node will be ancestor of current
-        self.set_weight(self.get_weight() + 1)?;
+        // self.set_weight(self.get_weight() + 1)?;
 
         let maybe_left = self.get_left(storage)?;
         let maybe_right = self.get_right(storage)?;
@@ -506,7 +513,8 @@ impl TreeNode {
                 parent.delete(storage)?;
             } else {
                 // Update parents values after removing node
-                parent.sync_range_and_value(storage)?;
+                // TODO: Adjust for call time changes
+                parent.sync_range_and_value_up(storage)?;
             }
         }
 
@@ -535,6 +543,7 @@ impl TreeNode {
 
         // Skip rebalancing for leaf nodes or nodes without children.
         if !self.has_child() || !self.is_internal() {
+            self.sync_range_and_value(storage)?;
             return Ok(());
         }
 
@@ -542,6 +551,7 @@ impl TreeNode {
         let balance_factor = self.get_balance_factor(storage)?;
         // Early return if the tree is already balanced.
         if balance_factor.abs() <= 1 {
+            self.sync_range_and_value(storage)?;
             return Ok(());
         }
 
@@ -626,6 +636,7 @@ impl TreeNode {
 
         // Synchronize the range and value of the current node.
         self.sync_range_and_value(storage)?;
+        left.sync_range_and_value(storage)?;
 
         // If the left node has no parent, it becomes the new root.
         if left.parent.is_none() {
@@ -685,8 +696,9 @@ impl TreeNode {
         right.save(storage)?;
         self.save(storage)?;
 
-        // Synchronize the range and value of the current node to reflect the rotation.
+        // Synchronize the range and value of the current node.
         self.sync_range_and_value(storage)?;
+        right.sync_range_and_value(storage)?;
 
         // If the right node has no parent after the rotation, it becomes the new root.
         if right.parent.is_none() {
@@ -735,7 +747,7 @@ impl TreeNode {
     }
 
     #[cfg(test)]
-    pub fn get_height(&self, storage: &dyn Storage) -> ContractResult<u8> {
+    pub fn get_height(&self, storage: &dyn Storage) -> ContractResult<u64> {
         let mut height = 0;
         if let Some(left) = self.get_left(storage)? {
             height = height.max(left.get_height(storage)?);
@@ -803,6 +815,6 @@ impl Display for NodeType {
 #[cfg(test)]
 impl Display for TreeNode {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        write!(f, "{}: {}", self.key, self.node_type)
+        write!(f, "{}: {}", self.get_weight(), self.node_type)
     }
 }

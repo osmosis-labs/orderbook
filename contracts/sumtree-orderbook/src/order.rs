@@ -6,7 +6,7 @@ use crate::state::{new_order_id, orders, ORDERBOOKS, TICK_STATE};
 use crate::sumtree::node::{generate_node_id, NodeType, TreeNode};
 use crate::sumtree::tree::TREE;
 use crate::tick_math::{amount_to_value, tick_to_price};
-use crate::types::{LimitOrder, MarketOrder, OrderDirection, REPLY_ID_REFUND};
+use crate::types::{LimitOrder, MarketOrder, OrderDirection, TickState, REPLY_ID_REFUND};
 use cosmwasm_std::{
     coin, ensure, ensure_eq, BankMsg, Decimal256, DepsMut, Env, MessageInfo, Order, Response,
     Storage, SubMsg, Uint128, Uint256,
@@ -332,6 +332,7 @@ pub fn run_market_order(
     // Iterate through ticks and fill the market order as appropriate.
     // Due to our sumtree-based design, this process carries only O(1) overhead per tick.
     let mut total_output: Uint128 = Uint128::zero();
+    let mut tick_updates: Vec<(i64, TickState)> = Vec::new();
     for maybe_current_tick in ticks {
         let (current_tick_id, mut current_tick) = maybe_current_tick?;
         let tick_price = tick_to_price(current_tick_id)?;
@@ -353,6 +354,7 @@ pub fn run_market_order(
         current_tick.total_amount_of_liquidity = current_tick
             .total_amount_of_liquidity
             .checked_sub(fill_amount_dec)?;
+
         current_tick.effective_total_amount_swapped = current_tick
             .effective_total_amount_swapped
             .checked_add(fill_amount_dec)?;
@@ -361,12 +363,23 @@ pub fn run_market_order(
         // By the time we get here, this should not be possible.
         let fill_amount = Uint128::try_from(fill_amount_dec.to_uint_floor())?;
 
+        // TODO: this needs to be rounding up, not down. Requires `amount_to_value` to take in rounding direction.
+        // Tracked in issue https://github.com/osmosis-labs/orderbook/issues/85
         let input_filled =
             amount_to_value(order.order_direction.opposite(), fill_amount, tick_price)?;
         order.quantity = order.quantity.checked_sub(input_filled)?;
 
+        // Add the updated tick state to the vector
+        tick_updates.push((current_tick_id, current_tick));
+
         // TODO: make amount_to_value return error instead of panicking
         total_output = total_output.checked_add(fill_amount)?;
+    }
+
+    // After the core tick iteration loop, write all tick updates to state.
+    // We cannot do this during the loop due to the borrow checker.
+    for (tick_id, tick_state) in tick_updates {
+        TICK_STATE.save(storage, &(order.book_id, tick_id), &tick_state)?;
     }
 
     // TODO: If we intend to support refunds for partial fills, we will need to return

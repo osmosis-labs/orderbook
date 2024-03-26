@@ -1,5 +1,3 @@
-use std::i64::MAX;
-
 use crate::{
     constants::{MAX_TICK, MIN_TICK},
     error::ContractError,
@@ -10,7 +8,7 @@ use crate::{
         node::{NodeType, TreeNode},
         tree::TREE,
     },
-    types::{LimitOrder, MarketOrder, OrderDirection, REPLY_ID_REFUND},
+    types::{FilterOwnerOrders, LimitOrder, MarketOrder, OrderDirection, REPLY_ID_REFUND},
 };
 use cosmwasm_std::{coin, Addr, BankMsg, Coin, DepsMut, Empty, Env, SubMsg, Uint128, Uint256};
 use cosmwasm_std::{
@@ -614,6 +612,7 @@ struct RunMarketOrderTestCase {
     sent: Uint128,
 
     expected_output: Uint128,
+    expected_tick_etas: Vec<(i64, Decimal256)>,
     expected_error: Option<ContractError>,
 }
 
@@ -621,12 +620,13 @@ struct RunMarketOrderTestCase {
 fn test_run_market_order() {
     let valid_book_id = 0;
     let invalid_book_id = valid_book_id + 1;
+    let quote_denom = "quote";
+    let base_denom = "base";
     // TODO: move these defaults to global scope or helper file
     let default_current_tick = 0;
-    let default_orders_per_tick = 1;
     let default_owner = "creator";
     let default_sender = "sender";
-    let default_quantity = Uint128::new(1000);
+    let default_quantity = Uint128::new(100);
     let test_cases = vec![
         RunMarketOrderTestCase {
             name: "happy path bid at negative tick",
@@ -653,6 +653,10 @@ fn test_run_market_order() {
             // Bidding 1000 units of input into tick -1500000, which corresponds to $0.85,
             // implies 1000*0.85 = 850 units of output.
             expected_output: Uint128::new(850),
+            expected_tick_etas: vec![(
+                -1500000,
+                Decimal256::from_ratio(Uint128::new(850), Uint128::one()),
+            )],
             expected_error: None,
         },
         RunMarketOrderTestCase {
@@ -683,10 +687,14 @@ fn test_run_market_order() {
             //
             // This implies 1000*50000 = 50,000,000 units of output.
             expected_output: Uint128::new(50_000_000),
+            expected_tick_etas: vec![(
+                40000000,
+                Decimal256::from_ratio(Uint128::new(50_000_000), Uint128::one()),
+            )],
             expected_error: None,
         },
         RunMarketOrderTestCase {
-            name: "happy path bid at positive tick",
+            name: "bid at very small negative tick",
             sent: Uint128::new(1000),
             placed_order: MarketOrder::new(
                 valid_book_id,
@@ -714,6 +722,56 @@ fn test_run_market_order() {
             // This implies 1000*0.012345670000000000 = 12.34567 units of output,
             // truncated to 12 units.
             expected_output: Uint128::new(12),
+            expected_tick_etas: vec![(
+                -17765433,
+                Decimal256::from_ratio(Uint128::new(12), Uint128::one()),
+            )],
+            expected_error: None,
+        },
+        RunMarketOrderTestCase {
+            name: "bid across multiple ticks",
+            sent: Uint128::new(589 + 1),
+            placed_order: MarketOrder::new(
+                valid_book_id,
+                Uint128::new(589 + 1),
+                OrderDirection::Bid,
+                Addr::unchecked(default_sender),
+            ),
+            tick_bound: MAX_TICK,
+
+            // Orders to fill against
+            orders: generate_limit_orders(
+                valid_book_id,
+                &[-1500000, 40000000],
+                // Current tick is below the active limit orders
+                -2500000,
+                // 500 units of liquidity on each tick
+                5,
+                default_quantity,
+            ),
+
+            // Bidding 1000 units of input into tick -1500000, which corresponds to $0.85,
+            // implies 1000*0.85 = 850 units of output, but there is only 500 on the tick.
+            //
+            // So 500 gets filled at -1500000, corresponding to ~589 of the input (500/0.85).
+            // The remaining 1 unit is filled at tick 40,000,000 (price $50,000), which
+            // corresponds to the remaining liquidity.
+            //
+            // Thus, the total expected output is 502.
+            //
+            // Note: this case does not cover rounding for input consumption since it overfills
+            // the tick.
+            expected_output: Uint128::new(1000),
+            expected_tick_etas: vec![
+                (
+                    -1500000,
+                    Decimal256::from_ratio(Uint128::new(500), Uint128::one()),
+                ),
+                (
+                    40000000,
+                    Decimal256::from_ratio(Uint128::new(500), Uint128::one()),
+                ),
+            ],
             expected_error: None,
         },
         RunMarketOrderTestCase {
@@ -731,7 +789,7 @@ fn test_run_market_order() {
             orders: generate_limit_orders(
                 valid_book_id,
                 &[40000000],
-                // Current tick is below the active limit orders
+                // Current tick is above the active limit orders
                 40000000 + 1,
                 // Two orders with sufficient total liquidity to process the
                 // full market order
@@ -744,6 +802,45 @@ fn test_run_market_order() {
             //
             // This implies 100,000/50000 = 2 units of output.
             expected_output: Uint128::new(2),
+            expected_tick_etas: vec![(
+                40000000,
+                Decimal256::from_ratio(Uint128::new(2), Uint128::one()),
+            )],
+            expected_error: None,
+        },
+        RunMarketOrderTestCase {
+            name: "ask at negative tick",
+            sent: Uint128::new(100000),
+            placed_order: MarketOrder::new(
+                valid_book_id,
+                Uint128::new(1000),
+                OrderDirection::Ask,
+                Addr::unchecked(default_sender),
+            ),
+            tick_bound: MIN_TICK,
+
+            // Orders to fill against
+            orders: generate_limit_orders(
+                valid_book_id,
+                &[-17765433],
+                // Current tick is above the active limit orders
+                default_current_tick,
+                // Two orders with sufficient total liquidity to process the
+                // full market order
+                2,
+                Uint128::new(50_000),
+            ),
+
+            // The order asks with 1000 units of input into tick -17765433, which corresponds
+            // to a price of $0.012345670000000000 (from tick math test cases).
+            //
+            // This implies 1000 / 0.012345670000000000 = 81,000.059 units of output,
+            // which gets truncated to 81,000 units.
+            expected_output: Uint128::new(81_000),
+            expected_tick_etas: vec![(
+                -17765433,
+                Decimal256::from_ratio(Uint128::new(81_000), Uint128::one()),
+            )],
             expected_error: None,
         },
         RunMarketOrderTestCase {
@@ -756,8 +853,18 @@ fn test_run_market_order() {
                 Addr::unchecked(default_sender),
             ),
             tick_bound: MAX_TICK,
-            orders: vec![],
+
+            // Orders we expect to not get touched
+            orders: generate_limit_orders(
+                valid_book_id,
+                &[10],
+                default_current_tick,
+                10,
+                Uint128::new(10),
+            ),
+
             expected_output: Uint128::zero(),
+            expected_tick_etas: vec![(10, Decimal256::zero())],
             expected_error: Some(ContractError::InvalidBookId {
                 book_id: invalid_book_id,
             }),
@@ -772,8 +879,16 @@ fn test_run_market_order() {
                 Addr::unchecked(default_sender),
             ),
             tick_bound: MIN_TICK - 1,
-            orders: vec![],
+            // Orders we expect to not get touched
+            orders: generate_limit_orders(
+                valid_book_id,
+                &[10],
+                default_current_tick,
+                10,
+                Uint128::new(10),
+            ),
             expected_output: Uint128::zero(),
+            expected_tick_etas: vec![(10, Decimal256::zero())],
             expected_error: Some(ContractError::InvalidTickId {
                 tick_id: MIN_TICK - 1,
             }),
@@ -788,8 +903,16 @@ fn test_run_market_order() {
                 Addr::unchecked(default_sender),
             ),
             tick_bound: MAX_TICK + 1,
-            orders: vec![],
+            // Orders we expect to not get touched
+            orders: generate_limit_orders(
+                valid_book_id,
+                &[10],
+                default_current_tick,
+                10,
+                Uint128::new(10),
+            ),
             expected_output: Uint128::zero(),
+            expected_tick_etas: vec![(10, Decimal256::zero())],
             expected_error: Some(ContractError::InvalidTickId {
                 tick_id: MAX_TICK + 1,
             }),
@@ -819,6 +942,7 @@ fn test_run_market_order() {
             ),
 
             expected_output: Uint128::zero(),
+            expected_tick_etas: vec![(-1500000, Decimal256::zero())],
             expected_error: Some(ContractError::InvalidTickId { tick_id: MIN_TICK }),
         },
         RunMarketOrderTestCase {
@@ -851,6 +975,10 @@ fn test_run_market_order() {
             // However, since the book only has 25,000,000 units of liquidity, that is how much
             // is filled.
             expected_output: Uint128::new(25_000_000),
+            expected_tick_etas: vec![(
+                40000000,
+                Decimal256::from_ratio(Uint128::new(25_000_000), Uint128::one()),
+            )],
             expected_error: None,
         },
     ];
@@ -862,9 +990,9 @@ fn test_run_market_order() {
         let coin_vec = vec![coin(
             test.sent.u128(),
             if test.placed_order.order_direction == OrderDirection::Ask {
-                "base"
+                base_denom
             } else {
-                "quote"
+                quote_denom
             },
         )];
         let balances = [(default_sender, coin_vec.as_slice())];
@@ -873,14 +1001,12 @@ fn test_run_market_order() {
         let info = mock_info(default_sender, &coin_vec);
 
         // Create an orderbook to operate on
-        let quote_denom = "quote".to_string();
-        let base_denom = "base".to_string();
         let _create_response = create_orderbook(
             deps.as_mut(),
             env.clone(),
             info.clone(),
-            quote_denom,
-            base_denom,
+            quote_denom.to_string(),
+            base_denom.to_string(),
         )
         .unwrap();
 
@@ -894,12 +1020,52 @@ fn test_run_market_order() {
         )
         .unwrap();
 
+        // We store order state before to run assertions later
+        let orders_before = get_orders_by_owner(
+            &deps.storage,
+            FilterOwnerOrders::ByBook(valid_book_id, Addr::unchecked(default_owner)),
+            None,
+            None,
+            None,
+        )
+        .unwrap();
+
         // --- System under test ---
 
         let mut market_order = test.placed_order.clone();
         let response = run_market_order(deps.as_mut().storage, &mut market_order, test.tick_bound);
 
         // --- Assertions ---
+
+        // Assert expected tick ETAS values are correct.
+        // This should run regardless of whether we error or not.
+        for (tick_id, expected_etas) in test.expected_tick_etas {
+            let tick_state = TICK_STATE
+                .load(&deps.storage, &(valid_book_id, tick_id))
+                .unwrap();
+            assert_eq!(
+                expected_etas,
+                tick_state.effective_total_amount_swapped,
+                "{}",
+                format_test_name(test.name)
+            );
+        }
+
+        // Regardless of whether we error, orders should not be modified.
+        let orders_after = get_orders_by_owner(
+            &deps.storage,
+            FilterOwnerOrders::ByBook(valid_book_id, Addr::unchecked(default_owner)),
+            None,
+            None,
+            None,
+        )
+        .unwrap();
+        assert_eq!(
+            orders_before,
+            orders_after,
+            "{}",
+            format_test_name(test.name)
+        );
 
         // Error case assertions if applicable
         if let Some(expected_error) = &test.expected_error {
@@ -909,6 +1075,7 @@ fn test_run_market_order() {
                 "{}",
                 format_test_name(test.name)
             );
+
             continue;
         }
 
@@ -917,11 +1084,9 @@ fn test_run_market_order() {
 
         // We expect the output denom to be the opposite of the input denom,
         // although we derive it directly from the order direction to ensure correctness.
-        let quote_denom = "quote".to_string();
-        let base_denom = "base".to_string();
         let expected_denom = match test.placed_order.order_direction {
-            OrderDirection::Bid => base_denom.clone(),
-            OrderDirection::Ask => quote_denom.clone(),
+            OrderDirection::Bid => base_denom,
+            OrderDirection::Ask => quote_denom,
         };
         let expected_msg = BankMsg::Send {
             to_address: default_sender.to_string(),
@@ -958,16 +1123,16 @@ fn generate_limit_orders(
             OrderDirection::Ask
         };
 
-        for order_num in 0..orders_per_tick {
+        for _ in 0..orders_per_tick {
             let order = LimitOrder {
                 book_id: book_id,
                 tick_id,
-                order_id: order_num as u64,
                 order_direction: order_direction.clone(),
                 owner: Addr::unchecked("creator"),
                 quantity: quantity_per_order,
 
-                // We set this to zero since it will be unused anyway
+                // We set these values to zero since they will be unused anyway
+                order_id: 0,
                 etas: Decimal256::zero(),
             };
             orders.push(order);

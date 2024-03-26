@@ -18,7 +18,12 @@ struct TestNodeInsertCase {
 }
 
 // Asserts all values of internal nodes are as expected
-fn assert_internal_values(test_name: &'static str, deps: Deps, internals: Vec<&TreeNode>) {
+fn assert_internal_values(
+    test_name: &'static str,
+    deps: Deps,
+    internals: Vec<&TreeNode>,
+    should_be_balanced: bool,
+) {
     for internal_node in internals {
         let left_node = internal_node.get_left(deps.storage).unwrap();
         let right_node = internal_node.get_right(deps.storage).unwrap();
@@ -43,18 +48,36 @@ fn assert_internal_values(test_name: &'static str, deps: Deps, internals: Vec<&T
                     .map_or(Uint128::MAX, |n| n.get_min_range()),
             );
         let max = left_node
+            .clone()
             .map_or(Uint128::MIN, |n| n.get_max_range())
-            .max(right_node.map_or(Uint128::MIN, |n| n.get_max_range()));
+            .max(
+                right_node
+                    .clone()
+                    .map_or(Uint128::MIN, |n| n.get_max_range()),
+            );
         assert_eq!(internal_node.get_min_range(), min);
         assert_eq!(internal_node.get_max_range(), max);
+
+        let balance_factor = right_node
+            .map_or(0, |n| n.get_height(deps.storage).unwrap())
+            .abs_diff(left_node.map_or(0, |n| n.get_height(deps.storage).unwrap()));
 
         assert_eq!(
             internal_node.get_weight(),
             internal_node.get_height(deps.storage).unwrap(),
-            "{}: Internal weight incorrect for {}",
+            "{}: Internal weight incorrect for node {}",
             test_name,
             internal_node.key
         );
+
+        if should_be_balanced {
+            assert!(
+                balance_factor <= 1,
+                "{}: Balance factor greater than 1 for node {}",
+                test_name,
+                internal_node.key
+            );
+        }
     }
 }
 
@@ -273,7 +296,7 @@ fn test_node_insert_valid() {
 
         // Ensure all internal nodes are correctly summed and contain correct ranges
         let internals: Vec<&TreeNode> = result.iter().filter(|x| x.is_internal()).collect();
-        assert_internal_values(test.name, deps.as_ref(), internals);
+        assert_internal_values(test.name, deps.as_ref(), internals, true);
     }
 }
 
@@ -473,7 +496,7 @@ fn test_node_deletion_valid() {
         }
 
         let internals: Vec<&TreeNode> = result.iter().filter(|x| x.is_internal()).collect();
-        assert_internal_values(test.name, deps.as_ref(), internals);
+        assert_internal_values(test.name, deps.as_ref(), internals, true);
     }
 }
 
@@ -887,7 +910,7 @@ fn test_rotate_right() {
                 continue;
             }
             node.sync(deps.as_ref().storage).unwrap();
-            let weight = node.count_ancestral_leaves(deps.as_ref().storage);
+            let weight = node.get_height(deps.as_ref().storage).unwrap();
             node.set_weight(weight).unwrap();
             node.save(deps.as_mut().storage).unwrap();
         }
@@ -914,7 +937,7 @@ fn test_rotate_right() {
         assert_eq!(res, test.expected, "{}", test.name);
 
         let internals = nodes.iter().filter(|n| n.is_internal()).collect();
-        assert_internal_values(test.name, deps.as_ref(), internals);
+        assert_internal_values(test.name, deps.as_ref(), internals, false);
     }
 }
 
@@ -1355,136 +1378,498 @@ fn test_rotate_left() {
         assert_eq!(res, test.expected, "{}", test.name);
 
         let internals = nodes.iter().filter(|n| n.is_internal()).collect();
-        assert_internal_values(test.name, deps.as_ref(), internals);
+        assert_internal_values(test.name, deps.as_ref(), internals, false);
     }
 }
 
-struct TreeRebalancingTestCase {
+struct RebalanceTestCase {
     name: &'static str,
-    nodes: Vec<NodeType>,
-    // Whether to print the tree
+    nodes: Vec<TreeNode>,
+    expected: Vec<u64>,
+    expected_error: Option<ContractError>,
     print: bool,
 }
 
 #[test]
-fn test_tree_rebalancing() {
+fn test_rebalance() {
     let book_id = 1;
     let tick_id = 1;
-    let test_cases: Vec<TreeRebalancingTestCase> = vec![
-        TreeRebalancingTestCase {
-            name: "Left heavy tree",
+    let test_cases: Vec<RebalanceTestCase> = vec![
+        // Pre-rotation: Case 1: Right Right
+        // --------------------------
+        //                                                        1: 0 4294967295-0
+        //                                 ┌────────────────────────────────────────────────────────────────┐
+        //                              2: 1 1                                                         3: 2 1-3
+        //                                                                                 ┌────────────────────────────────┐
+        //                                                                              4: 4 1                    5: 0 4294967295-0
+        //                                                                                                         ┌────────────────┐
+        //                                                                                                      6: 2 1          7: 3 1
+        //
+        // Post-rotation: Case 1: Right Right
+        // --------------------------
+        //                             3: 2 1-5
+        //                 ┌────────────────────────────────┐
+        //             1: 2 1-5                   5: 0 4294967295-0
+        //         ┌────────────────┐                ┌────────────────┐
+        //      2: 1 1          4: 4 1             6: 2 1          7: 3 1
+        RebalanceTestCase {
+            name: "Case 1: Right Right",
             nodes: vec![
-                NodeType::leaf(10u32, 1u32),
-                NodeType::leaf(90u32, 1u32),
-                NodeType::leaf(60u32, 1u32),
-                NodeType::leaf(30u32, 1u32),
-                NodeType::leaf(50u32, 1u32),
-                NodeType::leaf(40u32, 1u32),
-                NodeType::leaf(5u32, 1u32),
+                // Root
+                TreeNode::new(
+                    book_id,
+                    tick_id,
+                    1,
+                    NodeType::internal(Uint128::zero(), (u32::MAX, u32::MIN)),
+                )
+                .with_children(Some(2), Some(3)),
+                // Left
+                TreeNode::new(book_id, tick_id, 2, NodeType::leaf(1u32, 1u32)).with_parent(1),
+                // Right
+                TreeNode::new(book_id, tick_id, 3, NodeType::internal(2u32, (1u32, 3u32)))
+                    .with_children(Some(4), Some(5))
+                    .with_parent(1),
+                // Right-Left
+                TreeNode::new(book_id, tick_id, 4, NodeType::leaf(4u32, 1u32)).with_parent(3),
+                // Right-Right
+                TreeNode::new(
+                    book_id,
+                    tick_id,
+                    5,
+                    NodeType::internal(Uint128::zero(), (u32::MAX, u32::MIN)),
+                )
+                .with_children(Some(6), Some(7))
+                .with_parent(3),
+                // Right-Right-Left
+                TreeNode::new(book_id, tick_id, 6, NodeType::leaf(2u32, 1u32)).with_parent(5),
+                // Right-Right-Right
+                TreeNode::new(book_id, tick_id, 7, NodeType::leaf(3u32, 1u32)).with_parent(5),
             ],
+            expected: vec![3, 1, 2, 4, 5, 6, 7],
+            expected_error: None,
             print: true,
         },
-        TreeRebalancingTestCase {
-            name: "Right heavy tree",
+        // Pre-rotation
+        // --------------------------
+        //                                                             1: 4 1-5
+        //                                 ┌────────────────────────────────────────────────────────────────┐
+        //                             2: 3 2-5                                                         3: 1 1
+        //                 ┌────────────────────────────────┐
+        //             4: 2 2-4                         5: 4 1
+        //         ┌────────────────┐
+        //      6: 2 1          7: 3 1
+        //
+        // Post-rotation
+        // --------------------------
+        //                             2: 4 1-5
+        //                 ┌────────────────────────────────┐
+        //             4: 2 2-4                        1: 2 1-5
+        //         ┌────────────────┐                ┌────────────────┐
+        //      6: 2 1          7: 3 1             5: 4 1          3: 1 1
+        RebalanceTestCase {
+            name: "Case 2: Left Left",
             nodes: vec![
-                NodeType::leaf(1u32, 1u32),
-                NodeType::leaf(9u32, 1u32),
-                NodeType::leaf(5u32, 1u32),
-                NodeType::leaf(6u32, 1u32),
-                NodeType::leaf(3u32, 1u32),
-                NodeType::leaf(2u32, 1u32),
-                NodeType::leaf(4u32, 1u32),
+                // Root
+                TreeNode::new(
+                    book_id,
+                    tick_id,
+                    1,
+                    NodeType::internal(Uint128::zero(), (u32::MAX, u32::MIN)),
+                )
+                .with_children(Some(2), Some(3)),
+                // Left
+                TreeNode::new(book_id, tick_id, 2, NodeType::internal(2u32, (1u32, 3u32)))
+                    .with_children(Some(4), Some(5))
+                    .with_parent(1),
+                // Left-Left
+                TreeNode::new(
+                    book_id,
+                    tick_id,
+                    4,
+                    NodeType::internal(Uint128::zero(), (u32::MAX, u32::MIN)),
+                )
+                .with_children(Some(6), Some(7))
+                .with_parent(2),
+                // Left-Left-Left
+                TreeNode::new(book_id, tick_id, 6, NodeType::leaf(2u32, 1u32)).with_parent(4),
+                // Left-Left-Right
+                TreeNode::new(book_id, tick_id, 7, NodeType::leaf(3u32, 1u32)).with_parent(4),
+                // Left-Right
+                TreeNode::new(book_id, tick_id, 5, NodeType::leaf(4u32, 1u32)).with_parent(2),
+                // Right
+                TreeNode::new(book_id, tick_id, 3, NodeType::leaf(1u32, 1u32)).with_parent(1),
             ],
+            expected: vec![2, 4, 6, 7, 1, 5, 3],
+            expected_error: None,
+            print: true,
+        },
+        // Pre-rotation
+        // --------------------------
+        //                                                        1: 0 4294967295-0
+        //                                 ┌────────────────────────────────────────────────────────────────┐
+        //                              2: 1 1                                                         3: 2 1-3
+        //                                                                                 ┌────────────────────────────────┐
+        //                                                                        4: 0 4294967295-0                     5: 4 1
+        //                                                                         ┌────────────────┐
+        //                                                                      6: 2 1          7: 3 1
+        //
+        // Post-rotation
+        // --------------------------
+        //                             4: 4 1-5
+        //                 ┌────────────────────────────────┐
+        //             1: 2 1-3                        3: 2 3-5
+        //         ┌────────────────┐                ┌────────────────┐
+        //      2: 1 1          6: 2 1             7: 3 1          5: 4 1
+        RebalanceTestCase {
+            name: "Case 3: Right Left",
+            nodes: vec![
+                // Root
+                TreeNode::new(
+                    book_id,
+                    tick_id,
+                    1,
+                    NodeType::internal(Uint128::zero(), (u32::MAX, u32::MIN)),
+                )
+                .with_children(Some(2), Some(3)),
+                // Left
+                TreeNode::new(book_id, tick_id, 2, NodeType::leaf(1u32, 1u32)).with_parent(1),
+                // Right
+                TreeNode::new(book_id, tick_id, 3, NodeType::internal(2u32, (1u32, 3u32)))
+                    .with_children(Some(4), Some(5))
+                    .with_parent(1),
+                // Right-Left
+                TreeNode::new(
+                    book_id,
+                    tick_id,
+                    4,
+                    NodeType::internal(Uint128::zero(), (u32::MAX, u32::MIN)),
+                )
+                .with_children(Some(6), Some(7))
+                .with_parent(3),
+                // Right-Left-Left
+                TreeNode::new(book_id, tick_id, 6, NodeType::leaf(2u32, 1u32)).with_parent(4),
+                // Right-Left-Right
+                TreeNode::new(book_id, tick_id, 7, NodeType::leaf(3u32, 1u32)).with_parent(4),
+                // Right-Right
+                TreeNode::new(book_id, tick_id, 5, NodeType::leaf(4u32, 1u32)).with_parent(3),
+            ],
+            expected: vec![4, 1, 2, 6, 3, 7, 5],
+            expected_error: None,
+            print: true,
+        },
+        // Pre-rotation
+        // --------------------------
+        //                                                             1: 4 1-5
+        //                                 ┌────────────────────────────────────────────────────────────────┐
+        //                             2: 3 2-5                                                         3: 1 1
+        //                 ┌────────────────────────────────┐
+        //             4: 2 2-4                         5: 4 1
+        //         ┌────────────────┐
+        //      6: 2 1          7: 3 1
+        //
+        // Post-rotation
+        // --------------------------
+        //                             2: 4 1-5
+        //                 ┌────────────────────────────────┐
+        //             4: 2 2-4                        1: 2 1-5
+        //         ┌────────────────┐                ┌────────────────┐
+        //      6: 2 1          7: 3 1             5: 4 1          3: 1 1
+        RebalanceTestCase {
+            name: "Case 4: Left Right",
+            nodes: vec![
+                // Root
+                TreeNode::new(
+                    book_id,
+                    tick_id,
+                    1,
+                    NodeType::internal(Uint128::zero(), (u32::MAX, u32::MIN)),
+                )
+                .with_children(Some(2), Some(3)),
+                // Left
+                TreeNode::new(book_id, tick_id, 2, NodeType::internal(2u32, (1u32, 3u32)))
+                    .with_children(Some(4), Some(5))
+                    .with_parent(1),
+                // Left-Left
+                TreeNode::new(
+                    book_id,
+                    tick_id,
+                    4,
+                    NodeType::internal(Uint128::zero(), (u32::MAX, u32::MIN)),
+                )
+                .with_children(Some(6), Some(7))
+                .with_parent(2),
+                // Left-Left-Left
+                TreeNode::new(book_id, tick_id, 6, NodeType::leaf(2u32, 1u32)).with_parent(2),
+                // Left-Left-Right
+                TreeNode::new(book_id, tick_id, 7, NodeType::leaf(3u32, 1u32)).with_parent(2),
+                // Left-Right
+                TreeNode::new(book_id, tick_id, 5, NodeType::leaf(4u32, 1u32)).with_parent(4),
+                // Right
+                TreeNode::new(book_id, tick_id, 3, NodeType::leaf(1u32, 1u32)).with_parent(1),
+            ],
+            expected: vec![2, 4, 6, 7, 1, 5, 3],
+            expected_error: None,
+            print: true,
+        },
+        // Pre-rotation
+        // --------------------------
+        //             1: 1 2-3
+        //         ┌────────
+        //      2: 2 1
+        //
+        // Post-rotation
+        // --------------------------
+        //             1: 1 2-3
+        //         ┌────────
+        //      2: 2 1
+        RebalanceTestCase {
+            name: "Pre-balanced: left leaf right empty",
+            nodes: vec![
+                // Root
+                TreeNode::new(
+                    book_id,
+                    tick_id,
+                    1,
+                    NodeType::internal(Uint128::zero(), (u32::MAX, u32::MIN)),
+                )
+                .with_children(Some(2), None),
+                // Left
+                TreeNode::new(book_id, tick_id, 2, NodeType::leaf(2u32, 1u32)).with_parent(1),
+            ],
+            expected: vec![1, 2],
+            expected_error: None,
+            print: true,
+        },
+        // Pre-rotation
+        // --------------------------
+        //             1: 1 2-3
+        //                 ────────┐
+        //                      2: 2 1
+        //
+        // Post-rotation
+        // --------------------------
+        //             1: 1 2-3
+        //                 ────────┐
+        //                      2: 2 1
+        RebalanceTestCase {
+            name: "Pre-balanced: left empty right leaf",
+            nodes: vec![
+                // Root
+                TreeNode::new(
+                    book_id,
+                    tick_id,
+                    1,
+                    NodeType::internal(Uint128::zero(), (u32::MAX, u32::MIN)),
+                )
+                .with_children(None, Some(2)),
+                // Right
+                TreeNode::new(book_id, tick_id, 2, NodeType::leaf(2u32, 1u32)).with_parent(1),
+            ],
+            expected: vec![1, 2],
+            expected_error: None,
+            print: true,
+        },
+        // Pre-rotation:
+        // --------------------------
+        //                             1: 3 2-4
+        //                 ┌────────────────────────────────┐
+        //             2: 2 2-4                         3: 2 1
+        //         ┌────────────────┐
+        //      4: 2 1          5: 3 1
+        //
+        // Post-rotation:
+        // --------------------------
+        //                             1: 3 2-4
+        //                 ┌────────────────────────────────┐
+        //             2: 2 2-4                         3: 2 1
+        //         ┌────────────────┐
+        //      4: 2 1          5: 3 1
+        RebalanceTestCase {
+            name: "Pre-balanced: left internal right leaf",
+            nodes: vec![
+                // Root
+                TreeNode::new(
+                    book_id,
+                    tick_id,
+                    1,
+                    NodeType::internal(Uint128::zero(), (u32::MAX, u32::MIN)),
+                )
+                .with_children(Some(2), Some(3)),
+                // Left
+                TreeNode::new(book_id, tick_id, 2, NodeType::internal(2u32, (2u32, 4u32)))
+                    .with_children(Some(4), Some(5))
+                    .with_parent(1),
+                // Left-Left
+                TreeNode::new(book_id, tick_id, 4, NodeType::leaf(2u32, 1u32)).with_parent(2),
+                // Left-Right
+                TreeNode::new(book_id, tick_id, 5, NodeType::leaf(3u32, 1u32)).with_parent(2),
+                // Right
+                TreeNode::new(book_id, tick_id, 3, NodeType::leaf(2u32, 1u32)).with_parent(1),
+            ],
+            expected: vec![1, 2, 4, 5, 3],
+            expected_error: None,
+            print: true,
+        },
+        // Pre-rotation
+        // --------------------------
+        //                             1: 3 2-4
+        //                 ┌────────────────────────────────┐
+        //              2: 2 1                         3: 2 2-4
+        //                                         ┌────────────────┐
+        //                                      4: 2 1          5: 3 1
+        //
+        // Post-rotation
+        // --------------------------
+        //                             1: 3 2-4
+        //                 ┌────────────────────────────────┐
+        //              2: 2 1                         3: 2 2-4
+        //                                         ┌────────────────┐
+        //                                      4: 2 1          5: 3 1
+        RebalanceTestCase {
+            name: "Pre-balanced: left leaf right internal",
+            nodes: vec![
+                // Root
+                TreeNode::new(
+                    book_id,
+                    tick_id,
+                    1,
+                    NodeType::internal(Uint128::zero(), (u32::MAX, u32::MIN)),
+                )
+                .with_children(Some(2), Some(3)),
+                // Left
+                TreeNode::new(book_id, tick_id, 2, NodeType::leaf(2u32, 1u32)).with_parent(1),
+                // Right
+                TreeNode::new(book_id, tick_id, 3, NodeType::internal(2u32, (2u32, 4u32)))
+                    .with_children(Some(4), Some(5))
+                    .with_parent(1),
+                // Right-Left
+                TreeNode::new(book_id, tick_id, 4, NodeType::leaf(2u32, 1u32)).with_parent(3),
+                // Right-Right
+                TreeNode::new(book_id, tick_id, 5, NodeType::leaf(3u32, 1u32)).with_parent(3),
+            ],
+            expected: vec![1, 2, 3, 4, 5],
+            expected_error: None,
+            print: true,
+        },
+        // Pre-rotation:
+        // --------------------------
+        //                             1: 4 2-6
+        //                 ┌────────────────────────────────┐
+        //             2: 2 2-4                        3: 2 4-6
+        //         ┌────────────────┐                ┌────────────────┐
+        //      4: 2 1          5: 3 1             6: 4 1          7: 5 1
+        //
+        // Post-rotation:
+        // --------------------------
+        //                             1: 4 2-6
+        //                 ┌────────────────────────────────┐
+        //             2: 2 2-4                        3: 2 4-6
+        //         ┌────────────────┐                ┌────────────────┐
+        //      4: 2 1          5: 3 1             6: 4 1          7: 5 1
+        RebalanceTestCase {
+            name: "Pre-balanced: left internal right internal",
+            nodes: vec![
+                // Root
+                TreeNode::new(
+                    book_id,
+                    tick_id,
+                    1,
+                    NodeType::internal(Uint128::zero(), (u32::MAX, u32::MIN)),
+                )
+                .with_children(Some(2), Some(3)),
+                // Right
+                TreeNode::new(book_id, tick_id, 2, NodeType::internal(2u32, (2u32, 4u32)))
+                    .with_children(Some(4), Some(5))
+                    .with_parent(1),
+                // Right-Left
+                TreeNode::new(book_id, tick_id, 4, NodeType::leaf(2u32, 1u32)).with_parent(2),
+                // Right-Right
+                TreeNode::new(book_id, tick_id, 5, NodeType::leaf(3u32, 1u32)).with_parent(2),
+                // Right
+                TreeNode::new(book_id, tick_id, 3, NodeType::internal(2u32, (2u32, 4u32)))
+                    .with_children(Some(6), Some(7))
+                    .with_parent(1),
+                // Right-Left
+                TreeNode::new(book_id, tick_id, 6, NodeType::leaf(4u32, 1u32)).with_parent(3),
+                // Right-Right
+                TreeNode::new(book_id, tick_id, 7, NodeType::leaf(5u32, 1u32)).with_parent(3),
+            ],
+            expected: vec![1, 2, 4, 5, 3, 6, 7],
+            expected_error: None,
+            print: true,
+        },
+        RebalanceTestCase {
+            name: "invalid node type",
+            nodes: vec![
+                // Root
+                TreeNode::new(book_id, tick_id, 1, NodeType::leaf(1u32, 1u32)),
+            ],
+            expected: vec![],
+            expected_error: Some(ContractError::InvalidNodeType),
+            print: true,
+        },
+        RebalanceTestCase {
+            name: "childless internal node",
+            nodes: vec![
+                // Root
+                TreeNode::new(book_id, tick_id, 1, NodeType::internal(1u32, (1u32, 2u32))),
+            ],
+            expected: vec![],
+            expected_error: Some(ContractError::ChildlessInternalNode),
             print: true,
         },
     ];
 
-    for test in test_cases {
+    for mut test in test_cases {
         let mut deps = mock_dependencies();
-        let mut tree = TreeNode::new(
-            book_id,
-            tick_id,
-            generate_node_id(deps.as_mut().storage, book_id, tick_id).unwrap(),
-            NodeType::internal(Uint128::zero(), (u32::MAX, u32::MIN)),
-        );
-
-        TREE.save(deps.as_mut().storage, &(book_id, tick_id), &tree.key)
-            .unwrap();
-        NODES
-            .save(deps.as_mut().storage, &(book_id, tick_id, tree.key), &tree)
-            .unwrap();
-
-        for node in test.nodes {
-            let mut tree_node = TreeNode::new(
-                book_id,
-                tick_id,
-                generate_node_id(deps.as_mut().storage, book_id, tick_id).unwrap(),
-                node,
-            );
-            // println!("Inserting: {} into {}", tree_node, tree);
-
-            tree.insert(deps.as_mut().storage, &mut tree_node).unwrap();
-            tree = get_root_node(deps.as_ref().storage, book_id, tick_id).unwrap();
-            println!("Inserting node {} in to above tree", tree_node);
-            print_tree("Post insertion", test.name, &tree, &deps.as_ref());
+        // Save nodes in storage
+        for (idx, node) in test.nodes.iter_mut().enumerate() {
+            // Save root node
+            if idx == 0 {
+                TREE.save(deps.as_mut().storage, &(book_id, tick_id), &node.key)
+                    .unwrap();
+            }
+            NODES
+                .save(deps.as_mut().storage, &(book_id, tick_id, node.key), node)
+                .unwrap();
         }
 
+        // Sync weights post node storage
+        for mut node in test.nodes {
+            if node.is_internal() || node.parent.is_none() {
+                continue;
+            }
+            node.sync(deps.as_ref().storage).unwrap();
+            let mut parent = node.get_parent(deps.as_ref().storage).unwrap().unwrap();
+            parent
+                .sync_range_and_value_up(deps.as_mut().storage)
+                .unwrap();
+        }
+
+        // Get new root node, it may have changed due to rotations
+        let mut tree = get_root_node(deps.as_ref().storage, book_id, tick_id).unwrap();
         if test.print {
-            print_tree("Post-Rotation Tree", test.name, &tree, &deps.as_ref());
+            print_tree("Pre-rotation", test.name, &tree, &deps.as_ref());
         }
 
-        // let result = tree.traverse(deps.as_ref().storage).unwrap();
+        let res = tree.rebalance(deps.as_mut().storage);
 
-        // assert_eq!(
-        //     result,
-        //     test.expected
-        //         .iter()
-        //         .map(|key| NODES
-        //             .load(deps.as_ref().storage, &(book_id, tick_id, *key))
-        //             .unwrap())
-        //         .collect::<Vec<TreeNode>>()
-        // );
+        if let Some(err) = test.expected_error {
+            assert_eq!(res, Err(err), "{}", test.name);
+            continue;
+        }
 
-        // Uncomment post rebalancing implementation
-        // let internals: Vec<&TreeNode> = result.iter().filter(|x| x.is_internal()).collect();
-        // for internal_node in internals {
-        //     let left_node = internal_node.get_left(deps.as_ref().storage).unwrap();
-        //     let right_node = internal_node.get_right(deps.as_ref().storage).unwrap();
+        let tree = get_root_node(deps.as_ref().storage, book_id, tick_id).unwrap();
+        if test.print {
+            print_tree("Post-rotation", test.name, &tree, &deps.as_ref());
+        }
 
-        //     let accumulated_value = left_node
-        //         .clone()
-        //         .map(|x| x.get_value())
-        //         .unwrap_or_default()
-        //         .checked_add(
-        //             right_node
-        //                 .clone()
-        //                 .map(|x| x.get_value())
-        //                 .unwrap_or_default(),
-        //         )
-        //         .unwrap();
-        //     assert_eq!(internal_node.get_value(), accumulated_value);
+        let nodes = tree.traverse(deps.as_ref().storage).unwrap();
+        let res: Vec<u64> = nodes.iter().map(|n| n.key).collect();
+        assert_eq!(res, test.expected, "{}", test.name);
 
-        //     let min = left_node
-        //         .clone()
-        //         .map(|n| n.get_min_range())
-        //         .unwrap_or(Uint128::MAX)
-        //         .min(
-        //             right_node
-        //                 .clone()
-        //                 .map(|n| n.get_min_range())
-        //                 .unwrap_or(Uint128::MAX),
-        //         );
-        //     let max = left_node
-        //         .map(|n| n.get_max_range())
-        //         .unwrap_or(Uint128::MIN)
-        //         .max(
-        //             right_node
-        //                 .map(|n| n.get_max_range())
-        //                 .unwrap_or(Uint128::MIN),
-        //         );
-        //     assert_eq!(internal_node.get_min_range(), min);
-        //     assert_eq!(internal_node.get_max_range(), max);
-        // }
+        let internals = nodes.iter().filter(|n| n.is_internal()).collect();
+        assert_internal_values(test.name, deps.as_ref(), internals, true);
     }
 }
 

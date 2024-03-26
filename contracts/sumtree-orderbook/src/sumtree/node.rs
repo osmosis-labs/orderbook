@@ -538,14 +538,11 @@ impl TreeNode {
     /// have been performed. It checks the balance factor of the current node and performs rotations
     /// as necessary to bring the tree back into balance.
     pub fn rebalance(&mut self, storage: &mut dyn Storage) -> ContractResult<()> {
+        ensure!(self.is_internal(), ContractError::InvalidNodeType);
+        ensure!(self.has_child(), ContractError::ChildlessInternalNode);
+
         // Synchronize the current node's state with storage before rebalancing.
         self.sync(storage)?;
-
-        // Skip rebalancing for leaf nodes or nodes without children.
-        if !self.has_child() || !self.is_internal() {
-            self.sync_range_and_value(storage)?;
-            return Ok(());
-        }
 
         // Calculate the balance factor to determine if rebalancing is needed.
         let balance_factor = self.get_balance_factor(storage)?;
@@ -730,6 +727,14 @@ impl TreeNode {
     }
 
     #[cfg(test)]
+    pub fn with_parent(self, parent: u64) -> Self {
+        Self {
+            parent: Some(parent),
+            ..self
+        }
+    }
+
+    #[cfg(test)]
     /// Depth first search traversal of tree
     pub fn traverse(&self, storage: &dyn Storage) -> ContractResult<Vec<TreeNode>> {
         let mut nodes = vec![];
@@ -815,6 +820,6 @@ impl Display for NodeType {
 #[cfg(test)]
 impl Display for TreeNode {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        write!(f, "{}: {}", self.get_weight(), self.node_type)
+        write!(f, "{}: {}", self.key, self.node_type)
     }
 }

@@ -882,7 +882,9 @@ fn test_rotate_right() {
 
     for mut test in test_cases {
         let mut deps = mock_dependencies();
+        // Save nodes in storage
         for (idx, node) in test.nodes.iter_mut().enumerate() {
+            // Save root node
             if idx == 0 {
                 TREE.save(deps.as_mut().storage, &(book_id, tick_id), &node.key)
                     .unwrap();
@@ -916,6 +918,7 @@ fn test_rotate_right() {
             continue;
         }
 
+        // Get new root node, it may have changed due to rotationss
         let tree = get_root_node(deps.as_ref().storage, book_id, tick_id).unwrap();
         if test.print {
             print_tree("Post-rotation", test.name, &tree, &deps.as_ref());
@@ -1021,6 +1024,21 @@ fn test_rotate_left() {
             expected_error: None,
             print: true,
         },
+        // Pre-rotation:
+        // --------------------------
+        //                             1: 2 1-3
+        //                 ┌────────────────────────────────┐
+        //              4: 2 1                         2: 1 1-2
+        //                                                 ────────┐
+        //                                                      3: 1 1
+        //
+        // Post-rotation:
+        // --------------------------
+        //                             2: 2 1-3
+        //                 ┌────────────────────────────────┐
+        //             1: 1 2-3                         3: 1 1
+        //         ┌────────
+        //      4: 2 1
         RotateLeftTestCase {
             name: "Right internal (no right-left ancestor) left leaf",
             nodes: vec![
@@ -1045,6 +1063,21 @@ fn test_rotate_left() {
             expected_error: None,
             print: true,
         },
+        // Pre-rotation:
+        // --------------------------
+        //                             1: 3 1-4
+        //                 ┌────────────────────────────────┐
+        //              5: 3 1                         2: 2 1-3
+        //                                         ┌────────────────┐
+        //                                      3: 1 1          4: 2 1
+        //
+        // Post-rotation:
+        // --------------------------
+        //                             2: 3 1-4
+        //                 ┌────────────────────────────────┐
+        //             1: 2 1-4                         4: 2 1
+        //         ┌────────────────┐
+        //      5: 3 1          3: 1 1
         RotateLeftTestCase {
             name: "Right internal left leaf",
             nodes: vec![
@@ -1071,6 +1104,23 @@ fn test_rotate_left() {
             expected_error: None,
             print: true,
         },
+        // Pre-rotation:
+        // --------------------------
+        //                             1: 3 2-5
+        //                 ┌────────────────────────────────┐
+        //             5: 2 3-5                        2: 1 2-3
+        //         ┌────────────────┐                        ────────┐
+        //      6: 3 1          7: 4 1                             4: 2 1
+        //
+        // Post-rotation:
+        // --------------------------
+        //                                                             2: 3 2-5
+        //                                 ┌────────────────────────────────────────────────────────────────┐
+        //                             1: 2 3-5                                                         4: 2 1
+        //                 ┌────────────────
+        //             5: 2 3-5
+        //         ┌────────────────┐
+        //      6: 3 1          7: 4 1
         RotateLeftTestCase {
             name: "Right internal (no right-left) left internal",
             nodes: vec![
@@ -1101,6 +1151,23 @@ fn test_rotate_left() {
             expected_error: None,
             print: true,
         },
+        // Pre-rotation
+        // --------------------------
+        //                             1: 3 2-5
+        //                 ┌────────────────────────────────┐
+        //             5: 2 3-5                        2: 1 2-3
+        //         ┌────────────────┐                ┌────────
+        //      6: 3 1          7: 4 1             4: 2 1
+        //
+        // Post-rotation
+        // --------------------------
+        //                                                             2: 3 2-5
+        //                                 ┌────────────────────────────────
+        //                             1: 3 2-5
+        //                 ┌────────────────────────────────┐
+        //             5: 2 3-5                         4: 2 1
+        //         ┌────────────────┐
+        //      6: 3 1          7: 4 1
         RotateLeftTestCase {
             name: "Right internal (no right-right) left internal",
             nodes: vec![
@@ -1199,7 +1266,9 @@ fn test_rotate_left() {
 
     for mut test in test_cases {
         let mut deps = mock_dependencies();
+        // Save nodes in storage
         for (idx, node) in test.nodes.iter_mut().enumerate() {
+            // Save root node
             if idx == 0 {
                 TREE.save(deps.as_mut().storage, &(book_id, tick_id), &node.key)
                     .unwrap();
@@ -1233,6 +1302,7 @@ fn test_rotate_left() {
             continue;
         }
 
+        // Get new root node, it may have changed due to rotations
         let tree = get_root_node(deps.as_ref().storage, book_id, tick_id).unwrap();
         if test.print {
             print_tree("Post-rotation", test.name, &tree, &deps.as_ref());
@@ -1711,7 +1781,6 @@ fn test_rebalance() {
                 .unwrap();
         }
 
-        // Get new root node, it may have changed due to rotations
         let mut tree = get_root_node(deps.as_ref().storage, book_id, tick_id).unwrap();
         if test.print {
             print_tree("Pre-rotation", test.name, &tree, &deps.as_ref());
@@ -1724,6 +1793,7 @@ fn test_rebalance() {
             continue;
         }
 
+        // Get new root node, it may have changed due to rotations
         let tree = get_root_node(deps.as_ref().storage, book_id, tick_id).unwrap();
         if test.print {
             print_tree("Post-rotation", test.name, &tree, &deps.as_ref());

@@ -212,6 +212,7 @@ struct OperByPriceTestCase {
     amount: Uint128,
     expected_result: Uint128,
     expected_error: Option<ContractError>,
+    rounding_direction: RoundingDirection,
 }
 
 #[test]
@@ -223,15 +224,27 @@ fn test_multiply_by_price() {
             amount: Uint128::from(10u128),
             expected_result: Uint128::from(50u128),
             expected_error: None,
+            rounding_direction: RoundingDirection::Down,
         },
         OperByPriceTestCase {
-            name: "basic price multiplication w/ rounding",
+            name: "basic price multiplication w/ rounding (down)",
             price: Decimal256::from_ratio(Uint256::from_u128(5u128), Uint256::from_u128(100)),
             amount: Uint128::from(3u128),
 
             // 0.05 * 3 = 0.15, which truncates to 0
             expected_result: Uint128::zero(),
             expected_error: None,
+            rounding_direction: RoundingDirection::Down,
+        },
+        OperByPriceTestCase {
+            name: "basic price multiplication w/ rounding (up)",
+            price: Decimal256::from_ratio(Uint256::from_u128(5u128), Uint256::from_u128(100)),
+            amount: Uint128::from(3u128),
+
+            // 0.05 * 3 = 0.15, which truncates to 0
+            expected_result: Uint128::one(),
+            expected_error: None,
+            rounding_direction: RoundingDirection::Up,
         },
         OperByPriceTestCase {
             name: "error overflow",
@@ -244,11 +257,12 @@ fn test_multiply_by_price() {
                     .to_string(),
                 operand1: Uint128::MAX.to_string(),
             })),
+            rounding_direction: RoundingDirection::Down,
         },
     ];
 
     for test in test_cases {
-        let result = multiply_by_price(test.amount, test.price, RoundingDirection::Down);
+        let result = multiply_by_price(test.amount, test.price, test.rounding_direction);
         if let Some(expected_error) = test.expected_error {
             assert_eq!(result.unwrap_err(), expected_error, "{}", test.name);
         } else {
@@ -266,13 +280,23 @@ fn test_divide_by_price() {
             amount: Uint128::from(10u128),
             expected_result: Uint128::from(2u128),
             expected_error: None,
+            rounding_direction: RoundingDirection::Down,
         },
         OperByPriceTestCase {
-            name: "basic price division w/ rounding",
+            name: "basic price division w/ rounding (down)",
             price: Decimal256::from_ratio(Uint256::from_u128(5u128), Uint256::one()),
             amount: Uint128::from(1u128),
             expected_result: Uint128::zero(),
             expected_error: None,
+            rounding_direction: RoundingDirection::Down,
+        },
+        OperByPriceTestCase {
+            name: "basic price division w/ rounding (up)",
+            price: Decimal256::from_ratio(Uint256::from_u128(5u128), Uint256::one()),
+            amount: Uint128::from(1u128),
+            expected_result: Uint128::one(),
+            expected_error: None,
+            rounding_direction: RoundingDirection::Up,
         },
         OperByPriceTestCase {
             name: "error overflow",
@@ -284,11 +308,12 @@ fn test_divide_by_price() {
                 operand2: tick_to_price(MIN_TICK).unwrap().to_string(),
                 operand1: Uint128::MAX.to_string(),
             })),
+            rounding_direction: RoundingDirection::Down,
         },
     ];
 
     for test in test_cases {
-        let result = divide_by_price(test.amount, test.price, RoundingDirection::Down);
+        let result = divide_by_price(test.amount, test.price, test.rounding_direction);
         if let Some(expected_error) = test.expected_error {
             assert_eq!(result.unwrap_err(), expected_error, "{}", test.name);
         } else {

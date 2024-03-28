@@ -40,7 +40,7 @@ pub enum NodeType {
         accumulator: Uint128,
         // Range from min ETAS to max ETAS + value of max ETAS
         range: (Uint128, Uint128),
-        // Amount of leaf ancestors
+        // Depth of subtree below node
         weight: u64,
     },
 }

@@ -49,6 +49,7 @@ pub fn tick_to_price(tick_index: i64) -> ContractResult<Decimal256> {
     //
     // The additive component is simply the number of additive ticks by the current additive increment per tick.
     let geometric_component = pow_ten(geometric_exponent_delta as i32)?;
+
     let additive_component = Decimal256::from_ratio(
         Uint256::from(num_additive_ticks.unsigned_abs()),
         Uint256::one(),
@@ -83,9 +84,10 @@ pub fn multiply_by_price(amount: Uint128, price: Decimal256) -> ContractResult<U
             Uint256::from_uint128(amount),
             Uint256::one(),
         ))?
-        .to_uint_ceil();
+        .to_uint_floor();
 
-    // TODO: Rounding?
+    // TODO: Rounding? Specifically, if `checked_mul` does bankers above, truncating
+    // afterwards might not be sufficient
     ensure!(
         amount_to_send_u256 <= Uint256::from_u128(Uint128::MAX.u128()),
         ContractError::Overflow(OverflowError {

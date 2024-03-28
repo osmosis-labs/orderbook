@@ -170,14 +170,18 @@ pub fn cancel_limit(
     );
 
     // Fetch the sumtree from storage, or create one if it does not exist
-    let mut tree = TREE
-        .load(deps.storage, &(order.book_id, order.tick_id))
-        .unwrap_or(TreeNode::new(
+    let mut tree = if let Ok(tree) = get_root_node(deps.storage, book_id, tick_id) {
+        tree
+    } else {
+        let new_root = TreeNode::new(
             order.book_id,
             order.tick_id,
-            generate_node_id(deps.storage, order.book_id, order.tick_id)?,
+            generate_node_id(deps.storage, book_id, tick_id)?,
             NodeType::default(),
-        ));
+        );
+        TREE.save(deps.storage, &(book_id, tick_id), &new_root.key)?;
+        new_root
+    };
 
     // Generate info for new node to insert to sumtree
     let node_id = generate_node_id(deps.storage, order.book_id, order.tick_id)?;
@@ -234,7 +238,6 @@ pub fn cancel_limit(
     )?;
 
     tree.save(deps.storage)?;
-    TREE.save(deps.storage, &(book_id, tick_id), &tree)?;
 
     Ok(Response::new()
         .add_attribute("method", "cancelLimit")

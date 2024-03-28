@@ -1124,9 +1124,9 @@ fn generate_limit_orders(
 
         for _ in 0..orders_per_tick {
             let order = LimitOrder {
-                book_id: book_id,
+                book_id,
                 tick_id,
-                order_direction: order_direction.clone(),
+                order_direction,
                 owner: Addr::unchecked("creator"),
                 quantity: quantity_per_order,
 
@@ -1165,7 +1165,7 @@ fn place_multiple_limit_orders(
             info,
             book_id,
             order.tick_id,
-            order.order_direction.clone(),
+            order.order_direction,
             order.quantity,
         )?;
     }

@@ -4,7 +4,7 @@ use crate::constants::{MAX_TICK, MIN_TICK};
 use crate::error::ContractError;
 use crate::state::{new_order_id, orders, ORDERBOOKS, TICK_STATE};
 use crate::sumtree::node::{generate_node_id, NodeType, TreeNode};
-use crate::sumtree::tree::TREE;
+use crate::sumtree::tree::{get_root_node, TREE};
 use crate::tick_math::{amount_to_value, tick_to_price};
 use crate::types::{LimitOrder, MarketOrder, OrderDirection, TickState, REPLY_ID_REFUND};
 use cosmwasm_std::{

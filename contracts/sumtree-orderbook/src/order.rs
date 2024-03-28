@@ -5,7 +5,7 @@ use crate::error::ContractError;
 use crate::state::{new_order_id, orders, ORDERBOOKS, TICK_STATE};
 use crate::sumtree::node::{generate_node_id, NodeType, TreeNode};
 use crate::sumtree::tree::{get_root_node, TREE};
-use crate::tick_math::{amount_to_value, tick_to_price};
+use crate::tick_math::{amount_to_value, tick_to_price, RoundingDirection};
 use crate::types::{LimitOrder, MarketOrder, OrderDirection, TickState, REPLY_ID_REFUND};
 use cosmwasm_std::{
     coin, ensure, ensure_eq, BankMsg, Decimal256, DepsMut, Env, MessageInfo, Order, Response,
@@ -340,7 +340,12 @@ pub fn run_market_order(
         let (current_tick_id, mut current_tick) = maybe_current_tick?;
         let tick_price = tick_to_price(current_tick_id)?;
 
-        let output_quantity = amount_to_value(order.order_direction, order.quantity, tick_price)?;
+        let output_quantity = amount_to_value(
+            order.order_direction,
+            order.quantity,
+            tick_price,
+            RoundingDirection::Down,
+        )?;
 
         let output_quantity_dec =
             Decimal256::from_ratio(Uint256::from_uint128(output_quantity), Uint256::one());
@@ -368,8 +373,12 @@ pub fn run_market_order(
 
         // TODO: this needs to be rounding up, not down. Requires `amount_to_value` to take in rounding direction.
         // Tracked in issue https://github.com/osmosis-labs/orderbook/issues/85
-        let input_filled =
-            amount_to_value(order.order_direction.opposite(), fill_amount, tick_price)?;
+        let input_filled = amount_to_value(
+            order.order_direction.opposite(),
+            fill_amount,
+            tick_price,
+            RoundingDirection::Up,
+        )?;
         order.quantity = order.quantity.checked_sub(input_filled)?;
 
         // Add the updated tick state to the vector

@@ -1,6 +1,8 @@
 use crate::constants::*;
 use crate::error::ContractError;
-use crate::tick_math::{divide_by_price, multiply_by_price, pow_ten, tick_to_price};
+use crate::tick_math::{
+    divide_by_price, multiply_by_price, pow_ten, tick_to_price, RoundingDirection,
+};
 use cosmwasm_std::{Decimal256, OverflowError, OverflowOperation, Uint128, Uint256};
 use std::str::FromStr;
 
@@ -246,7 +248,7 @@ fn test_multiply_by_price() {
     ];
 
     for test in test_cases {
-        let result = multiply_by_price(test.amount, test.price);
+        let result = multiply_by_price(test.amount, test.price, RoundingDirection::Down);
         if let Some(expected_error) = test.expected_error {
             assert_eq!(result.unwrap_err(), expected_error, "{}", test.name);
         } else {
@@ -286,7 +288,7 @@ fn test_divide_by_price() {
     ];
 
     for test in test_cases {
-        let result = divide_by_price(test.amount, test.price);
+        let result = divide_by_price(test.amount, test.price, RoundingDirection::Down);
         if let Some(expected_error) = test.expected_error {
             assert_eq!(result.unwrap_err(), expected_error, "{}", test.name);
         } else {

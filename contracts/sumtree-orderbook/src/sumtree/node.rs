@@ -510,7 +510,6 @@ impl TreeNode {
                 parent.delete(storage)?;
             } else {
                 // Update parents values after removing node
-                // TODO: Adjust for call time changes
                 parent.sync_range_and_value_up(storage)?;
             }
         }
@@ -782,19 +781,6 @@ impl TreeNode {
             result.push(level);
         }
         Ok(result)
-    }
-
-    #[cfg(test)]
-    pub fn count_ancestral_leaves(&self, storage: &dyn Storage) -> u64 {
-        match self.node_type {
-            NodeType::Leaf { .. } => 1,
-            NodeType::Internal { .. } => self
-                .traverse(storage)
-                .unwrap()
-                .iter()
-                .filter(|n| !n.is_internal())
-                .count() as u64,
-        }
     }
 }
 

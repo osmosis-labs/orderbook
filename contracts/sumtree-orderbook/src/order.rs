@@ -371,8 +371,6 @@ pub fn run_market_order(
         // By the time we get here, this should not be possible.
         let fill_amount = Uint128::try_from(fill_amount_dec.to_uint_floor())?;
 
-        // TODO: this needs to be rounding up, not down. Requires `amount_to_value` to take in rounding direction.
-        // Tracked in issue https://github.com/osmosis-labs/orderbook/issues/85
         let input_filled = amount_to_value(
             order.order_direction.opposite(),
             fill_amount,

@@ -3,7 +3,7 @@ use cosmwasm_std::{testing::mock_dependencies, Decimal256, Deps, Storage, Uint25
 use crate::{
     sumtree::{
         node::{generate_node_id, NodeType, TreeNode, NODES},
-        tree::{get_root_node, TREE},
+        tree::{get_prefix_sum, get_root_node, TREE},
     },
     ContractError,
 };
@@ -24,6 +24,7 @@ fn assert_internal_values(
     internals: Vec<&TreeNode>,
     should_be_balanced: bool,
 ) {
+    println!("Length of internals: {}", internals.len());
     for internal_node in internals {
         let left_node = internal_node.get_left(deps.storage).unwrap();
         let right_node = internal_node.get_right(deps.storage).unwrap();
@@ -2060,11 +2061,13 @@ fn generate_nodes(
     tick_id: i64,
     quantity: u32,
 ) -> Vec<TreeNode> {
-    use rand::seq::SliceRandom;
-    use rand::thread_rng;
+    use rand::rngs::StdRng;
+    use rand::{seq::SliceRandom, SeedableRng};
 
     let mut range: Vec<u32> = (0..quantity).collect();
-    range.shuffle(&mut thread_rng());
+    let seed = [0u8; 32]; // A fixed seed for deterministic randomness
+    let mut rng = StdRng::from_seed(seed);
+    range.shuffle(&mut rng);
 
     let mut nodes = vec![];
     for val in range {
@@ -2095,12 +2098,21 @@ fn test_node_insert_large_quantity() {
 
     let nodes = generate_nodes(deps.as_mut().storage, book_id, tick_id, 1000);
 
+    let target_etas = Decimal256::from_ratio(536u128, 1u128);
+    let mut expected_prefix_sum = Decimal256::zero();
+    let nodes_count = nodes.len();
+
     // Insert nodes into tree
     for mut node in nodes {
         NODES
             .save(deps.as_mut().storage, &(book_id, tick_id, node.key), &node)
             .unwrap();
         tree.insert(deps.as_mut().storage, &mut node).unwrap();
+
+        // Track insertions that fall below our target ETAS
+        if node.get_min_range() < target_etas {
+            expected_prefix_sum = expected_prefix_sum.checked_add(Decimal256::one()).unwrap();
+        }
     }
 
     // Return tree in vector form from Depth First Search
@@ -2109,6 +2121,29 @@ fn test_node_insert_large_quantity() {
     // Ensure all internal nodes are correctly summed and contain correct ranges
     let internals: Vec<&TreeNode> = result.iter().filter(|x| x.is_internal()).collect();
     assert_internal_values("Large amount of nodes", deps.as_ref(), internals, true);
+
+    println!("Number of nodes inserted: {}", nodes_count);
+    println!("Final expected prefix sum: {}", expected_prefix_sum);
+
+    // Ensure prefix sum functions correctly
+    let root_node = get_root_node(deps.as_mut().storage, book_id, tick_id).unwrap();
+    println!("Root Node Min Range: {}", root_node.get_min_range());
+    println!("Root Node Max Range: {}", root_node.get_max_range());
+    println!("Root Node Value: {}", root_node.get_value());
+
+    if let Some(left_child) = root_node.get_left(deps.as_ref().storage).unwrap() {
+        println!("Left Child Min Range: {}", left_child.get_min_range());
+        println!("Left Child Max Range: {}", left_child.get_max_range());
+        println!("Left Child Value: {}", left_child.get_value());
+    }
+
+    if let Some(right_child) = root_node.get_right(deps.as_ref().storage).unwrap() {
+        println!("Right Child Min Range: {}", right_child.get_min_range());
+        println!("Right Child Max Range: {}", right_child.get_max_range());
+        println!("Right Child Value: {}", right_child.get_value());
+    }
+    let prefix_sum = get_prefix_sum(deps.as_mut().storage, root_node, target_etas).unwrap();
+    assert_eq!(expected_prefix_sum, prefix_sum);
 }
 
 const SPACING: u32 = 2u32;

@@ -34,44 +34,28 @@ fn test_get_prefix_sum_valid() {
             print: true,
             expected_sum: Decimal256::from_ratio(30u128, 1u128),
         },
-        // TestPrefixSumCase {
-        //     name: "Target ETAS below all nodes",
-        //     nodes: vec![
-        //         TestNode {
-        //             etas: Decimal256::from_ratio(10u128, 1u128),
-        //             amount: Decimal256::from_ratio(10u128, 1u128),
-        //         },
-        //         TestNode {
-        //             etas: Decimal256::from_ratio(20u128, 1u128),
-        //             amount: Decimal256::from_ratio(20u128, 1u128),
-        //         },
-        //         TestNode {
-        //             etas: Decimal256::from_ratio(30u128, 1u128),
-        //             amount: Decimal256::from_ratio(30u128, 1u128),
-        //         },
-        //     ],
-        //     target_etas: Decimal256::from_ratio(5u128, 1u128),
-        //     expected_sum: Decimal256::zero(),
-        // },
-        // TestPrefixSumCase {
-        //     name: "Target ETAS above all nodes",
-        //     nodes: vec![
-        //         TestNode {
-        //             etas: Decimal256::from_ratio(10u128, 1u128),
-        //             amount: Decimal256::from_ratio(10u128, 1u128),
-        //         },
-        //         TestNode {
-        //             etas: Decimal256::from_ratio(20u128, 1u128),
-        //             amount: Decimal256::from_ratio(20u128, 1u128),
-        //         },
-        //         TestNode {
-        //             etas: Decimal256::from_ratio(30u128, 1u128),
-        //             amount: Decimal256::from_ratio(30u128, 1u128),
-        //         },
-        //     ],
-        //     target_etas: Decimal256::from_ratio(35u128, 1u128),
-        //     expected_sum: Decimal256::from_ratio(60u128, 1u128), // Sum of all nodes
-        // },
+        TestPrefixSumCase {
+            name: "Target ETAS below all nodes",
+            nodes: vec![
+                NodeType::leaf_uint256(10u128, 10u128),
+                NodeType::leaf_uint256(20u128, 20u128),
+                NodeType::leaf_uint256(40u128, 30u128),
+            ],
+            target_etas: Decimal256::from_ratio(5u128, 1u128),
+            print: true,
+            expected_sum: Decimal256::zero(),
+        },
+        TestPrefixSumCase {
+            name: "Target ETAS above all nodes",
+            nodes: vec![
+                NodeType::leaf_uint256(10u128, 10u128),
+                NodeType::leaf_uint256(20u128, 20u128),
+                NodeType::leaf_uint256(40u128, 30u128),
+            ],
+            target_etas: Decimal256::from_ratio(45u128, 1u128),
+            print: true,
+            expected_sum: Decimal256::from_ratio(60u128, 1u128), // Sum of all nodes
+        },
     ];
 
     for test in test_cases {

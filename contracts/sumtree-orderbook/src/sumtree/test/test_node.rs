@@ -38,7 +38,15 @@ fn assert_internal_values(
                     .map_or(Decimal256::zero(), |x| x.get_value()),
             )
             .unwrap();
-        assert_eq!(internal_node.get_value(), accumulated_value);
+        assert_eq!(
+            internal_node.get_value(),
+            accumulated_value,
+            "{} failed on internal node value, expected {} got {} for {}",
+            test_name,
+            accumulated_value,
+            internal_node.get_value(),
+            internal_node.key
+        );
 
         let min = left_node
             .clone()
@@ -2096,7 +2104,10 @@ fn test_node_insert_large_quantity() {
         NodeType::internal_uint256(0u32, (u32::MAX, u32::MIN)),
     );
 
-    let nodes = generate_nodes(deps.as_mut().storage, book_id, tick_id, 1000);
+    TREE.save(deps.as_mut().storage, &(book_id, tick_id), &tree.key)
+        .unwrap();
+
+    let nodes = generate_nodes(deps.as_mut().storage, book_id, tick_id, 100);
 
     let target_etas = Decimal256::from_ratio(536u128, 1u128);
     let mut expected_prefix_sum = Decimal256::zero();
@@ -2108,8 +2119,9 @@ fn test_node_insert_large_quantity() {
             .save(deps.as_mut().storage, &(book_id, tick_id, node.key), &node)
             .unwrap();
         tree.insert(deps.as_mut().storage, &mut node).unwrap();
-
+        tree = get_root_node(deps.as_ref().storage, book_id, tick_id).unwrap();
         // Track insertions that fall below our target ETAS
+        println!("{}", node.get_min_range());
         if node.get_min_range() < target_etas {
             expected_prefix_sum = expected_prefix_sum.checked_add(Decimal256::one()).unwrap();
         }

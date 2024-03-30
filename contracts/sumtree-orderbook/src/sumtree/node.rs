@@ -562,11 +562,11 @@ impl TreeNode {
     /// have been performed. It checks the balance factor of the current node and performs rotations
     /// as necessary to bring the tree back into balance.
     pub fn rebalance(&mut self, storage: &mut dyn Storage) -> ContractResult<()> {
-        ensure!(self.is_internal(), ContractError::InvalidNodeType);
-        ensure!(self.has_child(), ContractError::ChildlessInternalNode);
-
         // Synchronize the current node's state with storage before rebalancing.
         self.sync(storage)?;
+
+        ensure!(self.is_internal(), ContractError::InvalidNodeType);
+        ensure!(self.has_child(), ContractError::ChildlessInternalNode);
 
         // Calculate the balance factor to determine if rebalancing is needed.
         let balance_factor = self.get_balance_factor(storage)?;
@@ -655,14 +655,14 @@ impl TreeNode {
         left.save(storage)?;
         self.save(storage)?;
 
-        // Synchronize the range and value of the current node.
-        self.sync_range_and_value(storage)?;
-        left.sync_range_and_value(storage)?;
-
         // If the left node has no parent, it becomes the new root.
         if left.parent.is_none() {
             TREE.save(storage, &(left.book_id, left.tick_id), &left.key)?;
         }
+
+        // Synchronize the range and value of the current node.
+        self.sync_range_and_value(storage)?;
+        left.sync_range_and_value(storage)?;
 
         // Update the parent's child pointers.
         if is_left_child {

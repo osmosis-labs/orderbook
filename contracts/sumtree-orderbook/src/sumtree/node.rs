@@ -345,15 +345,28 @@ impl TreeNode {
         new_node: &mut TreeNode,
     ) -> ContractResult<()> {
         ensure!(self.is_internal(), ContractError::InvalidNodeType);
+        println!("Ensuring node is internal");
         ensure!(!new_node.is_internal(), ContractError::InvalidNodeType);
+        println!("Ensuring new node is not internal");
 
         // New node is being placed below current, update ranges and accumulator as tree is traversed
         self.add_value(new_node.get_value())?;
+        println!("Added value: {}", new_node.get_value());
         if self.get_min_range() > new_node.get_min_range() {
+            println!(
+                "Updating min range from {} to {}",
+                self.get_min_range(),
+                new_node.get_min_range()
+            );
             self.set_min_range(new_node.get_min_range())?;
         }
 
         if self.get_max_range() < new_node.get_max_range() {
+            println!(
+                "Updating max range from {} to {}",
+                self.get_max_range(),
+                new_node.get_max_range()
+            );
             self.set_max_range(new_node.get_max_range())?;
         }
 
@@ -363,14 +376,24 @@ impl TreeNode {
         let is_left_internal = maybe_left.clone().map_or(false, |l| l.is_internal());
         let is_right_internal = maybe_right.clone().map_or(false, |r| r.is_internal());
         let is_in_left_range = maybe_left.clone().map_or(false, |left| {
-            new_node.get_min_range() <= left.get_max_range()
+            new_node.get_min_range() < left.get_max_range()
         });
         let is_in_right_range = maybe_right.clone().map_or(false, |right| {
             new_node.get_min_range() >= right.get_min_range()
         });
 
+        println!(
+            "Left internal: {}, Right internal: {}",
+            is_left_internal, is_right_internal
+        );
+        println!(
+            "In left range: {}, In right range: {}",
+            is_in_left_range, is_in_right_range
+        );
+
         // Case 1 Left
         if is_left_internal && is_in_left_range {
+            println!("Inserting into left internal node");
             self.save(storage)?;
             // Can unwrap as node must exist
             let mut left = maybe_left.unwrap();
@@ -381,6 +404,7 @@ impl TreeNode {
 
         // Case 1 Right
         if is_right_internal && is_in_right_range {
+            println!("Inserting into right internal node");
             self.save(storage)?;
             // Can unwrap as node must exist
             let mut right = maybe_right.unwrap();
@@ -390,6 +414,7 @@ impl TreeNode {
         }
 
         if is_right_internal && is_left_internal {
+            println!("Both sides internal, inserting into left by default");
             self.save(storage)?;
             let mut left = maybe_left.unwrap();
             left.insert(storage, new_node)?;
@@ -399,6 +424,7 @@ impl TreeNode {
 
         // Case 2
         if maybe_left.is_none() {
+            println!("Left is empty, inserting new node on left");
             self.left = Some(new_node.key);
             new_node.parent = Some(self.key);
             new_node.save(storage)?;
@@ -412,6 +438,7 @@ impl TreeNode {
             !l.is_internal() && new_node.get_max_range() <= l.get_min_range()
         });
         if is_lower_than_left_leaf && maybe_right.is_none() {
+            println!("Lower than left leaf and right is empty, reordering");
             self.right = self.left;
             self.left = Some(new_node.key);
             new_node.parent = Some(self.key);
@@ -423,6 +450,7 @@ impl TreeNode {
 
         // Case 3
         if !is_in_left_range && maybe_right.is_none() {
+            println!("Not in left range and right is empty, inserting new node on right");
             self.right = Some(new_node.key);
             new_node.parent = Some(self.key);
             new_node.save(storage)?;
@@ -441,6 +469,7 @@ impl TreeNode {
 
         // Case 4
         if left_is_leaf && !is_higher_than_right_leaf {
+            println!("Left is leaf and not higher than right leaf, splitting left");
             let mut left = maybe_left.unwrap();
             let new_left = left.split(storage, new_node)?;
             self.left = Some(new_left);
@@ -452,6 +481,7 @@ impl TreeNode {
         // Case 5: Reordering
         // TODO: Add edge case test for this
         if is_higher_than_right_leaf && maybe_left.is_none() {
+            println!("Higher than right leaf and left is empty, reordering");
             self.left = self.right;
             self.right = Some(new_node.key);
             new_node.parent = Some(self.key);
@@ -463,6 +493,7 @@ impl TreeNode {
 
         // Case 5
         if !is_in_left_range && right_is_leaf {
+            println!("Not in left range and right is leaf, splitting right");
             let mut right = maybe_right.unwrap();
             let new_right = right.split(storage, new_node)?;
             self.right = Some(new_right);

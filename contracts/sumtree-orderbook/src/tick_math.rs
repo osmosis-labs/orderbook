@@ -77,6 +77,7 @@ pub fn pow_ten(expo: i32) -> ContractResult<Decimal256> {
     }
 }
 
+// Determines which direction to round a decimal number to an integer
 pub enum RoundingDirection {
     Down = 0,
     Up = 1,

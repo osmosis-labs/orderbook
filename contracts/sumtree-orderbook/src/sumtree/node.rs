@@ -363,7 +363,7 @@ impl TreeNode {
         let is_left_internal = maybe_left.clone().map_or(false, |l| l.is_internal());
         let is_right_internal = maybe_right.clone().map_or(false, |r| r.is_internal());
         let is_in_left_range = maybe_left.clone().map_or(false, |left| {
-            new_node.get_min_range() <= left.get_max_range()
+            new_node.get_min_range() < left.get_max_range()
         });
         let is_in_right_range = maybe_right.clone().map_or(false, |right| {
             new_node.get_min_range() >= right.get_min_range()

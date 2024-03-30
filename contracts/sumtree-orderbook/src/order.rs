@@ -1,5 +1,3 @@
-use std::str::FromStr;
-
 use crate::constants::{MAX_TICK, MIN_TICK};
 use crate::error::ContractError;
 use crate::state::{new_order_id, orders, ORDERBOOKS, TICK_STATE};
@@ -192,13 +190,14 @@ pub fn cancel_limit(
             tick_id: order.tick_id,
         })?;
 
-    let etas = Uint128::from_str(&order.etas.to_string())?;
-
     let mut new_node = TreeNode::new(
         order.book_id,
         order.tick_id,
         node_id,
-        NodeType::leaf(etas, order.quantity),
+        NodeType::leaf(
+            order.etas,
+            Decimal256::from_ratio(Uint256::from_uint128(order.quantity), Uint256::one()),
+        ),
     );
 
     // Insert new node

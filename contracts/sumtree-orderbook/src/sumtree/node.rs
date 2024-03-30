@@ -6,7 +6,9 @@ use core::fmt;
 use std::fmt::Display;
 
 use cosmwasm_schema::cw_serde;
-use cosmwasm_std::{ensure, Storage, Uint128};
+#[cfg(test)]
+use cosmwasm_std::Uint256;
+use cosmwasm_std::{ensure, Decimal256, Storage};
 use cw_storage_plus::Map;
 
 use crate::{error::ContractResult, sumtree::tree::TREE, ContractError};
@@ -31,35 +33,61 @@ pub fn generate_node_id(
 pub enum NodeType {
     Leaf {
         // Amount cancelled from order
-        value: Uint128,
+        value: Decimal256,
         // Effective total amount sold
-        etas: Uint128,
+        etas: Decimal256,
     },
     Internal {
         // Sum of all values below current
-        accumulator: Uint128,
+        accumulator: Decimal256,
         // Range from min ETAS to max ETAS + value of max ETAS
-        range: (Uint128, Uint128),
-        // Depth of subtree below node
+        range: (Decimal256, Decimal256),
+        // The height of the tree at the curret node
         weight: u64,
     },
 }
 
 impl NodeType {
-    pub fn leaf(etas: impl Into<Uint128>, value: impl Into<Uint128>) -> Self {
+    pub fn leaf(etas: Decimal256, value: Decimal256) -> Self {
+        Self::Leaf { etas, value }
+    }
+
+    /// Utility function to help with testing
+    ///
+    /// Decimal256 does not allow conversion from primitives but Uint256 does, this makes writing tests simpler
+    #[cfg(test)]
+    pub fn leaf_uint256(etas: impl Into<Uint256>, value: impl Into<Uint256>) -> Self {
         Self::Leaf {
-            etas: etas.into(),
-            value: value.into(),
+            etas: Decimal256::from_ratio(etas, Uint256::one()),
+            value: Decimal256::from_ratio(value, Uint256::one()),
         }
     }
 
     pub fn internal(
-        accumulator: impl Into<Uint128>,
-        range: (impl Into<Uint128>, impl Into<Uint128>),
+        accumulator: impl Into<Decimal256>,
+        range: (impl Into<Decimal256>, impl Into<Decimal256>),
     ) -> Self {
         Self::Internal {
             range: (range.0.into(), range.1.into()),
             accumulator: accumulator.into(),
+            weight: 0,
+        }
+    }
+
+    /// Utility function to help with testing
+    ///
+    /// Decimal256 does not allow conversion from primitives but Uint256 does, this makes writing tests simpler
+    #[cfg(test)]
+    pub fn internal_uint256(
+        accumulator: impl Into<Uint256>,
+        range: (impl Into<Uint256>, impl Into<Uint256>),
+    ) -> Self {
+        Self::Internal {
+            range: (
+                Decimal256::from_ratio(range.0.into(), Uint256::one()),
+                Decimal256::from_ratio(range.1.into(), Uint256::one()),
+            ),
+            accumulator: Decimal256::from_ratio(accumulator, Uint256::one()),
             weight: 0,
         }
     }
@@ -68,8 +96,8 @@ impl NodeType {
 impl Default for NodeType {
     fn default() -> Self {
         Self::Internal {
-            accumulator: Uint128::zero(),
-            range: (Uint128::MAX, Uint128::MIN),
+            accumulator: Decimal256::zero(),
+            range: (Decimal256::MAX, Decimal256::MIN),
             weight: 0,
         }
     }
@@ -148,14 +176,14 @@ impl TreeNode {
     ///
     /// For `Internal` nodes, this is the maximum value of the associated range.
     /// For `Leaf` nodes, this is the sum of the `value` and `etas` fields.
-    pub fn get_max_range(&self) -> Uint128 {
+    pub fn get_max_range(&self) -> Decimal256 {
         match self.node_type {
             NodeType::Internal { range, .. } => range.1,
             NodeType::Leaf { value, etas } => value.checked_add(etas).unwrap(),
         }
     }
 
-    pub fn set_max_range(&mut self, new_max: Uint128) -> ContractResult<()> {
+    pub fn set_max_range(&mut self, new_max: Decimal256) -> ContractResult<()> {
         match &mut self.node_type {
             NodeType::Leaf { .. } => Err(ContractError::InvalidNodeType),
             NodeType::Internal { range, .. } => {
@@ -169,14 +197,14 @@ impl TreeNode {
     ///
     /// For internal nodes, this is the minimum value of the associated range.
     /// For leaf nodes, this is the value.
-    pub fn get_min_range(&self) -> Uint128 {
+    pub fn get_min_range(&self) -> Decimal256 {
         match self.node_type {
             NodeType::Internal { range, .. } => range.0,
             NodeType::Leaf { etas, .. } => etas,
         }
     }
 
-    pub fn set_min_range(&mut self, new_min: Uint128) -> ContractResult<()> {
+    pub fn set_min_range(&mut self, new_min: Decimal256) -> ContractResult<()> {
         match &mut self.node_type {
             NodeType::Leaf { .. } => Err(ContractError::InvalidNodeType),
             NodeType::Internal { range, .. } => {
@@ -186,7 +214,7 @@ impl TreeNode {
         }
     }
 
-    pub fn set_value(&mut self, value: Uint128) -> ContractResult<()> {
+    pub fn set_value(&mut self, value: Decimal256) -> ContractResult<()> {
         match &mut self.node_type {
             NodeType::Internal { accumulator, .. } => {
                 *accumulator = value;
@@ -206,7 +234,7 @@ impl TreeNode {
     /// Adds a given value to an internal node's accumulator
     ///
     /// Errors if given node is not internal
-    pub fn add_value(&mut self, value: Uint128) -> ContractResult<()> {
+    pub fn add_value(&mut self, value: Decimal256) -> ContractResult<()> {
         self.set_value(self.get_value().checked_add(value)?)
     }
 
@@ -225,7 +253,7 @@ impl TreeNode {
     /// For `Leaf` nodes this is the `value`.
     ///
     /// For `Internal` nodes this is the `accumulator`.
-    pub fn get_value(&self) -> Uint128 {
+    pub fn get_value(&self) -> Decimal256 {
         match self.node_type {
             NodeType::Leaf { value, .. } => value,
             NodeType::Internal { accumulator, .. } => accumulator,

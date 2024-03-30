@@ -68,8 +68,13 @@ fn assert_internal_values(
         assert_eq!(internal_node.get_max_range(), max);
 
         let balance_factor = right_node
+            .clone()
             .map_or(0, |n| n.get_height(deps.storage).unwrap())
-            .abs_diff(left_node.map_or(0, |n| n.get_height(deps.storage).unwrap()));
+            .abs_diff(
+                left_node
+                    .clone()
+                    .map_or(0, |n| n.get_height(deps.storage).unwrap()),
+            );
 
         assert_eq!(
             internal_node.get_weight(),
@@ -85,6 +90,39 @@ fn assert_internal_values(
                 "{}: Balance factor greater than 1 for node {}",
                 test_name,
                 internal_node.key
+            );
+        }
+
+        if let Some(left) = left_node {
+            let parent_string = if let Some(parent) = left.parent {
+                parent.to_string()
+            } else {
+                "None".to_string()
+            };
+            assert_eq!(
+                left.parent,
+                Some(internal_node.key),
+                "{} - Child {} does not have correct parent: expected {}, received {}",
+                test_name,
+                left,
+                internal_node.key,
+                parent_string
+            );
+        }
+        if let Some(right) = right_node {
+            let parent_string = if let Some(parent) = right.parent {
+                parent.to_string()
+            } else {
+                "None".to_string()
+            };
+            assert_eq!(
+                right.parent,
+                Some(internal_node.key),
+                "{} - Child {} does not have correct parent: expected {}, received {}",
+                test_name,
+                right,
+                internal_node.key,
+                parent_string
             );
         }
     }
@@ -1749,10 +1787,10 @@ fn test_rebalance() {
                 .with_parent(2),
                 // Left-Left-Left
                 TreeNode::new(book_id, tick_id, 6, NodeType::leaf_uint256(2u32, 1u32))
-                    .with_parent(2),
+                    .with_parent(4),
                 // Left-Left-Right
                 TreeNode::new(book_id, tick_id, 7, NodeType::leaf_uint256(3u32, 1u32))
-                    .with_parent(2),
+                    .with_parent(4),
                 // Left-Right
                 TreeNode::new(book_id, tick_id, 5, NodeType::leaf_uint256(4u32, 1u32))
                     .with_parent(4),
@@ -2107,7 +2145,7 @@ fn test_node_insert_large_quantity() {
     TREE.save(deps.as_mut().storage, &(book_id, tick_id), &tree.key)
         .unwrap();
 
-    let nodes = generate_nodes(deps.as_mut().storage, book_id, tick_id, 100);
+    let nodes = generate_nodes(deps.as_mut().storage, book_id, tick_id, 1000);
 
     let target_etas = Decimal256::from_ratio(536u128, 1u128);
     let mut expected_prefix_sum = Decimal256::zero();
@@ -2121,7 +2159,6 @@ fn test_node_insert_large_quantity() {
         tree.insert(deps.as_mut().storage, &mut node).unwrap();
         tree = get_root_node(deps.as_ref().storage, book_id, tick_id).unwrap();
         // Track insertions that fall below our target ETAS
-        println!("{}", node.get_min_range());
         if node.get_min_range() < target_etas {
             expected_prefix_sum = expected_prefix_sum.checked_add(Decimal256::one()).unwrap();
         }
@@ -2132,6 +2169,8 @@ fn test_node_insert_large_quantity() {
 
     // Ensure all internal nodes are correctly summed and contain correct ranges
     let internals: Vec<&TreeNode> = result.iter().filter(|x| x.is_internal()).collect();
+    let leaves: Vec<&TreeNode> = result.iter().filter(|x| !x.is_internal()).collect();
+    println!("{}", leaves.len());
     assert_internal_values("Large amount of nodes", deps.as_ref(), internals, true);
 
     println!("Number of nodes inserted: {}", nodes_count);

@@ -685,8 +685,9 @@ impl TreeNode {
     /// has a greater height than the left subtree. It adjusts the pointers
     /// accordingly to ensure the tree remains a valid binary search tree.
     pub fn rotate_left(&mut self, storage: &mut dyn Storage) -> ContractResult<()> {
-        // Retrieve the parent node, if any, to determine the current node's relationship.
+        // Retrieve the parent node, if any.
         let maybe_parent = self.get_parent(storage)?;
+        // Determine if the current node is a left or right child of its parent.
         let is_left_child = maybe_parent
             .clone()
             .map_or(false, |p| p.left == Some(self.key));
@@ -694,39 +695,38 @@ impl TreeNode {
             .clone()
             .map_or(false, |p| p.right == Some(self.key));
 
-        // Ensure the current node has a right child to perform the rotation.
+        // Ensure the current node has a right child to rotate.
         let maybe_right = self.get_right(storage)?;
         ensure!(maybe_right.is_some(), ContractError::InvalidNodeType);
 
-        // Perform the rotation by reassigning parent and child references.
+        // Perform the rotation.
         let mut right = maybe_right.unwrap();
         right.parent = self.parent;
         self.parent = Some(right.key);
         self.right = right.left;
 
-        // Update the parent reference of the new right child, if it exists.
-        if let Some(mut new_right) = self.get_left(storage)? {
+        // Update the parent of the new right child, if it exists.
+        if let Some(mut new_right) = self.get_right(storage)? {
             new_right.parent = Some(self.key);
             new_right.save(storage)?;
         }
 
-        // Complete the rotation by setting the left child of the right node to the current node.
+        // Complete the rotation by setting the right child of the left node to the current node.
         right.left = Some(self.key);
-
-        // Persist the changes to both nodes.
+        // Save the changes to both nodes.
         right.save(storage)?;
         self.save(storage)?;
+
+        // If the left node has no parent, it becomes the new root.
+        if right.parent.is_none() {
+            TREE.save(storage, &(right.book_id, right.tick_id), &right.key)?;
+        }
 
         // Synchronize the range and value of the current node.
         self.sync_range_and_value(storage)?;
         right.sync_range_and_value(storage)?;
 
-        // If the right node has no parent after the rotation, it becomes the new root.
-        if right.parent.is_none() {
-            TREE.save(storage, &(right.book_id, right.tick_id), &right.key)?;
-        }
-
-        // Update the child references of the parent node to reflect the rotation.
+        // Update the parent's child pointers.
         if is_left_child {
             let mut parent = maybe_parent.clone().unwrap();
             parent.left = Some(right.key);

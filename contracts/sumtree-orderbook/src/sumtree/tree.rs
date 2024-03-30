@@ -1,6 +1,6 @@
 use super::node::{TreeNode, NODES};
 use crate::error::ContractResult;
-use cosmwasm_std::{Storage, Uint128};
+use cosmwasm_std::{Decimal256, Storage, Uint128};
 use cw_storage_plus::Map;
 
 pub const TREE: Map<&(u64, i64), u64> = Map::new("tree");
@@ -22,8 +22,8 @@ pub fn get_prefix_sum(
     storage: &dyn Storage,
     book_id: u64,
     tick_id: i64,
-    target_etas: Uint128,
-) -> ContractResult<Uint128> {
+    target_etas: Decimal256,
+) -> ContractResult<Decimal256> {
     let root_node = get_root_node(storage, book_id, tick_id)?;
 
     // We start from the root node's sum, which includes everything in the tree.
@@ -37,13 +37,13 @@ pub fn get_prefix_sum(
 fn prefix_sum_walk(
     storage: &dyn Storage,
     node: &TreeNode,
-    mut current_sum: Uint128,
-    target_etas: Uint128,
-) -> ContractResult<Uint128> {
+    mut current_sum: Decimal256,
+    target_etas: Decimal256,
+) -> ContractResult<Decimal256> {
     // Sanity check: target ETAS should be inside node's range.
     if target_etas < node.get_min_range() {
         // If the target ETAS is below the root node's range, we can return zero early.
-        return Ok(Uint128::zero());
+        return Ok(Decimal256::zero());
     } else if target_etas >= node.get_max_range() {
         // If the target ETAS is above the root node's range, we can return the full sum early.
         return Ok(current_sum);
@@ -78,13 +78,13 @@ fn prefix_sum_walk(
             //
             // TODO: This should not be possible now that the check above is added.
             // Consider removing or erroring here.
-            return Ok(Uint128::zero());
+            return Ok(Decimal256::zero());
         }
 
         if target_etas <= left_child.get_max_range() {
             // Since the target ETAS is within the left child's range, we can safely conclude
             // that everything below the right child should not be in our prefix sum.
-            let right_sum = right_child.map_or(Uint128::zero(), |r| r.get_value());
+            let right_sum = right_child.map_or(Decimal256::zero(), |r| r.get_value());
 
             current_sum = current_sum.checked_sub(right_sum)?;
 

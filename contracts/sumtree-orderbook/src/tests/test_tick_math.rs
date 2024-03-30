@@ -226,7 +226,9 @@ fn test_multiply_by_price() {
             name: "basic price multiplication w/ rounding",
             price: Decimal256::from_ratio(Uint256::from_u128(5u128), Uint256::from_u128(100)),
             amount: Uint128::from(3u128),
-            expected_result: Uint128::from(1u128),
+
+            // 0.05 * 3 = 0.15, which truncates to 0
+            expected_result: Uint128::zero(),
             expected_error: None,
         },
         OperByPriceTestCase {

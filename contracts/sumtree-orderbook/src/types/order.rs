@@ -4,8 +4,8 @@ use cosmwasm_std::{Addr, Decimal256, Uint128};
 #[cw_serde]
 #[derive(Copy)]
 pub enum OrderDirection {
-    Bid,
-    Ask,
+    Bid = 0,
+    Ask = 1,
 }
 
 impl OrderDirection {

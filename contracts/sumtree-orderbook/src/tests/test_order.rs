@@ -205,8 +205,9 @@ fn test_place_limit() {
             let state = TICK_STATE
                 .load(&deps.storage, &(test.book_id, test.tick_id))
                 .unwrap_or_default();
+            let values = state.get_values(test.order_direction);
             assert!(
-                state.total_amount_of_liquidity.is_zero(),
+                values.total_amount_of_liquidity.is_zero(),
                 "{}",
                 format_test_name(test.name)
             );
@@ -305,7 +306,8 @@ fn test_place_limit() {
         // Validate liquidity updated as intended
         let state = TICK_STATE
             .load(&deps.storage, &(test.book_id, test.tick_id))
-            .unwrap();
+            .unwrap()
+            .get_values(test.order_direction);
         assert_eq!(
             state.total_amount_of_liquidity,
             Decimal256::from_ratio(test.quantity, Uint256::one()),
@@ -476,7 +478,8 @@ fn test_cancel_limit() {
             // Verify Liqudity was updated as intended
             let state = TICK_STATE
                 .load(deps.as_ref().storage, &(test.book_id, test.tick_id))
-                .unwrap_or_default();
+                .unwrap_or_default()
+                .get_values(test.order_direction);
             if test.place_order {
                 assert_eq!(
                     state.total_amount_of_liquidity,
@@ -567,7 +570,8 @@ fn test_cancel_limit() {
         // Validate liquidity updated as intended
         let state = TICK_STATE
             .load(deps.as_ref().storage, &(test.book_id, test.tick_id))
-            .unwrap_or_default();
+            .unwrap_or_default()
+            .get_values(test.order_direction);
 
         assert!(
             state.total_amount_of_liquidity.is_zero(),
@@ -1041,7 +1045,8 @@ fn test_run_market_order() {
         for (tick_id, expected_etas) in test.expected_tick_etas {
             let tick_state = TICK_STATE
                 .load(&deps.storage, &(valid_book_id, tick_id))
-                .unwrap();
+                .unwrap()
+                .get_values(test.placed_order.order_direction.opposite());
             assert_eq!(
                 expected_etas,
                 tick_state.effective_total_amount_swapped,

@@ -1,9 +1,10 @@
 use cosmwasm_schema::cw_serde;
 use cosmwasm_std::Decimal256;
 
-/// Represents the state of a specific price tick in a liquidity pool.
+use super::OrderDirection;
+
 #[cw_serde]
-pub struct TickState {
+pub struct TickValues {
     /// Total Amount of Liquidity at tick (TAL)
     /// - Every limit order placement increments this value.
     /// - Every swap at this tick decrements this value.
@@ -21,12 +22,42 @@ pub struct TickState {
     pub effective_total_amount_swapped: Decimal256,
 }
 
-impl Default for TickState {
+impl Default for TickValues {
     fn default() -> Self {
-        TickState {
+        TickValues {
             total_amount_of_liquidity: Decimal256::zero(),
             cumulative_total_value: Decimal256::zero(),
             effective_total_amount_swapped: Decimal256::zero(),
+        }
+    }
+}
+
+/// Represents the state of a specific price tick in a liquidity pool.
+///
+/// The state is split into two parts for the ask and bid directions.
+#[cw_serde]
+#[derive(Default)]
+pub struct TickState {
+    /// Values for the ask direction of the tick
+    pub ask_values: TickValues,
+    /// Values for the bid direction of the tick
+    pub bid_values: TickValues,
+}
+
+impl TickState {
+    pub fn get_values(&self, direction: OrderDirection) -> TickValues {
+        if direction == OrderDirection::Ask {
+            self.ask_values.clone()
+        } else {
+            self.bid_values.clone()
+        }
+    }
+
+    pub fn set_values(&mut self, direction: OrderDirection, values: TickValues) {
+        if direction == OrderDirection::Ask {
+            self.ask_values = values;
+        } else {
+            self.bid_values = values;
         }
     }
 }

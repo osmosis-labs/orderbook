@@ -18,13 +18,12 @@ struct TestNodeInsertCase {
 }
 
 // Asserts all values of internal nodes are as expected
-fn assert_internal_values(
+pub fn assert_internal_values(
     test_name: &'static str,
     deps: Deps,
     internals: Vec<&TreeNode>,
     should_be_balanced: bool,
 ) {
-    println!("Length of internals: {}", internals.len());
     for internal_node in internals {
         let left_node = internal_node.get_left(deps.storage).unwrap();
         let right_node = internal_node.get_right(deps.storage).unwrap();
@@ -2170,29 +2169,11 @@ fn test_node_insert_large_quantity() {
     // Ensure all internal nodes are correctly summed and contain correct ranges
     let internals: Vec<&TreeNode> = result.iter().filter(|x| x.is_internal()).collect();
     let leaves: Vec<&TreeNode> = result.iter().filter(|x| !x.is_internal()).collect();
-    println!("{}", leaves.len());
     assert_internal_values("Large amount of nodes", deps.as_ref(), internals, true);
-
-    println!("Number of nodes inserted: {}", nodes_count);
-    println!("Final expected prefix sum: {}", expected_prefix_sum);
 
     // Ensure prefix sum functions correctly
     let root_node = get_root_node(deps.as_mut().storage, book_id, tick_id).unwrap();
-    println!("Root Node Min Range: {}", root_node.get_min_range());
-    println!("Root Node Max Range: {}", root_node.get_max_range());
-    println!("Root Node Value: {}", root_node.get_value());
 
-    if let Some(left_child) = root_node.get_left(deps.as_ref().storage).unwrap() {
-        println!("Left Child Min Range: {}", left_child.get_min_range());
-        println!("Left Child Max Range: {}", left_child.get_max_range());
-        println!("Left Child Value: {}", left_child.get_value());
-    }
-
-    if let Some(right_child) = root_node.get_right(deps.as_ref().storage).unwrap() {
-        println!("Right Child Min Range: {}", right_child.get_min_range());
-        println!("Right Child Max Range: {}", right_child.get_max_range());
-        println!("Right Child Value: {}", right_child.get_value());
-    }
     let prefix_sum = get_prefix_sum(deps.as_mut().storage, root_node, target_etas).unwrap();
     assert_eq!(expected_prefix_sum, prefix_sum);
 }

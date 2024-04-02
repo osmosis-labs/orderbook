@@ -1,6 +1,6 @@
 use super::node::{TreeNode, NODES};
 use crate::error::ContractResult;
-use cosmwasm_std::{Decimal256, Storage, Uint128};
+use cosmwasm_std::{Decimal256, Storage};
 use cw_storage_plus::Map;
 
 pub const TREE: Map<&(u64, i64), u64> = Map::new("tree");
@@ -27,34 +27,31 @@ pub fn get_prefix_sum(
     // The prefix sum algorithm will chip away at this until we have the correct
     // prefux sum in O(log(N)) time.
     let starting_sum = TreeNode::get_value(&root_node);
-    println!("Starting sum: {:?}", starting_sum);
 
     let result = prefix_sum_walk(storage, &root_node, starting_sum, target_etas);
-    println!("Prefix sum result: {:?}", result);
     result
 }
 
+// prefix_sum_walk is a recursive function that walks the sumtree to calculate the prefix sum below the given
+// target ETAS. Once called on the root node of a tree, this function walks down the tree while tracking a
+// running prefix sum that starts from the maximum possible value (all nodes in the tree) and chips down as
+// appropriate.
+//
+// Since the longest path this function can walk is from the root to a leaf, it runs in O(log(N)) time. Given
+// how it is able to terminate early using our sumtree's range properties, in many cases it will likely run
+// in much less.
 fn prefix_sum_walk(
     storage: &dyn Storage,
     node: &TreeNode,
     mut current_sum: Decimal256,
     target_etas: Decimal256,
 ) -> ContractResult<Decimal256> {
-    println!(
-        "prefix_sum_walk called with current_sum: {:?}, target_etas: {:?}",
-        current_sum, target_etas
-    );
     // Sanity check: target ETAS should be inside node's range.
     if target_etas < node.get_min_range() {
         // If the target ETAS is below the root node's range, we can return zero early.
-        println!("Target ETAS is below node's range. Returning zero.");
         return Ok(Decimal256::zero());
     } else if target_etas >= node.get_max_range() {
         // If the target ETAS is above the root node's range, we can return the full sum early.
-        println!(
-            "Target ETAS is above node's range. Returning current_sum: {:?}",
-            current_sum
-        );
         return Ok(current_sum);
     }
 
@@ -65,7 +62,6 @@ fn prefix_sum_walk(
     // Recall that the prefix sum is the sum of all the values of all leaves that have a _starting_
     // ETAS below the target ETAS.
     if !node.is_internal() {
-        println!("Node is a leaf. Returning current_sum: {:?}", current_sum);
         return Ok(current_sum);
     }
 
@@ -74,9 +70,7 @@ fn prefix_sum_walk(
     // We fetch both children here since we need to access both regardless of
     // whether we walk left or right.
     let left_child = node.get_left(storage)?;
-    println!("Left child: {:?}", left_child);
     let right_child = node.get_right(storage)?;
-    println!("Right child: {:?}", right_child);
 
     // If the left child exists, we run the following logic:
     // * If target ETAS < left child's lower bound, exit early with zero
@@ -90,7 +84,6 @@ fn prefix_sum_walk(
             //
             // TODO: This should not be possible now that the check above is added.
             // Consider removing or erroring here.
-            println!("Target ETAS is below the left child's range. Returning zero.");
             return Ok(Decimal256::zero());
         }
 
@@ -98,17 +91,11 @@ fn prefix_sum_walk(
             // Since the target ETAS is within the left child's range, we can safely conclude
             // that everything below the right child should not be in our prefix sum.
             let right_sum = right_child.map_or(Decimal256::zero(), |r| r.get_value());
-            println!("Right child sum: {:?}", right_sum);
 
             current_sum = current_sum.checked_sub(right_sum)?;
-            println!(
-                "Current sum after subtracting right child sum: {:?}",
-                current_sum
-            );
 
             // Walk left recursively
             current_sum = prefix_sum_walk(storage, &left_child, current_sum, target_etas)?;
-            println!("Current sum after walking left: {:?}", current_sum);
 
             return Ok(current_sum);
         }
@@ -119,10 +106,6 @@ fn prefix_sum_walk(
     // If right child either doesn't exist, the current prefix sum is simply the sum of the left child,
     // which is fully below the target ETAS, so we return the prefix sum as is.
     if right_child.is_none() {
-        println!(
-            "Right child does not exist. Returning current_sum: {:?}",
-            current_sum
-        );
         return Ok(current_sum);
     }
 
@@ -135,11 +118,8 @@ fn prefix_sum_walk(
         // If the ETAS is below the right child's range, we know that anything below the right child
         // should not be included in the prefix sum. We subtract the right child's sum from the prefix sum.
         current_sum = current_sum.checked_sub(TreeNode::get_value(&right_child))?;
-        println!(
-            "Current sum after subtracting right child value: {:?}",
-            current_sum
-        );
-        Ok(current_sum)
+
+        return Ok(current_sum);
     } else if target_etas <= right_child.get_max_range() {
         // If the target ETAS falls in the right child's range, we need to walk right.
         // We do not need to update the prefix sum here because we do not know how much
@@ -147,15 +127,10 @@ fn prefix_sum_walk(
 
         // Walk right recursively
         current_sum = prefix_sum_walk(storage, &right_child, current_sum, target_etas)?;
-        println!("Current sum after walking right: {:?}", current_sum);
 
         return Ok(current_sum);
     } else {
         // If we reach here, everything in the tree is below the target ETAS, so we simply return the full sum.
-        println!(
-            "Target ETAS is above right child's range. Returning current_sum: {:?}",
-            current_sum
-        );
         return Ok(current_sum);
     }
 }

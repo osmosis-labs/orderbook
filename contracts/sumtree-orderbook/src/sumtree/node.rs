@@ -687,6 +687,7 @@ impl TreeNode {
     pub fn rotate_left(&mut self, storage: &mut dyn Storage) -> ContractResult<()> {
         // Retrieve the parent node, if any.
         let maybe_parent = self.get_parent(storage)?;
+      
         // Determine if the current node is a left or right child of its parent.
         let is_left_child = maybe_parent
             .clone()
@@ -721,7 +722,7 @@ impl TreeNode {
         if right.parent.is_none() {
             TREE.save(storage, &(right.book_id, right.tick_id), &right.key)?;
         }
-
+      
         // Synchronize the range and value of the current node.
         self.sync_range_and_value(storage)?;
         right.sync_range_and_value(storage)?;

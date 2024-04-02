@@ -248,6 +248,16 @@ fn test_node_insert_valid() {
             expected: vec![1, 5, 2, 4, 7, 3, 6],
             print: true,
         },
+        TestNodeInsertCase {
+            name: "Insert sequential nodes",
+            nodes: vec![
+                NodeType::leaf_uint256(5u128, 10u128),
+                NodeType::leaf_uint256(15u128, 20u128),
+                NodeType::leaf_uint256(35u128, 30u128),
+            ],
+            expected: vec![1, 2, 5, 3, 4],
+            print: true,
+        },
     ];
 
     for test in test_cases {

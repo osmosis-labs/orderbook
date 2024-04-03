@@ -3,7 +3,7 @@ use cosmwasm_std::{testing::mock_dependencies, Decimal256, Deps, Storage, Uint25
 use crate::{
     sumtree::{
         node::{generate_node_id, NodeType, TreeNode, NODES},
-        tree::{get_root_node, TREE},
+        tree::{get_prefix_sum, get_root_node, TREE},
     },
     ContractError,
 };
@@ -18,7 +18,7 @@ struct TestNodeInsertCase {
 }
 
 // Asserts all values of internal nodes are as expected
-fn assert_internal_values(
+pub fn assert_internal_values(
     test_name: &'static str,
     deps: Deps,
     internals: Vec<&TreeNode>,
@@ -37,7 +37,15 @@ fn assert_internal_values(
                     .map_or(Decimal256::zero(), |x| x.get_value()),
             )
             .unwrap();
-        assert_eq!(internal_node.get_value(), accumulated_value);
+        assert_eq!(
+            internal_node.get_value(),
+            accumulated_value,
+            "{} failed on internal node value, expected {} got {} for {}",
+            test_name,
+            accumulated_value,
+            internal_node.get_value(),
+            internal_node.key
+        );
 
         let min = left_node
             .clone()
@@ -59,8 +67,13 @@ fn assert_internal_values(
         assert_eq!(internal_node.get_max_range(), max);
 
         let balance_factor = right_node
+            .clone()
             .map_or(0, |n| n.get_height(deps.storage).unwrap())
-            .abs_diff(left_node.map_or(0, |n| n.get_height(deps.storage).unwrap()));
+            .abs_diff(
+                left_node
+                    .clone()
+                    .map_or(0, |n| n.get_height(deps.storage).unwrap()),
+            );
 
         assert_eq!(
             internal_node.get_weight(),
@@ -76,6 +89,39 @@ fn assert_internal_values(
                 "{}: Balance factor greater than 1 for node {}",
                 test_name,
                 internal_node.key
+            );
+        }
+
+        if let Some(left) = left_node {
+            let parent_string = if let Some(parent) = left.parent {
+                parent.to_string()
+            } else {
+                "None".to_string()
+            };
+            assert_eq!(
+                left.parent,
+                Some(internal_node.key),
+                "{} - Child {} does not have correct parent: expected {}, received {}",
+                test_name,
+                left,
+                internal_node.key,
+                parent_string
+            );
+        }
+        if let Some(right) = right_node {
+            let parent_string = if let Some(parent) = right.parent {
+                parent.to_string()
+            } else {
+                "None".to_string()
+            };
+            assert_eq!(
+                right.parent,
+                Some(internal_node.key),
+                "{} - Child {} does not have correct parent: expected {}, received {}",
+                test_name,
+                right,
+                internal_node.key,
+                parent_string
             );
         }
     }
@@ -1740,10 +1786,10 @@ fn test_rebalance() {
                 .with_parent(2),
                 // Left-Left-Left
                 TreeNode::new(book_id, tick_id, 6, NodeType::leaf_uint256(2u32, 1u32))
-                    .with_parent(2),
+                    .with_parent(4),
                 // Left-Left-Right
                 TreeNode::new(book_id, tick_id, 7, NodeType::leaf_uint256(3u32, 1u32))
-                    .with_parent(2),
+                    .with_parent(4),
                 // Left-Right
                 TreeNode::new(book_id, tick_id, 5, NodeType::leaf_uint256(4u32, 1u32))
                     .with_parent(4),
@@ -2060,11 +2106,13 @@ fn generate_nodes(
     tick_id: i64,
     quantity: u32,
 ) -> Vec<TreeNode> {
-    use rand::seq::SliceRandom;
-    use rand::thread_rng;
+    use rand::rngs::StdRng;
+    use rand::{seq::SliceRandom, SeedableRng};
 
     let mut range: Vec<u32> = (0..quantity).collect();
-    range.shuffle(&mut thread_rng());
+    let seed = [0u8; 32]; // A fixed seed for deterministic randomness
+    let mut rng = StdRng::from_seed(seed);
+    range.shuffle(&mut rng);
 
     let mut nodes = vec![];
     for val in range {
@@ -2093,7 +2141,14 @@ fn test_node_insert_large_quantity() {
         NodeType::internal_uint256(0u32, (u32::MAX, u32::MIN)),
     );
 
+    TREE.save(deps.as_mut().storage, &(book_id, tick_id), &tree.key)
+        .unwrap();
+
     let nodes = generate_nodes(deps.as_mut().storage, book_id, tick_id, 1000);
+
+    let target_etas = Decimal256::from_ratio(536u128, 1u128);
+    let mut expected_prefix_sum = Decimal256::zero();
+    let nodes_count = nodes.len();
 
     // Insert nodes into tree
     for mut node in nodes {
@@ -2101,6 +2156,11 @@ fn test_node_insert_large_quantity() {
             .save(deps.as_mut().storage, &(book_id, tick_id, node.key), &node)
             .unwrap();
         tree.insert(deps.as_mut().storage, &mut node).unwrap();
+        tree = get_root_node(deps.as_ref().storage, book_id, tick_id).unwrap();
+        // Track insertions that fall below our target ETAS
+        if node.get_min_range() < target_etas {
+            expected_prefix_sum = expected_prefix_sum.checked_add(Decimal256::one()).unwrap();
+        }
     }
 
     // Return tree in vector form from Depth First Search
@@ -2108,7 +2168,14 @@ fn test_node_insert_large_quantity() {
 
     // Ensure all internal nodes are correctly summed and contain correct ranges
     let internals: Vec<&TreeNode> = result.iter().filter(|x| x.is_internal()).collect();
+    let leaves: Vec<&TreeNode> = result.iter().filter(|x| !x.is_internal()).collect();
     assert_internal_values("Large amount of nodes", deps.as_ref(), internals, true);
+
+    // Ensure prefix sum functions correctly
+    let root_node = get_root_node(deps.as_mut().storage, book_id, tick_id).unwrap();
+
+    let prefix_sum = get_prefix_sum(deps.as_mut().storage, root_node, target_etas).unwrap();
+    assert_eq!(expected_prefix_sum, prefix_sum);
 }
 
 const SPACING: u32 = 2u32;

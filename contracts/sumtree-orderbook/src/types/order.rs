@@ -1,11 +1,14 @@
+use core::fmt;
+use std::fmt::Display;
+
 use cosmwasm_schema::cw_serde;
 use cosmwasm_std::{Addr, Decimal256, Uint128};
 
 #[cw_serde]
 #[derive(Copy)]
 pub enum OrderDirection {
-    Bid = 0,
-    Ask = 1,
+    Bid,
+    Ask,
 }
 
 impl OrderDirection {
@@ -15,6 +18,21 @@ impl OrderDirection {
             OrderDirection::Bid => OrderDirection::Ask,
             OrderDirection::Ask => OrderDirection::Bid,
         }
+    }
+}
+
+impl From<OrderDirection> for String {
+    fn from(direction: OrderDirection) -> String {
+        match direction {
+            OrderDirection::Ask => "ask".to_string(),
+            OrderDirection::Bid => "bid".to_string(),
+        }
+    }
+}
+
+impl Display for OrderDirection {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        write!(f, "{}", String::from(*self))
     }
 }
 

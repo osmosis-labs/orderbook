@@ -346,6 +346,7 @@ struct CancelLimitTestCase {
 #[test]
 fn test_cancel_limit() {
     let valid_book_id = 0;
+    let direction = OrderDirection::Ask;
     let test_cases = vec![
         CancelLimitTestCase {
             name: "valid order cancel",
@@ -582,13 +583,20 @@ fn test_cancel_limit() {
         // -- Sumtree --
 
         // Ensure tree is saved correctly
-        let tree = get_root_node(deps.as_ref().storage, valid_book_id, test.tick_id).unwrap();
+        let tree = get_root_node(
+            deps.as_ref().storage,
+            valid_book_id,
+            test.tick_id,
+            direction,
+        )
+        .unwrap();
 
         // Traverse the tree to check its form
         let res = tree.traverse(deps.as_ref().storage).unwrap();
         let mut root_node = TreeNode::new(
             valid_book_id,
             test.tick_id,
+            direction,
             1,
             NodeType::internal_uint256(test.quantity, (0u128, test.quantity)),
         );
@@ -596,6 +604,7 @@ fn test_cancel_limit() {
         let mut cancelled_node = TreeNode::new(
             valid_book_id,
             test.tick_id,
+            direction,
             2,
             NodeType::leaf_uint256(0u128, test.quantity),
         );

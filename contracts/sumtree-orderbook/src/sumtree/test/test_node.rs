@@ -5,6 +5,7 @@ use crate::{
         node::{generate_node_id, NodeType, TreeNode, NODES},
         tree::{get_root_node, TREE},
     },
+    types::OrderDirection,
     ContractError,
 };
 
@@ -85,6 +86,7 @@ fn assert_internal_values(
 fn test_node_insert_valid() {
     let book_id = 1;
     let tick_id = 1;
+    let direction = OrderDirection::Bid;
     let test_cases: Vec<TestNodeInsertCase> = vec![
         // Pre
         // ---
@@ -256,6 +258,7 @@ fn test_node_insert_valid() {
         let mut tree = TreeNode::new(
             book_id,
             tick_id,
+            direction,
             generate_node_id(deps.as_mut().storage, book_id, tick_id).unwrap(),
             NodeType::internal_uint256(Uint256::zero(), (u32::MAX, u32::MIN)),
         );
@@ -265,6 +268,7 @@ fn test_node_insert_valid() {
             let mut tree_node = TreeNode::new(
                 book_id,
                 tick_id,
+                direction,
                 generate_node_id(deps.as_mut().storage, book_id, tick_id).unwrap(),
                 node.clone(),
             );
@@ -320,6 +324,7 @@ struct NodeDeletionTestCase {
 fn test_node_deletion_valid() {
     let book_id = 1;
     let tick_id = 1;
+    let direction = OrderDirection::Bid;
     let test_cases: Vec<NodeDeletionTestCase> = vec![
         // Pre
         // ---
@@ -439,6 +444,7 @@ fn test_node_deletion_valid() {
         let mut tree = TreeNode::new(
             book_id,
             tick_id,
+            direction,
             generate_node_id(deps.as_mut().storage, book_id, tick_id).unwrap(),
             NodeType::internal_uint256(Uint256::zero(), (u32::MAX, u32::MIN)),
         );
@@ -447,6 +453,7 @@ fn test_node_deletion_valid() {
             let mut tree_node = TreeNode::new(
                 book_id,
                 tick_id,
+                direction,
                 generate_node_id(deps.as_mut().storage, book_id, tick_id).unwrap(),
                 node,
             );
@@ -521,6 +528,7 @@ struct RotateRightTestCase {
 fn test_rotate_right() {
     let book_id = 1;
     let tick_id = 1;
+    let direction = OrderDirection::Bid;
     let test_cases: Vec<RotateRightTestCase> = vec![
         // Pre-rotation
         // --------------------------
@@ -544,6 +552,7 @@ fn test_rotate_right() {
                 TreeNode::new(
                     book_id,
                     tick_id,
+                    direction,
                     1,
                     NodeType::internal_uint256(0u32, (u32::MAX, u32::MIN)),
                 )
@@ -552,17 +561,30 @@ fn test_rotate_right() {
                 TreeNode::new(
                     book_id,
                     tick_id,
+                    direction,
                     2,
                     NodeType::internal_uint256(2u32, (1u32, 3u32)),
                 )
                 .with_children(Some(3), Some(4))
                 .with_parent(1),
                 // Left-Left
-                TreeNode::new(book_id, tick_id, 3, NodeType::leaf_uint256(1u32, 1u32))
-                    .with_parent(2),
+                TreeNode::new(
+                    book_id,
+                    tick_id,
+                    direction,
+                    3,
+                    NodeType::leaf_uint256(1u32, 1u32),
+                )
+                .with_parent(2),
                 // Left-Right
-                TreeNode::new(book_id, tick_id, 4, NodeType::leaf_uint256(2u32, 1u32))
-                    .with_parent(2),
+                TreeNode::new(
+                    book_id,
+                    tick_id,
+                    direction,
+                    4,
+                    NodeType::leaf_uint256(2u32, 1u32),
+                )
+                .with_parent(2),
             ],
             expected: vec![2, 3, 1, 4],
             expected_error: None,
@@ -590,6 +612,7 @@ fn test_rotate_right() {
                 TreeNode::new(
                     book_id,
                     tick_id,
+                    direction,
                     1,
                     NodeType::internal_uint256(0u32, (u32::MAX, u32::MIN)),
                 )
@@ -598,17 +621,30 @@ fn test_rotate_right() {
                 TreeNode::new(
                     book_id,
                     tick_id,
+                    direction,
                     2,
                     NodeType::internal_uint256(2u32, (1u32, 3u32)),
                 )
                 .with_children(Some(3), None)
                 .with_parent(1),
                 // Left-Left
-                TreeNode::new(book_id, tick_id, 3, NodeType::leaf_uint256(1u32, 1u32))
-                    .with_parent(2),
+                TreeNode::new(
+                    book_id,
+                    tick_id,
+                    direction,
+                    3,
+                    NodeType::leaf_uint256(1u32, 1u32),
+                )
+                .with_parent(2),
                 // Right
-                TreeNode::new(book_id, tick_id, 4, NodeType::leaf_uint256(2u32, 1u32))
-                    .with_parent(1),
+                TreeNode::new(
+                    book_id,
+                    tick_id,
+                    direction,
+                    4,
+                    NodeType::leaf_uint256(2u32, 1u32),
+                )
+                .with_parent(1),
             ],
             expected: vec![2, 3, 1, 4],
             expected_error: None,
@@ -636,6 +672,7 @@ fn test_rotate_right() {
                 TreeNode::new(
                     book_id,
                     tick_id,
+                    direction,
                     1,
                     NodeType::internal_uint256(0u32, (u32::MAX, u32::MIN)),
                 )
@@ -644,17 +681,30 @@ fn test_rotate_right() {
                 TreeNode::new(
                     book_id,
                     tick_id,
+                    direction,
                     2,
                     NodeType::internal_uint256(2u32, (1u32, 3u32)),
                 )
                 .with_children(None, Some(3))
                 .with_parent(1),
                 // Left-Right
-                TreeNode::new(book_id, tick_id, 3, NodeType::leaf_uint256(1u32, 1u32))
-                    .with_parent(2),
+                TreeNode::new(
+                    book_id,
+                    tick_id,
+                    direction,
+                    3,
+                    NodeType::leaf_uint256(1u32, 1u32),
+                )
+                .with_parent(2),
                 // Right
-                TreeNode::new(book_id, tick_id, 4, NodeType::leaf_uint256(2u32, 1u32))
-                    .with_parent(1),
+                TreeNode::new(
+                    book_id,
+                    tick_id,
+                    direction,
+                    4,
+                    NodeType::leaf_uint256(2u32, 1u32),
+                )
+                .with_parent(1),
             ],
             expected: vec![2, 1, 3, 4],
             expected_error: None,
@@ -682,6 +732,7 @@ fn test_rotate_right() {
                 TreeNode::new(
                     book_id,
                     tick_id,
+                    direction,
                     1,
                     NodeType::internal_uint256(0u32, (u32::MAX, u32::MIN)),
                 )
@@ -690,20 +741,39 @@ fn test_rotate_right() {
                 TreeNode::new(
                     book_id,
                     tick_id,
+                    direction,
                     2,
                     NodeType::internal_uint256(2u32, (1u32, 3u32)),
                 )
                 .with_children(Some(3), Some(4))
                 .with_parent(1),
                 // Left-Left
-                TreeNode::new(book_id, tick_id, 3, NodeType::leaf_uint256(1u32, 1u32))
-                    .with_parent(2),
+                TreeNode::new(
+                    book_id,
+                    tick_id,
+                    direction,
+                    3,
+                    NodeType::leaf_uint256(1u32, 1u32),
+                )
+                .with_parent(2),
                 // Left-Right
-                TreeNode::new(book_id, tick_id, 4, NodeType::leaf_uint256(2u32, 1u32))
-                    .with_parent(2),
+                TreeNode::new(
+                    book_id,
+                    tick_id,
+                    direction,
+                    4,
+                    NodeType::leaf_uint256(2u32, 1u32),
+                )
+                .with_parent(2),
                 // Right
-                TreeNode::new(book_id, tick_id, 5, NodeType::leaf_uint256(3u32, 1u32))
-                    .with_parent(1),
+                TreeNode::new(
+                    book_id,
+                    tick_id,
+                    direction,
+                    5,
+                    NodeType::leaf_uint256(3u32, 1u32),
+                )
+                .with_parent(1),
             ],
             expected: vec![2, 3, 1, 4, 5],
             expected_error: None,
@@ -733,6 +803,7 @@ fn test_rotate_right() {
                 TreeNode::new(
                     book_id,
                     tick_id,
+                    direction,
                     1,
                     NodeType::internal_uint256(0u32, (u32::MAX, u32::MIN)),
                 )
@@ -741,32 +812,58 @@ fn test_rotate_right() {
                 TreeNode::new(
                     book_id,
                     tick_id,
+                    direction,
                     2,
                     NodeType::internal_uint256(2u32, (1u32, 3u32)),
                 )
                 .with_children(Some(3), Some(4))
                 .with_parent(1),
                 // Left-Left
-                TreeNode::new(book_id, tick_id, 3, NodeType::leaf_uint256(1u32, 1u32))
-                    .with_parent(2),
+                TreeNode::new(
+                    book_id,
+                    tick_id,
+                    direction,
+                    3,
+                    NodeType::leaf_uint256(1u32, 1u32),
+                )
+                .with_parent(2),
                 // Left-Right
-                TreeNode::new(book_id, tick_id, 4, NodeType::leaf_uint256(2u32, 1u32))
-                    .with_parent(2),
+                TreeNode::new(
+                    book_id,
+                    tick_id,
+                    direction,
+                    4,
+                    NodeType::leaf_uint256(2u32, 1u32),
+                )
+                .with_parent(2),
                 // Right
                 TreeNode::new(
                     book_id,
                     tick_id,
+                    direction,
                     5,
                     NodeType::internal_uint256(2u32, (3u32, 5u32)),
                 )
                 .with_children(Some(6), Some(7))
                 .with_parent(1),
                 // Right-Left
-                TreeNode::new(book_id, tick_id, 6, NodeType::leaf_uint256(3u32, 1u32))
-                    .with_parent(5),
+                TreeNode::new(
+                    book_id,
+                    tick_id,
+                    direction,
+                    6,
+                    NodeType::leaf_uint256(3u32, 1u32),
+                )
+                .with_parent(5),
                 // Right-Right
-                TreeNode::new(book_id, tick_id, 7, NodeType::leaf_uint256(4u32, 1u32))
-                    .with_parent(5),
+                TreeNode::new(
+                    book_id,
+                    tick_id,
+                    direction,
+                    7,
+                    NodeType::leaf_uint256(4u32, 1u32),
+                )
+                .with_parent(5),
             ],
             expected: vec![2, 3, 1, 4, 5, 6, 7],
             expected_error: None,
@@ -796,6 +893,7 @@ fn test_rotate_right() {
                 TreeNode::new(
                     book_id,
                     tick_id,
+                    direction,
                     1,
                     NodeType::internal_uint256(0u32, (u32::MAX, u32::MIN)),
                 )
@@ -804,29 +902,49 @@ fn test_rotate_right() {
                 TreeNode::new(
                     book_id,
                     tick_id,
+                    direction,
                     2,
                     NodeType::internal_uint256(2u32, (1u32, 3u32)),
                 )
                 .with_children(None, Some(4))
                 .with_parent(1),
                 // Left-Right
-                TreeNode::new(book_id, tick_id, 4, NodeType::leaf_uint256(2u32, 1u32))
-                    .with_parent(2),
+                TreeNode::new(
+                    book_id,
+                    tick_id,
+                    direction,
+                    4,
+                    NodeType::leaf_uint256(2u32, 1u32),
+                )
+                .with_parent(2),
                 // Right
                 TreeNode::new(
                     book_id,
                     tick_id,
+                    direction,
                     5,
                     NodeType::internal_uint256(2u32, (3u32, 5u32)),
                 )
                 .with_children(Some(6), Some(7))
                 .with_parent(1),
                 // Right-Left
-                TreeNode::new(book_id, tick_id, 6, NodeType::leaf_uint256(3u32, 1u32))
-                    .with_parent(5),
+                TreeNode::new(
+                    book_id,
+                    tick_id,
+                    direction,
+                    6,
+                    NodeType::leaf_uint256(3u32, 1u32),
+                )
+                .with_parent(5),
                 // Right-Right
-                TreeNode::new(book_id, tick_id, 7, NodeType::leaf_uint256(4u32, 1u32))
-                    .with_parent(5),
+                TreeNode::new(
+                    book_id,
+                    tick_id,
+                    direction,
+                    7,
+                    NodeType::leaf_uint256(4u32, 1u32),
+                )
+                .with_parent(5),
             ],
             expected: vec![2, 1, 4, 5, 6, 7],
             expected_error: None,
@@ -856,6 +974,7 @@ fn test_rotate_right() {
                 TreeNode::new(
                     book_id,
                     tick_id,
+                    direction,
                     1,
                     NodeType::internal_uint256(0u32, (u32::MAX, u32::MIN)),
                 )
@@ -864,29 +983,49 @@ fn test_rotate_right() {
                 TreeNode::new(
                     book_id,
                     tick_id,
+                    direction,
                     2,
                     NodeType::internal_uint256(2u32, (1u32, 3u32)),
                 )
                 .with_children(Some(4), None)
                 .with_parent(1),
                 // Left-Left
-                TreeNode::new(book_id, tick_id, 4, NodeType::leaf_uint256(2u32, 1u32))
-                    .with_parent(2),
+                TreeNode::new(
+                    book_id,
+                    tick_id,
+                    direction,
+                    4,
+                    NodeType::leaf_uint256(2u32, 1u32),
+                )
+                .with_parent(2),
                 // Right
                 TreeNode::new(
                     book_id,
                     tick_id,
+                    direction,
                     5,
                     NodeType::internal_uint256(2u32, (3u32, 5u32)),
                 )
                 .with_children(Some(6), Some(7))
                 .with_parent(1),
                 // Right-Left
-                TreeNode::new(book_id, tick_id, 6, NodeType::leaf_uint256(3u32, 1u32))
-                    .with_parent(5),
+                TreeNode::new(
+                    book_id,
+                    tick_id,
+                    direction,
+                    6,
+                    NodeType::leaf_uint256(3u32, 1u32),
+                )
+                .with_parent(5),
                 // Right-Right
-                TreeNode::new(book_id, tick_id, 7, NodeType::leaf_uint256(4u32, 1u32))
-                    .with_parent(5),
+                TreeNode::new(
+                    book_id,
+                    tick_id,
+                    direction,
+                    7,
+                    NodeType::leaf_uint256(4u32, 1u32),
+                )
+                .with_parent(5),
             ],
             expected: vec![2, 4, 1, 5, 6, 7],
             expected_error: None,
@@ -906,6 +1045,7 @@ fn test_rotate_right() {
                 TreeNode::new(
                     book_id,
                     tick_id,
+                    direction,
                     1,
                     NodeType::internal_uint256(0u32, (u32::MAX, u32::MIN)),
                 )
@@ -914,17 +1054,30 @@ fn test_rotate_right() {
                 TreeNode::new(
                     book_id,
                     tick_id,
+                    direction,
                     5,
                     NodeType::internal_uint256(2u32, (3u32, 5u32)),
                 )
                 .with_children(Some(6), Some(7))
                 .with_parent(1),
                 // Right-Left
-                TreeNode::new(book_id, tick_id, 6, NodeType::leaf_uint256(3u32, 1u32))
-                    .with_parent(5),
+                TreeNode::new(
+                    book_id,
+                    tick_id,
+                    direction,
+                    6,
+                    NodeType::leaf_uint256(3u32, 1u32),
+                )
+                .with_parent(5),
                 // Right-Right
-                TreeNode::new(book_id, tick_id, 7, NodeType::leaf_uint256(4u32, 1u32))
-                    .with_parent(5),
+                TreeNode::new(
+                    book_id,
+                    tick_id,
+                    direction,
+                    7,
+                    NodeType::leaf_uint256(4u32, 1u32),
+                )
+                .with_parent(5),
             ],
             expected: vec![],
             expected_error: Some(ContractError::InvalidNodeType),
@@ -944,28 +1097,48 @@ fn test_rotate_right() {
                 TreeNode::new(
                     book_id,
                     tick_id,
+                    direction,
                     1,
                     NodeType::internal_uint256(0u32, (u32::MAX, u32::MIN)),
                 )
                 .with_children(Some(2), Some(5)),
                 // Left
-                TreeNode::new(book_id, tick_id, 2, NodeType::leaf_uint256(2u32, 1u32))
-                    .with_parent(1),
+                TreeNode::new(
+                    book_id,
+                    tick_id,
+                    direction,
+                    2,
+                    NodeType::leaf_uint256(2u32, 1u32),
+                )
+                .with_parent(1),
                 // Right
                 TreeNode::new(
                     book_id,
                     tick_id,
+                    direction,
                     5,
                     NodeType::internal_uint256(2u32, (3u32, 5u32)),
                 )
                 .with_children(Some(6), Some(7))
                 .with_parent(1),
                 // Right-Left
-                TreeNode::new(book_id, tick_id, 6, NodeType::leaf_uint256(3u32, 1u32))
-                    .with_parent(5),
+                TreeNode::new(
+                    book_id,
+                    tick_id,
+                    direction,
+                    6,
+                    NodeType::leaf_uint256(3u32, 1u32),
+                )
+                .with_parent(5),
                 // Right-Right
-                TreeNode::new(book_id, tick_id, 7, NodeType::leaf_uint256(4u32, 1u32))
-                    .with_parent(5),
+                TreeNode::new(
+                    book_id,
+                    tick_id,
+                    direction,
+                    7,
+                    NodeType::leaf_uint256(4u32, 1u32),
+                )
+                .with_parent(5),
             ],
             expected: vec![],
             expected_error: Some(ContractError::InvalidNodeType),
@@ -979,8 +1152,12 @@ fn test_rotate_right() {
         for (idx, node) in test.nodes.iter_mut().enumerate() {
             // Save root node
             if idx == 0 {
-                TREE.save(deps.as_mut().storage, &(book_id, tick_id), &node.key)
-                    .unwrap();
+                TREE.save(
+                    deps.as_mut().storage,
+                    &(book_id, tick_id, &direction.to_string()),
+                    &node.key,
+                )
+                .unwrap();
             }
             NODES
                 .save(deps.as_mut().storage, &(book_id, tick_id, node.key), node)
@@ -999,7 +1176,7 @@ fn test_rotate_right() {
                 .unwrap();
         }
 
-        let mut tree = get_root_node(deps.as_ref().storage, book_id, tick_id).unwrap();
+        let mut tree = get_root_node(deps.as_ref().storage, book_id, tick_id, direction).unwrap();
         if test.print {
             print_tree("Pre-rotation", test.name, &tree, &deps.as_ref());
         }
@@ -1012,7 +1189,7 @@ fn test_rotate_right() {
         }
 
         // Get new root node, it may have changed due to rotationss
-        let tree = get_root_node(deps.as_ref().storage, book_id, tick_id).unwrap();
+        let tree = get_root_node(deps.as_ref().storage, book_id, tick_id, direction).unwrap();
         if test.print {
             print_tree("Post-rotation", test.name, &tree, &deps.as_ref());
         }
@@ -1038,6 +1215,7 @@ struct RotateLeftTestCase {
 fn test_rotate_left() {
     let book_id = 1;
     let tick_id = 1;
+    let direction = OrderDirection::Bid;
     let test_cases: Vec<RotateLeftTestCase> = vec![
         // Pre-rotation
         // --------------------------
@@ -1061,6 +1239,7 @@ fn test_rotate_left() {
                 TreeNode::new(
                     book_id,
                     tick_id,
+                    direction,
                     1,
                     NodeType::internal_uint256(0u32, (u32::MAX, u32::MIN)),
                 )
@@ -1069,17 +1248,30 @@ fn test_rotate_left() {
                 TreeNode::new(
                     book_id,
                     tick_id,
+                    direction,
                     2,
                     NodeType::internal_uint256(2u32, (1u32, 3u32)),
                 )
                 .with_children(Some(3), Some(4))
                 .with_parent(1),
                 // Right-Left
-                TreeNode::new(book_id, tick_id, 3, NodeType::leaf_uint256(1u32, 1u32))
-                    .with_parent(2),
+                TreeNode::new(
+                    book_id,
+                    tick_id,
+                    direction,
+                    3,
+                    NodeType::leaf_uint256(1u32, 1u32),
+                )
+                .with_parent(2),
                 // Right-Right
-                TreeNode::new(book_id, tick_id, 4, NodeType::leaf_uint256(2u32, 1u32))
-                    .with_parent(2),
+                TreeNode::new(
+                    book_id,
+                    tick_id,
+                    direction,
+                    4,
+                    NodeType::leaf_uint256(2u32, 1u32),
+                )
+                .with_parent(2),
             ],
             expected: vec![2, 1, 3, 4],
             expected_error: None,
@@ -1107,6 +1299,7 @@ fn test_rotate_left() {
                 TreeNode::new(
                     book_id,
                     tick_id,
+                    direction,
                     1,
                     NodeType::internal_uint256(0u32, (u32::MAX, u32::MIN)),
                 )
@@ -1115,17 +1308,30 @@ fn test_rotate_left() {
                 TreeNode::new(
                     book_id,
                     tick_id,
+                    direction,
                     2,
                     NodeType::internal_uint256(2u32, (1u32, 3u32)),
                 )
                 .with_children(Some(3), None)
                 .with_parent(1),
                 // Right-Left
-                TreeNode::new(book_id, tick_id, 3, NodeType::leaf_uint256(1u32, 1u32))
-                    .with_parent(2),
+                TreeNode::new(
+                    book_id,
+                    tick_id,
+                    direction,
+                    3,
+                    NodeType::leaf_uint256(1u32, 1u32),
+                )
+                .with_parent(2),
                 // Left
-                TreeNode::new(book_id, tick_id, 4, NodeType::leaf_uint256(2u32, 1u32))
-                    .with_parent(1),
+                TreeNode::new(
+                    book_id,
+                    tick_id,
+                    direction,
+                    4,
+                    NodeType::leaf_uint256(2u32, 1u32),
+                )
+                .with_parent(1),
             ],
             expected: vec![2, 1, 4, 3],
             expected_error: None,
@@ -1153,6 +1359,7 @@ fn test_rotate_left() {
                 TreeNode::new(
                     book_id,
                     tick_id,
+                    direction,
                     1,
                     NodeType::internal_uint256(0u32, (u32::MAX, u32::MIN)),
                 )
@@ -1161,17 +1368,30 @@ fn test_rotate_left() {
                 TreeNode::new(
                     book_id,
                     tick_id,
+                    direction,
                     2,
                     NodeType::internal_uint256(2u32, (1u32, 3u32)),
                 )
                 .with_children(None, Some(3))
                 .with_parent(1),
                 // Right-Right
-                TreeNode::new(book_id, tick_id, 3, NodeType::leaf_uint256(1u32, 1u32))
-                    .with_parent(2),
+                TreeNode::new(
+                    book_id,
+                    tick_id,
+                    direction,
+                    3,
+                    NodeType::leaf_uint256(1u32, 1u32),
+                )
+                .with_parent(2),
                 // Left
-                TreeNode::new(book_id, tick_id, 4, NodeType::leaf_uint256(2u32, 1u32))
-                    .with_parent(1),
+                TreeNode::new(
+                    book_id,
+                    tick_id,
+                    direction,
+                    4,
+                    NodeType::leaf_uint256(2u32, 1u32),
+                )
+                .with_parent(1),
             ],
             expected: vec![2, 1, 4, 3],
             expected_error: None,
@@ -1199,6 +1419,7 @@ fn test_rotate_left() {
                 TreeNode::new(
                     book_id,
                     tick_id,
+                    direction,
                     1,
                     NodeType::internal_uint256(0u32, (u32::MAX, u32::MIN)),
                 )
@@ -1207,20 +1428,39 @@ fn test_rotate_left() {
                 TreeNode::new(
                     book_id,
                     tick_id,
+                    direction,
                     2,
                     NodeType::internal_uint256(2u32, (1u32, 3u32)),
                 )
                 .with_children(Some(3), Some(4))
                 .with_parent(1),
                 // Right-Left
-                TreeNode::new(book_id, tick_id, 3, NodeType::leaf_uint256(1u32, 1u32))
-                    .with_parent(2),
+                TreeNode::new(
+                    book_id,
+                    tick_id,
+                    direction,
+                    3,
+                    NodeType::leaf_uint256(1u32, 1u32),
+                )
+                .with_parent(2),
                 // Right-Right
-                TreeNode::new(book_id, tick_id, 4, NodeType::leaf_uint256(2u32, 1u32))
-                    .with_parent(2),
+                TreeNode::new(
+                    book_id,
+                    tick_id,
+                    direction,
+                    4,
+                    NodeType::leaf_uint256(2u32, 1u32),
+                )
+                .with_parent(2),
                 // Left
-                TreeNode::new(book_id, tick_id, 5, NodeType::leaf_uint256(3u32, 1u32))
-                    .with_parent(1),
+                TreeNode::new(
+                    book_id,
+                    tick_id,
+                    direction,
+                    5,
+                    NodeType::leaf_uint256(3u32, 1u32),
+                )
+                .with_parent(1),
             ],
             expected: vec![2, 1, 5, 3, 4],
             expected_error: None,
@@ -1250,6 +1490,7 @@ fn test_rotate_left() {
                 TreeNode::new(
                     book_id,
                     tick_id,
+                    direction,
                     1,
                     NodeType::internal_uint256(0u32, (u32::MAX, u32::MIN)),
                 )
@@ -1258,29 +1499,49 @@ fn test_rotate_left() {
                 TreeNode::new(
                     book_id,
                     tick_id,
+                    direction,
                     2,
                     NodeType::internal_uint256(2u32, (1u32, 3u32)),
                 )
                 .with_children(None, Some(4))
                 .with_parent(1),
                 // Right-Right
-                TreeNode::new(book_id, tick_id, 4, NodeType::leaf_uint256(2u32, 1u32))
-                    .with_parent(2),
+                TreeNode::new(
+                    book_id,
+                    tick_id,
+                    direction,
+                    4,
+                    NodeType::leaf_uint256(2u32, 1u32),
+                )
+                .with_parent(2),
                 // Left
                 TreeNode::new(
                     book_id,
                     tick_id,
+                    direction,
                     5,
                     NodeType::internal_uint256(2u32, (3u32, 5u32)),
                 )
                 .with_children(Some(6), Some(7))
                 .with_parent(1),
                 // Left-Left
-                TreeNode::new(book_id, tick_id, 6, NodeType::leaf_uint256(3u32, 1u32))
-                    .with_parent(5),
+                TreeNode::new(
+                    book_id,
+                    tick_id,
+                    direction,
+                    6,
+                    NodeType::leaf_uint256(3u32, 1u32),
+                )
+                .with_parent(5),
                 // Left-Right
-                TreeNode::new(book_id, tick_id, 7, NodeType::leaf_uint256(4u32, 1u32))
-                    .with_parent(5),
+                TreeNode::new(
+                    book_id,
+                    tick_id,
+                    direction,
+                    7,
+                    NodeType::leaf_uint256(4u32, 1u32),
+                )
+                .with_parent(5),
             ],
             expected: vec![2, 1, 5, 6, 7, 4],
             expected_error: None,
@@ -1310,6 +1571,7 @@ fn test_rotate_left() {
                 TreeNode::new(
                     book_id,
                     tick_id,
+                    direction,
                     1,
                     NodeType::internal_uint256(0u32, (u32::MAX, u32::MIN)),
                 )
@@ -1318,29 +1580,49 @@ fn test_rotate_left() {
                 TreeNode::new(
                     book_id,
                     tick_id,
+                    direction,
                     2,
                     NodeType::internal_uint256(2u32, (1u32, 3u32)),
                 )
                 .with_children(Some(4), None)
                 .with_parent(1),
                 // Right-Left
-                TreeNode::new(book_id, tick_id, 4, NodeType::leaf_uint256(2u32, 1u32))
-                    .with_parent(2),
+                TreeNode::new(
+                    book_id,
+                    tick_id,
+                    direction,
+                    4,
+                    NodeType::leaf_uint256(2u32, 1u32),
+                )
+                .with_parent(2),
                 // Left
                 TreeNode::new(
                     book_id,
                     tick_id,
+                    direction,
                     5,
                     NodeType::internal_uint256(2u32, (3u32, 5u32)),
                 )
                 .with_children(Some(6), Some(7))
                 .with_parent(1),
                 // Left-Left
-                TreeNode::new(book_id, tick_id, 6, NodeType::leaf_uint256(3u32, 1u32))
-                    .with_parent(5),
+                TreeNode::new(
+                    book_id,
+                    tick_id,
+                    direction,
+                    6,
+                    NodeType::leaf_uint256(3u32, 1u32),
+                )
+                .with_parent(5),
                 // Left-Right
-                TreeNode::new(book_id, tick_id, 7, NodeType::leaf_uint256(4u32, 1u32))
-                    .with_parent(5),
+                TreeNode::new(
+                    book_id,
+                    tick_id,
+                    direction,
+                    7,
+                    NodeType::leaf_uint256(4u32, 1u32),
+                )
+                .with_parent(5),
             ],
             expected: vec![2, 1, 5, 6, 7, 4],
             expected_error: None,
@@ -1360,6 +1642,7 @@ fn test_rotate_left() {
                 TreeNode::new(
                     book_id,
                     tick_id,
+                    direction,
                     1,
                     NodeType::internal_uint256(0u32, (u32::MAX, u32::MIN)),
                 )
@@ -1368,17 +1651,30 @@ fn test_rotate_left() {
                 TreeNode::new(
                     book_id,
                     tick_id,
+                    direction,
                     5,
                     NodeType::internal_uint256(2u32, (3u32, 5u32)),
                 )
                 .with_children(Some(6), Some(7))
                 .with_parent(1),
                 // Left-Left
-                TreeNode::new(book_id, tick_id, 6, NodeType::leaf_uint256(3u32, 1u32))
-                    .with_parent(5),
+                TreeNode::new(
+                    book_id,
+                    tick_id,
+                    direction,
+                    6,
+                    NodeType::leaf_uint256(3u32, 1u32),
+                )
+                .with_parent(5),
                 // Left-Right
-                TreeNode::new(book_id, tick_id, 7, NodeType::leaf_uint256(4u32, 1u32))
-                    .with_parent(5),
+                TreeNode::new(
+                    book_id,
+                    tick_id,
+                    direction,
+                    7,
+                    NodeType::leaf_uint256(4u32, 1u32),
+                )
+                .with_parent(5),
             ],
             expected: vec![],
             expected_error: Some(ContractError::InvalidNodeType),
@@ -1398,28 +1694,48 @@ fn test_rotate_left() {
                 TreeNode::new(
                     book_id,
                     tick_id,
+                    direction,
                     1,
                     NodeType::internal_uint256(0u32, (u32::MAX, u32::MIN)),
                 )
                 .with_children(Some(5), Some(2)),
                 // Right
-                TreeNode::new(book_id, tick_id, 2, NodeType::leaf_uint256(2u32, 1u32))
-                    .with_parent(1),
+                TreeNode::new(
+                    book_id,
+                    tick_id,
+                    direction,
+                    2,
+                    NodeType::leaf_uint256(2u32, 1u32),
+                )
+                .with_parent(1),
                 // Left
                 TreeNode::new(
                     book_id,
                     tick_id,
+                    direction,
                     5,
                     NodeType::internal_uint256(2u32, (3u32, 5u32)),
                 )
                 .with_children(Some(6), Some(7))
                 .with_parent(1),
                 // Left-Left
-                TreeNode::new(book_id, tick_id, 6, NodeType::leaf_uint256(3u32, 1u32))
-                    .with_parent(5),
+                TreeNode::new(
+                    book_id,
+                    tick_id,
+                    direction,
+                    6,
+                    NodeType::leaf_uint256(3u32, 1u32),
+                )
+                .with_parent(5),
                 // Left-Right
-                TreeNode::new(book_id, tick_id, 7, NodeType::leaf_uint256(4u32, 1u32))
-                    .with_parent(5),
+                TreeNode::new(
+                    book_id,
+                    tick_id,
+                    direction,
+                    7,
+                    NodeType::leaf_uint256(4u32, 1u32),
+                )
+                .with_parent(5),
             ],
             expected: vec![],
             expected_error: Some(ContractError::InvalidNodeType),
@@ -1433,8 +1749,12 @@ fn test_rotate_left() {
         for (idx, node) in test.nodes.iter_mut().enumerate() {
             // Save root node
             if idx == 0 {
-                TREE.save(deps.as_mut().storage, &(book_id, tick_id), &node.key)
-                    .unwrap();
+                TREE.save(
+                    deps.as_mut().storage,
+                    &(book_id, tick_id, &direction.to_string()),
+                    &node.key,
+                )
+                .unwrap();
             }
             NODES
                 .save(deps.as_mut().storage, &(book_id, tick_id, node.key), node)
@@ -1453,7 +1773,7 @@ fn test_rotate_left() {
                 .unwrap();
         }
 
-        let mut tree = get_root_node(deps.as_ref().storage, book_id, tick_id).unwrap();
+        let mut tree = get_root_node(deps.as_ref().storage, book_id, tick_id, direction).unwrap();
         if test.print {
             print_tree("Pre-rotation", test.name, &tree, &deps.as_ref());
         }
@@ -1466,7 +1786,7 @@ fn test_rotate_left() {
         }
 
         // Get new root node, it may have changed due to rotations
-        let tree = get_root_node(deps.as_ref().storage, book_id, tick_id).unwrap();
+        let tree = get_root_node(deps.as_ref().storage, book_id, tick_id, direction).unwrap();
         if test.print {
             print_tree("Post-rotation", test.name, &tree, &deps.as_ref());
         }
@@ -1492,6 +1812,7 @@ struct RebalanceTestCase {
 fn test_rebalance() {
     let book_id = 1;
     let tick_id = 1;
+    let direction = OrderDirection::Bid;
     let test_cases: Vec<RebalanceTestCase> = vec![
         // Pre-rotation: Case 1: Right Right
         // --------------------------
@@ -1517,40 +1838,67 @@ fn test_rebalance() {
                 TreeNode::new(
                     book_id,
                     tick_id,
+                    direction,
                     1,
                     NodeType::internal_uint256(0u32, (u32::MAX, u32::MIN)),
                 )
                 .with_children(Some(2), Some(3)),
                 // Left
-                TreeNode::new(book_id, tick_id, 2, NodeType::leaf_uint256(1u32, 1u32))
-                    .with_parent(1),
+                TreeNode::new(
+                    book_id,
+                    tick_id,
+                    direction,
+                    2,
+                    NodeType::leaf_uint256(1u32, 1u32),
+                )
+                .with_parent(1),
                 // Right
                 TreeNode::new(
                     book_id,
                     tick_id,
+                    direction,
                     3,
                     NodeType::internal_uint256(2u32, (1u32, 3u32)),
                 )
                 .with_children(Some(4), Some(5))
                 .with_parent(1),
                 // Right-Left
-                TreeNode::new(book_id, tick_id, 4, NodeType::leaf_uint256(4u32, 1u32))
-                    .with_parent(3),
+                TreeNode::new(
+                    book_id,
+                    tick_id,
+                    direction,
+                    4,
+                    NodeType::leaf_uint256(4u32, 1u32),
+                )
+                .with_parent(3),
                 // Right-Right
                 TreeNode::new(
                     book_id,
                     tick_id,
+                    direction,
                     5,
                     NodeType::internal_uint256(0u32, (u32::MAX, u32::MIN)),
                 )
                 .with_children(Some(6), Some(7))
                 .with_parent(3),
                 // Right-Right-Left
-                TreeNode::new(book_id, tick_id, 6, NodeType::leaf_uint256(2u32, 1u32))
-                    .with_parent(5),
+                TreeNode::new(
+                    book_id,
+                    tick_id,
+                    direction,
+                    6,
+                    NodeType::leaf_uint256(2u32, 1u32),
+                )
+                .with_parent(5),
                 // Right-Right-Right
-                TreeNode::new(book_id, tick_id, 7, NodeType::leaf_uint256(3u32, 1u32))
-                    .with_parent(5),
+                TreeNode::new(
+                    book_id,
+                    tick_id,
+                    direction,
+                    7,
+                    NodeType::leaf_uint256(3u32, 1u32),
+                )
+                .with_parent(5),
             ],
             expected: vec![3, 1, 2, 4, 5, 6, 7],
             expected_error: None,
@@ -1580,6 +1928,7 @@ fn test_rebalance() {
                 TreeNode::new(
                     book_id,
                     tick_id,
+                    direction,
                     1,
                     NodeType::internal_uint256(0u32, (u32::MAX, u32::MIN)),
                 )
@@ -1588,6 +1937,7 @@ fn test_rebalance() {
                 TreeNode::new(
                     book_id,
                     tick_id,
+                    direction,
                     2,
                     NodeType::internal_uint256(2u32, (1u32, 3u32)),
                 )
@@ -1597,23 +1947,48 @@ fn test_rebalance() {
                 TreeNode::new(
                     book_id,
                     tick_id,
+                    direction,
                     4,
                     NodeType::internal_uint256(0u32, (u32::MAX, u32::MIN)),
                 )
                 .with_children(Some(6), Some(7))
                 .with_parent(2),
                 // Left-Left-Left
-                TreeNode::new(book_id, tick_id, 6, NodeType::leaf_uint256(2u32, 1u32))
-                    .with_parent(4),
+                TreeNode::new(
+                    book_id,
+                    tick_id,
+                    direction,
+                    6,
+                    NodeType::leaf_uint256(2u32, 1u32),
+                )
+                .with_parent(4),
                 // Left-Left-Right
-                TreeNode::new(book_id, tick_id, 7, NodeType::leaf_uint256(3u32, 1u32))
-                    .with_parent(4),
+                TreeNode::new(
+                    book_id,
+                    tick_id,
+                    direction,
+                    7,
+                    NodeType::leaf_uint256(3u32, 1u32),
+                )
+                .with_parent(4),
                 // Left-Right
-                TreeNode::new(book_id, tick_id, 5, NodeType::leaf_uint256(4u32, 1u32))
-                    .with_parent(2),
+                TreeNode::new(
+                    book_id,
+                    tick_id,
+                    direction,
+                    5,
+                    NodeType::leaf_uint256(4u32, 1u32),
+                )
+                .with_parent(2),
                 // Right
-                TreeNode::new(book_id, tick_id, 3, NodeType::leaf_uint256(1u32, 1u32))
-                    .with_parent(1),
+                TreeNode::new(
+                    book_id,
+                    tick_id,
+                    direction,
+                    3,
+                    NodeType::leaf_uint256(1u32, 1u32),
+                )
+                .with_parent(1),
             ],
             expected: vec![2, 4, 6, 7, 1, 5, 3],
             expected_error: None,
@@ -1643,17 +2018,25 @@ fn test_rebalance() {
                 TreeNode::new(
                     book_id,
                     tick_id,
+                    direction,
                     1,
                     NodeType::internal_uint256(0u32, (u32::MAX, u32::MIN)),
                 )
                 .with_children(Some(2), Some(3)),
                 // Left
-                TreeNode::new(book_id, tick_id, 2, NodeType::leaf_uint256(1u32, 1u32))
-                    .with_parent(1),
+                TreeNode::new(
+                    book_id,
+                    tick_id,
+                    direction,
+                    2,
+                    NodeType::leaf_uint256(1u32, 1u32),
+                )
+                .with_parent(1),
                 // Right
                 TreeNode::new(
                     book_id,
                     tick_id,
+                    direction,
                     3,
                     NodeType::internal_uint256(2u32, (1u32, 3u32)),
                 )
@@ -1663,20 +2046,39 @@ fn test_rebalance() {
                 TreeNode::new(
                     book_id,
                     tick_id,
+                    direction,
                     4,
                     NodeType::internal_uint256(0u32, (u32::MAX, u32::MIN)),
                 )
                 .with_children(Some(6), Some(7))
                 .with_parent(3),
                 // Right-Left-Left
-                TreeNode::new(book_id, tick_id, 6, NodeType::leaf_uint256(2u32, 1u32))
-                    .with_parent(4),
+                TreeNode::new(
+                    book_id,
+                    tick_id,
+                    direction,
+                    6,
+                    NodeType::leaf_uint256(2u32, 1u32),
+                )
+                .with_parent(4),
                 // Right-Left-Right
-                TreeNode::new(book_id, tick_id, 7, NodeType::leaf_uint256(3u32, 1u32))
-                    .with_parent(4),
+                TreeNode::new(
+                    book_id,
+                    tick_id,
+                    direction,
+                    7,
+                    NodeType::leaf_uint256(3u32, 1u32),
+                )
+                .with_parent(4),
                 // Right-Right
-                TreeNode::new(book_id, tick_id, 5, NodeType::leaf_uint256(4u32, 1u32))
-                    .with_parent(3),
+                TreeNode::new(
+                    book_id,
+                    tick_id,
+                    direction,
+                    5,
+                    NodeType::leaf_uint256(4u32, 1u32),
+                )
+                .with_parent(3),
             ],
             expected: vec![4, 1, 2, 6, 3, 7, 5],
             expected_error: None,
@@ -1706,6 +2108,7 @@ fn test_rebalance() {
                 TreeNode::new(
                     book_id,
                     tick_id,
+                    direction,
                     1,
                     NodeType::internal_uint256(0u32, (u32::MAX, u32::MIN)),
                 )
@@ -1714,6 +2117,7 @@ fn test_rebalance() {
                 TreeNode::new(
                     book_id,
                     tick_id,
+                    direction,
                     2,
                     NodeType::internal_uint256(2u32, (1u32, 3u32)),
                 )
@@ -1723,23 +2127,48 @@ fn test_rebalance() {
                 TreeNode::new(
                     book_id,
                     tick_id,
+                    direction,
                     4,
                     NodeType::internal_uint256(0u32, (u32::MAX, u32::MIN)),
                 )
                 .with_children(Some(6), Some(7))
                 .with_parent(2),
                 // Left-Left-Left
-                TreeNode::new(book_id, tick_id, 6, NodeType::leaf_uint256(2u32, 1u32))
-                    .with_parent(2),
+                TreeNode::new(
+                    book_id,
+                    tick_id,
+                    direction,
+                    6,
+                    NodeType::leaf_uint256(2u32, 1u32),
+                )
+                .with_parent(2),
                 // Left-Left-Right
-                TreeNode::new(book_id, tick_id, 7, NodeType::leaf_uint256(3u32, 1u32))
-                    .with_parent(2),
+                TreeNode::new(
+                    book_id,
+                    tick_id,
+                    direction,
+                    7,
+                    NodeType::leaf_uint256(3u32, 1u32),
+                )
+                .with_parent(2),
                 // Left-Right
-                TreeNode::new(book_id, tick_id, 5, NodeType::leaf_uint256(4u32, 1u32))
-                    .with_parent(4),
+                TreeNode::new(
+                    book_id,
+                    tick_id,
+                    direction,
+                    5,
+                    NodeType::leaf_uint256(4u32, 1u32),
+                )
+                .with_parent(4),
                 // Right
-                TreeNode::new(book_id, tick_id, 3, NodeType::leaf_uint256(1u32, 1u32))
-                    .with_parent(1),
+                TreeNode::new(
+                    book_id,
+                    tick_id,
+                    direction,
+                    3,
+                    NodeType::leaf_uint256(1u32, 1u32),
+                )
+                .with_parent(1),
             ],
             expected: vec![2, 4, 6, 7, 1, 5, 3],
             expected_error: None,
@@ -1763,13 +2192,20 @@ fn test_rebalance() {
                 TreeNode::new(
                     book_id,
                     tick_id,
+                    direction,
                     1,
                     NodeType::internal_uint256(0u32, (u32::MAX, u32::MIN)),
                 )
                 .with_children(Some(2), None),
                 // Left
-                TreeNode::new(book_id, tick_id, 2, NodeType::leaf_uint256(2u32, 1u32))
-                    .with_parent(1),
+                TreeNode::new(
+                    book_id,
+                    tick_id,
+                    direction,
+                    2,
+                    NodeType::leaf_uint256(2u32, 1u32),
+                )
+                .with_parent(1),
             ],
             expected: vec![1, 2],
             expected_error: None,
@@ -1793,13 +2229,20 @@ fn test_rebalance() {
                 TreeNode::new(
                     book_id,
                     tick_id,
+                    direction,
                     1,
                     NodeType::internal_uint256(0u32, (u32::MAX, u32::MIN)),
                 )
                 .with_children(None, Some(2)),
                 // Right
-                TreeNode::new(book_id, tick_id, 2, NodeType::leaf_uint256(2u32, 1u32))
-                    .with_parent(1),
+                TreeNode::new(
+                    book_id,
+                    tick_id,
+                    direction,
+                    2,
+                    NodeType::leaf_uint256(2u32, 1u32),
+                )
+                .with_parent(1),
             ],
             expected: vec![1, 2],
             expected_error: None,
@@ -1827,6 +2270,7 @@ fn test_rebalance() {
                 TreeNode::new(
                     book_id,
                     tick_id,
+                    direction,
                     1,
                     NodeType::internal_uint256(0u32, (u32::MAX, u32::MIN)),
                 )
@@ -1835,20 +2279,39 @@ fn test_rebalance() {
                 TreeNode::new(
                     book_id,
                     tick_id,
+                    direction,
                     2,
                     NodeType::internal_uint256(2u32, (2u32, 4u32)),
                 )
                 .with_children(Some(4), Some(5))
                 .with_parent(1),
                 // Left-Left
-                TreeNode::new(book_id, tick_id, 4, NodeType::leaf_uint256(2u32, 1u32))
-                    .with_parent(2),
+                TreeNode::new(
+                    book_id,
+                    tick_id,
+                    direction,
+                    4,
+                    NodeType::leaf_uint256(2u32, 1u32),
+                )
+                .with_parent(2),
                 // Left-Right
-                TreeNode::new(book_id, tick_id, 5, NodeType::leaf_uint256(3u32, 1u32))
-                    .with_parent(2),
+                TreeNode::new(
+                    book_id,
+                    tick_id,
+                    direction,
+                    5,
+                    NodeType::leaf_uint256(3u32, 1u32),
+                )
+                .with_parent(2),
                 // Right
-                TreeNode::new(book_id, tick_id, 3, NodeType::leaf_uint256(2u32, 1u32))
-                    .with_parent(1),
+                TreeNode::new(
+                    book_id,
+                    tick_id,
+                    direction,
+                    3,
+                    NodeType::leaf_uint256(2u32, 1u32),
+                )
+                .with_parent(1),
             ],
             expected: vec![1, 2, 4, 5, 3],
             expected_error: None,
@@ -1876,28 +2339,48 @@ fn test_rebalance() {
                 TreeNode::new(
                     book_id,
                     tick_id,
+                    direction,
                     1,
                     NodeType::internal_uint256(0u32, (u32::MAX, u32::MIN)),
                 )
                 .with_children(Some(2), Some(3)),
                 // Left
-                TreeNode::new(book_id, tick_id, 2, NodeType::leaf_uint256(2u32, 1u32))
-                    .with_parent(1),
+                TreeNode::new(
+                    book_id,
+                    tick_id,
+                    direction,
+                    2,
+                    NodeType::leaf_uint256(2u32, 1u32),
+                )
+                .with_parent(1),
                 // Right
                 TreeNode::new(
                     book_id,
                     tick_id,
+                    direction,
                     3,
                     NodeType::internal_uint256(2u32, (2u32, 4u32)),
                 )
                 .with_children(Some(4), Some(5))
                 .with_parent(1),
                 // Right-Left
-                TreeNode::new(book_id, tick_id, 4, NodeType::leaf_uint256(2u32, 1u32))
-                    .with_parent(3),
+                TreeNode::new(
+                    book_id,
+                    tick_id,
+                    direction,
+                    4,
+                    NodeType::leaf_uint256(2u32, 1u32),
+                )
+                .with_parent(3),
                 // Right-Right
-                TreeNode::new(book_id, tick_id, 5, NodeType::leaf_uint256(3u32, 1u32))
-                    .with_parent(3),
+                TreeNode::new(
+                    book_id,
+                    tick_id,
+                    direction,
+                    5,
+                    NodeType::leaf_uint256(3u32, 1u32),
+                )
+                .with_parent(3),
             ],
             expected: vec![1, 2, 3, 4, 5],
             expected_error: None,
@@ -1925,6 +2408,7 @@ fn test_rebalance() {
                 TreeNode::new(
                     book_id,
                     tick_id,
+                    direction,
                     1,
                     NodeType::internal_uint256(0u32, (u32::MAX, u32::MIN)),
                 )
@@ -1933,32 +2417,58 @@ fn test_rebalance() {
                 TreeNode::new(
                     book_id,
                     tick_id,
+                    direction,
                     2,
                     NodeType::internal_uint256(2u32, (2u32, 4u32)),
                 )
                 .with_children(Some(4), Some(5))
                 .with_parent(1),
                 // Right-Left
-                TreeNode::new(book_id, tick_id, 4, NodeType::leaf_uint256(2u32, 1u32))
-                    .with_parent(2),
+                TreeNode::new(
+                    book_id,
+                    tick_id,
+                    direction,
+                    4,
+                    NodeType::leaf_uint256(2u32, 1u32),
+                )
+                .with_parent(2),
                 // Right-Right
-                TreeNode::new(book_id, tick_id, 5, NodeType::leaf_uint256(3u32, 1u32))
-                    .with_parent(2),
+                TreeNode::new(
+                    book_id,
+                    tick_id,
+                    direction,
+                    5,
+                    NodeType::leaf_uint256(3u32, 1u32),
+                )
+                .with_parent(2),
                 // Right
                 TreeNode::new(
                     book_id,
                     tick_id,
+                    direction,
                     3,
                     NodeType::internal_uint256(2u32, (2u32, 4u32)),
                 )
                 .with_children(Some(6), Some(7))
                 .with_parent(1),
                 // Right-Left
-                TreeNode::new(book_id, tick_id, 6, NodeType::leaf_uint256(4u32, 1u32))
-                    .with_parent(3),
+                TreeNode::new(
+                    book_id,
+                    tick_id,
+                    direction,
+                    6,
+                    NodeType::leaf_uint256(4u32, 1u32),
+                )
+                .with_parent(3),
                 // Right-Right
-                TreeNode::new(book_id, tick_id, 7, NodeType::leaf_uint256(5u32, 1u32))
-                    .with_parent(3),
+                TreeNode::new(
+                    book_id,
+                    tick_id,
+                    direction,
+                    7,
+                    NodeType::leaf_uint256(5u32, 1u32),
+                )
+                .with_parent(3),
             ],
             expected: vec![1, 2, 4, 5, 3, 6, 7],
             expected_error: None,
@@ -1968,7 +2478,13 @@ fn test_rebalance() {
             name: "invalid node type",
             nodes: vec![
                 // Root
-                TreeNode::new(book_id, tick_id, 1, NodeType::leaf_uint256(1u32, 1u32)),
+                TreeNode::new(
+                    book_id,
+                    tick_id,
+                    direction,
+                    1,
+                    NodeType::leaf_uint256(1u32, 1u32),
+                ),
             ],
             expected: vec![],
             expected_error: Some(ContractError::InvalidNodeType),
@@ -1981,6 +2497,7 @@ fn test_rebalance() {
                 TreeNode::new(
                     book_id,
                     tick_id,
+                    direction,
                     1,
                     NodeType::internal_uint256(1u32, (1u32, 2u32)),
                 ),
@@ -1997,8 +2514,12 @@ fn test_rebalance() {
         for (idx, node) in test.nodes.iter_mut().enumerate() {
             // Save root node
             if idx == 0 {
-                TREE.save(deps.as_mut().storage, &(book_id, tick_id), &node.key)
-                    .unwrap();
+                TREE.save(
+                    deps.as_mut().storage,
+                    &(book_id, tick_id, &direction.to_string()),
+                    &node.key,
+                )
+                .unwrap();
             }
             NODES
                 .save(deps.as_mut().storage, &(book_id, tick_id, node.key), node)
@@ -2017,7 +2538,7 @@ fn test_rebalance() {
                 .unwrap();
         }
 
-        let mut tree = get_root_node(deps.as_ref().storage, book_id, tick_id).unwrap();
+        let mut tree = get_root_node(deps.as_ref().storage, book_id, tick_id, direction).unwrap();
         if test.print {
             print_tree("Pre-rotation", test.name, &tree, &deps.as_ref());
         }
@@ -2030,7 +2551,7 @@ fn test_rebalance() {
         }
 
         // Get new root node, it may have changed due to rotations
-        let tree = get_root_node(deps.as_ref().storage, book_id, tick_id).unwrap();
+        let tree = get_root_node(deps.as_ref().storage, book_id, tick_id, direction).unwrap();
         if test.print {
             print_tree("Post-rotation", test.name, &tree, &deps.as_ref());
         }
@@ -2048,6 +2569,7 @@ fn generate_nodes(
     storage: &mut dyn Storage,
     book_id: u64,
     tick_id: i64,
+    direction: OrderDirection,
     quantity: u32,
 ) -> Vec<TreeNode> {
     use rand::seq::SliceRandom;
@@ -2062,6 +2584,7 @@ fn generate_nodes(
         nodes.push(TreeNode::new(
             book_id,
             tick_id,
+            direction,
             id,
             NodeType::leaf_uint256(val, 1u32),
         ));
@@ -2073,17 +2596,19 @@ fn generate_nodes(
 fn test_node_insert_large_quantity() {
     let book_id = 1;
     let tick_id = 1;
+    let direction = OrderDirection::Bid;
 
     let mut deps = mock_dependencies();
     // Create tree root
     let mut tree = TreeNode::new(
         book_id,
         tick_id,
+        direction,
         generate_node_id(deps.as_mut().storage, book_id, tick_id).unwrap(),
         NodeType::internal_uint256(0u32, (u32::MAX, u32::MIN)),
     );
 
-    let nodes = generate_nodes(deps.as_mut().storage, book_id, tick_id, 1000);
+    let nodes = generate_nodes(deps.as_mut().storage, book_id, tick_id, direction, 1000);
 
     // Insert nodes into tree
     for mut node in nodes {
@@ -2115,7 +2640,7 @@ pub fn spacing(len: u32) -> String {
 }
 
 pub fn print_tree(title: &'static str, test_name: &'static str, root: &TreeNode, deps: &Deps) {
-    println!("{}: {}", title, test_name);
+    println!("{title}: {test_name}");
     println!("--------------------------");
     let nodes = root.traverse_bfs(deps.storage).unwrap();
     for (idx, row) in nodes.iter().enumerate() {

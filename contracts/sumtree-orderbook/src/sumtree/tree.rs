@@ -117,7 +117,7 @@ fn prefix_sum_walk(
     if target_etas < right_child.get_min_range() {
         // If the ETAS is below the right child's range, we know that anything below the right child
         // should not be included in the prefix sum. We subtract the right child's sum from the prefix sum.
-        current_sum = current_sum.checked_sub(TreeNode::get_value(&right_child))?;
+        current_sum = current_sum.checked_sub(right_child.get_value())?;
 
         return Ok(current_sum);
     } else if target_etas <= right_child.get_max_range() {

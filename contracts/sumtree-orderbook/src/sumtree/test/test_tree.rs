@@ -29,6 +29,20 @@ fn test_get_prefix_sum_valid() {
             expected_sum: Decimal256::from_ratio(5u128, 1u128),
         },
         TestPrefixSumCase {
+            name: "Single node, target ETAS below node range",
+            nodes: vec![NodeType::leaf_uint256(50u128, 20u128)],
+            target_etas: Decimal256::from_ratio(25u128, 1u128),
+
+            expected_sum: Decimal256::zero(),
+        },
+        TestPrefixSumCase {
+            name: "Single node, target ETAS above node range",
+            nodes: vec![NodeType::leaf_uint256(10u128, 10u128)],
+            target_etas: Decimal256::from_ratio(30u128, 1u128),
+
+            expected_sum: Decimal256::from_ratio(10u128, 1u128),
+        },
+        TestPrefixSumCase {
             name: "Multiple nodes, target ETAS in the middle",
             nodes: vec![
                 NodeType::leaf_uint256(5u128, 10u128),
@@ -116,20 +130,6 @@ fn test_get_prefix_sum_valid() {
             target_etas: Decimal256::from_ratio(25u128, 1u128),
 
             expected_sum: Decimal256::from_ratio(20u128, 1u128),
-        },
-        TestPrefixSumCase {
-            name: "Single node, target ETAS below node range",
-            nodes: vec![NodeType::leaf_uint256(50u128, 20u128)],
-            target_etas: Decimal256::from_ratio(25u128, 1u128),
-
-            expected_sum: Decimal256::zero(),
-        },
-        TestPrefixSumCase {
-            name: "Single node, target ETAS above node range",
-            nodes: vec![NodeType::leaf_uint256(10u128, 10u128)],
-            target_etas: Decimal256::from_ratio(30u128, 1u128),
-
-            expected_sum: Decimal256::from_ratio(10u128, 1u128),
         },
         TestPrefixSumCase {
             name: "Complex case with many nodes (shuffled, adjacent, spaced out)",

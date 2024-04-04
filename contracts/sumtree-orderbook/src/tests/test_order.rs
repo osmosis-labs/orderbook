@@ -1,6 +1,6 @@
 use crate::{
     constants::{MAX_TICK, MIN_TICK},
-    error::ContractError,
+    error::{ContractError, ContractResult},
     order::*,
     orderbook::*,
     state::*,
@@ -8,9 +8,14 @@ use crate::{
         node::{NodeType, TreeNode},
         tree::get_root_node,
     },
-    types::{FilterOwnerOrders, LimitOrder, MarketOrder, OrderDirection, REPLY_ID_REFUND},
+    types::{
+        FilterOwnerOrders, LimitOrder, MarketOrder, OrderDirection, TickValues, REPLY_ID_REFUND,
+    },
 };
-use cosmwasm_std::{coin, Addr, BankMsg, Coin, DepsMut, Empty, Env, SubMsg, Uint128, Uint256};
+use cosmwasm_std::{
+    coin, testing::mock_dependencies, Addr, BankMsg, Coin, DepsMut, Empty, Env, MessageInfo,
+    SubMsg, Uint128, Uint256,
+};
 use cosmwasm_std::{
     testing::{mock_dependencies_with_balances, mock_env, mock_info},
     Decimal256,
@@ -622,7 +627,6 @@ struct RunMarketOrderTestCase {
     tick_bound: i64,
     orders: Vec<LimitOrder>,
     sent: Uint128,
-
     expected_output: Uint128,
     expected_tick_etas: Vec<(i64, Decimal256)>,
     expected_error: Option<ContractError>,
@@ -1114,6 +1118,290 @@ fn test_run_market_order() {
             format_test_name(test.name)
         );
         assert_eq!(expected_msg, response.1, "{}", format_test_name(test.name));
+    }
+}
+
+#[derive(Clone)]
+enum OrderOperation {
+    RunMarket(MarketOrder),
+    PlaceLimitMulti((&'static [i64], usize, Uint128, i64)),
+    PlaceLimit(LimitOrder),
+}
+
+impl OrderOperation {
+    fn run(
+        &self,
+        mut deps: DepsMut,
+        env: Env,
+        info: MessageInfo,
+        book_id: u64,
+    ) -> ContractResult<()> {
+        match self.clone() {
+            OrderOperation::RunMarket(mut order) => {
+                let tick_bound = match order.order_direction {
+                    OrderDirection::Bid => MAX_TICK,
+                    OrderDirection::Ask => MIN_TICK,
+                };
+                run_market_order(deps.storage, &mut order, tick_bound).unwrap();
+                Ok(())
+            }
+            OrderOperation::PlaceLimitMulti((
+                tick_ids,
+                orders_per_tick,
+                quantity_per_order,
+                current_tick,
+            )) => {
+                let orders = generate_limit_orders(
+                    book_id,
+                    tick_ids,
+                    current_tick,
+                    orders_per_tick,
+                    quantity_per_order,
+                );
+                place_multiple_limit_orders(&mut deps, env, info.sender.as_str(), book_id, orders)
+                    .unwrap();
+                Ok(())
+            }
+            OrderOperation::PlaceLimit(limit_order) => {
+                let coin_vec = vec![coin(
+                    limit_order.quantity.u128(),
+                    match limit_order.order_direction {
+                        OrderDirection::Ask => "base",
+                        OrderDirection::Bid => "quote",
+                    },
+                )];
+                let info = mock_info(info.sender.as_str(), &coin_vec);
+                place_limit(
+                    &mut deps,
+                    env,
+                    info,
+                    limit_order.book_id,
+                    limit_order.tick_id,
+                    limit_order.order_direction,
+                    limit_order.quantity,
+                )?;
+                Ok(())
+            }
+        }
+    }
+}
+
+struct RunMarketOrderMovingTickTestCase {
+    name: &'static str,
+    operations: Vec<OrderOperation>,
+    // (tick_id, direction), (etas, ctt)
+    expected_tick_values: Vec<((i64, OrderDirection), TickValues)>,
+    expected_error: Option<ContractError>,
+}
+
+#[test]
+fn test_run_market_order_moving_tick() {
+    let book_id = 0;
+    let env = mock_env();
+    let info = mock_info("sender", &[]);
+    let test_cases: Vec<RunMarketOrderMovingTickTestCase> = vec![
+        RunMarketOrderMovingTickTestCase {
+            name: "all asks filled",
+            operations: vec![
+                OrderOperation::PlaceLimit(LimitOrder::new(
+                    book_id,
+                    0,
+                    0,
+                    OrderDirection::Ask,
+                    Addr::unchecked(info.sender.as_str()),
+                    Uint128::from(10u128),
+                    Decimal256::zero(),
+                )),
+                OrderOperation::PlaceLimit(LimitOrder::new(
+                    book_id,
+                    1,
+                    0,
+                    OrderDirection::Ask,
+                    Addr::unchecked(info.sender.as_str()),
+                    Uint128::from(10u128),
+                    Decimal256::zero(),
+                )),
+                OrderOperation::RunMarket(MarketOrder::new(
+                    book_id,
+                    Uint128::from(15u128),
+                    OrderDirection::Bid,
+                    Addr::unchecked("buyer"),
+                )),
+                OrderOperation::PlaceLimit(LimitOrder::new(
+                    book_id,
+                    0,
+                    0,
+                    OrderDirection::Bid,
+                    Addr::unchecked(info.sender.as_str()),
+                    Uint128::from(10u128),
+                    Decimal256::zero(),
+                )),
+            ],
+            expected_tick_values: vec![
+                (
+                    (0, OrderDirection::Ask),
+                    TickValues {
+                        effective_total_amount_swapped: Decimal256::from_ratio(
+                            Uint256::from_u128(10),
+                            Uint256::one(),
+                        ),
+                        cumulative_total_value: Decimal256::from_ratio(
+                            Uint256::from_u128(10),
+                            Uint256::one(),
+                        ),
+                        total_amount_of_liquidity: Decimal256::zero(),
+                    },
+                ),
+                (
+                    (1, OrderDirection::Ask),
+                    TickValues {
+                        effective_total_amount_swapped: Decimal256::from_ratio(
+                            Uint256::from_u128(5),
+                            Uint256::one(),
+                        ),
+                        cumulative_total_value: Decimal256::from_ratio(
+                            Uint256::from_u128(10),
+                            Uint256::one(),
+                        ),
+                        total_amount_of_liquidity: Decimal256::from_ratio(
+                            Uint256::from_u128(5),
+                            Uint256::one(),
+                        ),
+                    },
+                ),
+                (
+                    (0, OrderDirection::Bid),
+                    TickValues {
+                        effective_total_amount_swapped: Decimal256::zero(),
+                        cumulative_total_value: Decimal256::from_ratio(
+                            Uint256::from_u128(10),
+                            Uint256::one(),
+                        ),
+                        total_amount_of_liquidity: Decimal256::from_ratio(
+                            Uint256::from_u128(10),
+                            Uint256::one(),
+                        ),
+                    },
+                ),
+            ],
+            expected_error: None,
+        },
+        RunMarketOrderMovingTickTestCase {
+            name: "all asks filled",
+            operations: vec![
+                OrderOperation::PlaceLimit(LimitOrder::new(
+                    book_id,
+                    0,
+                    0,
+                    OrderDirection::Bid,
+                    Addr::unchecked(info.sender.as_str()),
+                    Uint128::from(10u128),
+                    Decimal256::zero(),
+                )),
+                OrderOperation::PlaceLimit(LimitOrder::new(
+                    book_id,
+                    -1,
+                    0,
+                    OrderDirection::Bid,
+                    Addr::unchecked(info.sender.as_str()),
+                    Uint128::from(10u128),
+                    Decimal256::zero(),
+                )),
+                OrderOperation::RunMarket(MarketOrder::new(
+                    book_id,
+                    Uint128::from(15u128),
+                    OrderDirection::Ask,
+                    Addr::unchecked("buyer"),
+                )),
+                OrderOperation::PlaceLimit(LimitOrder::new(
+                    book_id,
+                    0,
+                    0,
+                    OrderDirection::Ask,
+                    Addr::unchecked(info.sender.as_str()),
+                    Uint128::from(10u128),
+                    Decimal256::zero(),
+                )),
+            ],
+            expected_tick_values: vec![
+                (
+                    (0, OrderDirection::Bid),
+                    TickValues {
+                        effective_total_amount_swapped: Decimal256::from_ratio(
+                            Uint256::from_u128(10),
+                            Uint256::one(),
+                        ),
+                        cumulative_total_value: Decimal256::from_ratio(
+                            Uint256::from_u128(10),
+                            Uint256::one(),
+                        ),
+                        total_amount_of_liquidity: Decimal256::zero(),
+                    },
+                ),
+                (
+                    (-1, OrderDirection::Bid),
+                    TickValues {
+                        effective_total_amount_swapped: Decimal256::from_ratio(
+                            Uint256::from_u128(5),
+                            Uint256::one(),
+                        ),
+                        cumulative_total_value: Decimal256::from_ratio(
+                            Uint256::from_u128(10),
+                            Uint256::one(),
+                        ),
+                        total_amount_of_liquidity: Decimal256::from_ratio(
+                            Uint256::from_u128(5),
+                            Uint256::one(),
+                        ),
+                    },
+                ),
+                (
+                    (0, OrderDirection::Ask),
+                    TickValues {
+                        effective_total_amount_swapped: Decimal256::zero(),
+                        cumulative_total_value: Decimal256::from_ratio(
+                            Uint256::from_u128(10),
+                            Uint256::one(),
+                        ),
+                        total_amount_of_liquidity: Decimal256::from_ratio(
+                            Uint256::from_u128(10),
+                            Uint256::one(),
+                        ),
+                    },
+                ),
+            ],
+            expected_error: None,
+        },
+    ];
+
+    for test in test_cases {
+        let mut deps = mock_dependencies();
+
+        let quote_denom = "quote";
+        let base_denom = "base";
+        create_orderbook(
+            deps.as_mut(),
+            env.clone(),
+            info.clone(),
+            quote_denom.to_string(),
+            base_denom.to_string(),
+        )
+        .unwrap();
+
+        for operation in test.operations {
+            operation
+                .run(deps.as_mut(), env.clone(), info.clone(), book_id)
+                .unwrap();
+        }
+
+        for ((tick_id, direction), values) in test.expected_tick_values {
+            let tick_state = TICK_STATE
+                .load(deps.as_ref().storage, &(0, tick_id))
+                .unwrap();
+            let tick_values = tick_state.get_values(direction);
+
+            assert_eq!(tick_values, values)
+        }
     }
 }
 

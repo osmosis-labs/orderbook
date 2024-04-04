@@ -1400,7 +1400,7 @@ fn test_run_market_order_moving_tick() {
                 .unwrap();
             let tick_values = tick_state.get_values(direction);
 
-            assert_eq!(tick_values, values)
+            assert_eq!(tick_values, values, "{}", format_test_name(test.name))
         }
     }
 }

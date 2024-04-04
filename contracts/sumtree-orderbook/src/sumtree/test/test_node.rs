@@ -2197,7 +2197,7 @@ fn test_rebalance() {
                     6,
                     NodeType::leaf_uint256(2u32, 1u32),
                 )
-                .with_parent(2),
+                .with_parent(4),
                 // Left-Left-Right
                 TreeNode::new(
                     book_id,
@@ -2206,7 +2206,7 @@ fn test_rebalance() {
                     7,
                     NodeType::leaf_uint256(3u32, 1u32),
                 )
-                .with_parent(2),
+                .with_parent(4),
                 // Left-Right
                 TreeNode::new(
                     book_id,
@@ -2215,7 +2215,7 @@ fn test_rebalance() {
                     5,
                     NodeType::leaf_uint256(4u32, 1u32),
                 )
-                .with_parent(4),
+                .with_parent(2),
                 // Right
                 TreeNode::new(
                     book_id,
@@ -2677,7 +2677,6 @@ fn test_node_insert_large_quantity() {
 
     let target_etas = Decimal256::from_ratio(536u128, 1u128);
     let mut expected_prefix_sum = Decimal256::zero();
-    let nodes_count = nodes.len();
 
     // Insert nodes into tree
     for mut node in nodes {
@@ -2697,7 +2696,6 @@ fn test_node_insert_large_quantity() {
 
     // Ensure all internal nodes are correctly summed and contain correct ranges
     let internals: Vec<&TreeNode> = result.iter().filter(|x| x.is_internal()).collect();
-    let leaves: Vec<&TreeNode> = result.iter().filter(|x| !x.is_internal()).collect();
     assert_internal_values("Large amount of nodes", deps.as_ref(), internals, true);
 
     // Ensure prefix sum functions correctly

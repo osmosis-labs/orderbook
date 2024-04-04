@@ -1,6 +1,7 @@
 use crate::sumtree::node::{generate_node_id, NodeType, TreeNode, NODES};
 use crate::sumtree::test::test_node::assert_internal_values;
-use crate::sumtree::tree::{get_prefix_sum, get_root_node, TREE};
+use crate::sumtree::tree::{get_prefix_sum, TREE};
+use crate::types::OrderDirection;
 use cosmwasm_std::{testing::mock_dependencies, Decimal256};
 
 struct TestPrefixSumCase {
@@ -14,6 +15,7 @@ struct TestPrefixSumCase {
 fn test_get_prefix_sum_valid() {
     let book_id = 1;
     let tick_id = 1;
+    let direction = OrderDirection::Bid;
     let test_cases: Vec<TestPrefixSumCase> = vec![
         TestPrefixSumCase {
             name: "Single node, target ETAS equal to node ETAS",
@@ -159,9 +161,13 @@ fn test_get_prefix_sum_valid() {
         let mut deps = mock_dependencies();
 
         let mut root_id = generate_node_id(deps.as_mut().storage, book_id, tick_id).unwrap();
-        let mut tree = TreeNode::new(book_id, tick_id, root_id, NodeType::default());
-        TREE.save(deps.as_mut().storage, &(book_id, tick_id), &root_id)
-            .unwrap();
+        let mut tree = TreeNode::new(book_id, tick_id, direction, root_id, NodeType::default());
+        TREE.save(
+            deps.as_mut().storage,
+            &(book_id, tick_id, &direction.to_string()),
+            &root_id,
+        )
+        .unwrap();
         NODES
             .save(deps.as_mut().storage, &(book_id, tick_id, tree.key), &tree)
             .unwrap();
@@ -169,7 +175,8 @@ fn test_get_prefix_sum_valid() {
         // Insert nodes into tree
         for node in test.nodes.iter() {
             let new_node_id = generate_node_id(deps.as_mut().storage, book_id, tick_id).unwrap();
-            let mut tree_node = TreeNode::new(book_id, tick_id, new_node_id, node.clone());
+            let mut tree_node =
+                TreeNode::new(book_id, tick_id, direction, new_node_id, node.clone());
             NODES
                 .save(
                     deps.as_mut().storage,
@@ -184,7 +191,10 @@ fn test_get_prefix_sum_valid() {
             // Refetch tree. We do this manually to avoid using higher level orderbook
             // functions in low level sumtree tests.
             root_id = TREE
-                .load(deps.as_mut().storage, &(book_id, tick_id))
+                .load(
+                    deps.as_mut().storage,
+                    &(book_id, tick_id, &direction.to_string()),
+                )
                 .unwrap();
             tree = NODES
                 .load(deps.as_mut().storage, &(book_id, tick_id, root_id))

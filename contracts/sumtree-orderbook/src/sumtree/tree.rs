@@ -28,8 +28,7 @@ pub fn get_prefix_sum(
     // prefux sum in O(log(N)) time.
     let starting_sum = TreeNode::get_value(&root_node);
 
-    let result = prefix_sum_walk(storage, &root_node, starting_sum, target_etas);
-    result
+    prefix_sum_walk(storage, &root_node, starting_sum, target_etas)
 }
 
 // prefix_sum_walk is a recursive function that walks the sumtree to calculate the prefix sum below the given
@@ -119,7 +118,7 @@ fn prefix_sum_walk(
         // should not be included in the prefix sum. We subtract the right child's sum from the prefix sum.
         current_sum = current_sum.checked_sub(right_child.get_value())?;
 
-        return Ok(current_sum);
+        Ok(current_sum)
     } else if target_etas <= right_child.get_max_range() {
         // If the target ETAS falls in the right child's range, we need to walk right.
         // We do not need to update the prefix sum here because we do not know how much
@@ -128,9 +127,9 @@ fn prefix_sum_walk(
         // Walk right recursively
         current_sum = prefix_sum_walk(storage, &right_child, current_sum, target_etas)?;
 
-        return Ok(current_sum);
+        Ok(current_sum)
     } else {
         // If we reach here, everything in the tree is below the target ETAS, so we simply return the full sum.
-        return Ok(current_sum);
+        Ok(current_sum)
     }
 }

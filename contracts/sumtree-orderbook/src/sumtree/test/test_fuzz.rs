@@ -24,7 +24,7 @@ fn test_fuzz_insert() {
     // Run multiple fuzz tests with random insertions
     for iteration in 0..num_iterations {
         let test_name = format!("Fuzz run {} with {} nodes", iteration + 1, num_nodes);
-        println!("{}", test_name);
+        println!("{test_name}");
 
         // Set up sumtree to insert into
         let mut deps = mock_dependencies();
@@ -81,8 +81,7 @@ fn test_fuzz_insert() {
             let prefix_sum = get_prefix_sum(deps.as_ref().storage, tree, target_etas).unwrap();
             assert_eq!(
                 expected_prefix_sum, prefix_sum,
-                "{}: Expected prefix sum {}, got {}. Target ETAS: {}",
-                test_name, expected_prefix_sum, prefix_sum, target_etas
+                "{test_name}: Expected prefix sum {expected_prefix_sum}, got {prefix_sum}. Target ETAS: {target_etas}",
             );
         }
     }

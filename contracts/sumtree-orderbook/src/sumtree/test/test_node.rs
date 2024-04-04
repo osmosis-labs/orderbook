@@ -2148,7 +2148,6 @@ fn test_node_insert_large_quantity() {
 
     let target_etas = Decimal256::from_ratio(536u128, 1u128);
     let mut expected_prefix_sum = Decimal256::zero();
-    let nodes_count = nodes.len();
 
     // Insert nodes into tree
     for mut node in nodes {
@@ -2168,7 +2167,6 @@ fn test_node_insert_large_quantity() {
 
     // Ensure all internal nodes are correctly summed and contain correct ranges
     let internals: Vec<&TreeNode> = result.iter().filter(|x| x.is_internal()).collect();
-    let leaves: Vec<&TreeNode> = result.iter().filter(|x| !x.is_internal()).collect();
     assert_internal_values("Large amount of nodes", deps.as_ref(), internals, true);
 
     // Ensure prefix sum functions correctly
@@ -2192,7 +2190,7 @@ pub fn spacing(len: u32) -> String {
 }
 
 pub fn print_tree(title: &'static str, test_name: &'static str, root: &TreeNode, deps: &Deps) {
-    println!("{}: {}", title, test_name);
+    println!("{title}: {test_name}");
     println!("--------------------------");
     let nodes = root.traverse_bfs(deps.storage).unwrap();
     for (idx, row) in nodes.iter().enumerate() {

@@ -4,7 +4,7 @@ use crate::{
     sumtree::tree::{get_or_init_root_node, get_prefix_sum},
     types::OrderDirection,
 };
-use cosmwasm_std::{Decimal256, Storage};
+use cosmwasm_std::{ensure, Decimal256, Storage};
 
 /// Syncs the tick state, ensuring that its ETAS reflects cancellations that have occurred
 /// up until the `current_tick_etas`
@@ -67,6 +67,12 @@ pub fn sync_tick(
             .effective_total_amount_swapped
             .checked_add(realized_since_last_sync)?;
         tick_value.cumulative_realized_cancels = new_cumulative_realized_cancels;
+
+        // Defense in depth guardrail: ensure that tick sync does not push tick ETAS past CTT.
+        ensure!(
+            tick_value.effective_total_amount_swapped <= tick_value.cumulative_total_value,
+            ContractError::InvalidTickSync
+        );
 
         // Write changes to appropriate tick values by direction.
         // These will be written to tick state after both have been updated.

@@ -20,6 +20,11 @@ pub struct TickValues {
     /// - Every swap increments ETAS by the swap amount.
     /// - There will be other ways to update ETAS as described below.
     pub effective_total_amount_swapped: Decimal256,
+
+    /// Cumulative Realized Cancellations at tick
+    /// - Increases as cancellations are checkpointed in batches on the sumtree
+    /// - Equivalent to the prefix sum at the tick's current ETAS after being synced
+    pub cumulative_realized_cancels: Decimal256,
 }
 
 impl Default for TickValues {
@@ -28,6 +33,7 @@ impl Default for TickValues {
             total_amount_of_liquidity: Decimal256::zero(),
             cumulative_total_value: Decimal256::zero(),
             effective_total_amount_swapped: Decimal256::zero(),
+            cumulative_realized_cancels: Decimal256::zero(),
         }
     }
 }

@@ -6,6 +6,7 @@ mod order;
 mod orderbook;
 pub mod state;
 mod sumtree;
+pub mod tick;
 pub mod tick_math;
 pub mod types;
 

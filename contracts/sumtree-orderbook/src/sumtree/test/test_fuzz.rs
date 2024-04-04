@@ -40,7 +40,6 @@ fn test_fuzz_insert() {
                     DEFAULT_BOOK_ID,
                     DEFAULT_TICK_ID,
                     start_etas,
-                    seed,
                 );
                 start_etas = start_etas.checked_add(node.get_value()).unwrap();
                 node
@@ -136,10 +135,10 @@ pub fn random_leaf_uint256_node(
     book_id: u64,
     tick_id: i64,
     start_etas: Decimal256,
-    seed: u64,
 ) -> TreeNode {
-    let mut rng = StdRng::seed_from_u64(seed);
     let new_node_id = generate_node_id(deps.storage, book_id, tick_id).unwrap();
+    let mut rng = StdRng::seed_from_u64(new_node_id);
+
     let new_node = TreeNode::new(
         book_id,
         tick_id,

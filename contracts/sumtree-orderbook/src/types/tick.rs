@@ -25,6 +25,11 @@ pub struct TickValues {
     /// - Increases as cancellations are checkpointed in batches on the sumtree
     /// - Equivalent to the prefix sum at the tick's current ETAS after being synced
     pub cumulative_realized_cancels: Decimal256,
+
+    /// last_tick_sync_etas is the ETAS value after the most recent tick sync.
+    /// It is used to skip tick syncs if ETAS has not changed since the previous
+    /// sync.
+    pub last_tick_sync_etas: Decimal256,
 }
 
 impl Default for TickValues {
@@ -34,6 +39,7 @@ impl Default for TickValues {
             cumulative_total_value: Decimal256::zero(),
             effective_total_amount_swapped: Decimal256::zero(),
             cumulative_realized_cancels: Decimal256::zero(),
+            last_tick_sync_etas: Decimal256::zero(),
         }
     }
 }

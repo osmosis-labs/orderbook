@@ -21,6 +21,13 @@ pub fn sync_tick(
     let mut bid_values = tick_state.get_values(OrderDirection::Bid);
     let mut ask_values = tick_state.get_values(OrderDirection::Ask);
 
+    // If both sets of tick values are already up to date, skip the sync altogether.
+    if bid_values.last_tick_sync_etas == current_tick_etas
+        && ask_values.last_tick_sync_etas == current_tick_etas
+    {
+        return Ok(());
+    }
+
     // Sync tick for each order direction.
     //
     // We handle this by iterating through order direction
@@ -32,6 +39,13 @@ pub fn sync_tick(
             OrderDirection::Bid => bid_values.clone(),
             OrderDirection::Ask => ask_values.clone(),
         };
+
+        // If tick state for current order direction is already up to date,
+        // skip the check. This saves us from walking the tree for both order directions
+        // even though in most cases we will likely only need to sync one.
+        if tick_value.last_tick_sync_etas == current_tick_etas {
+            continue;
+        }
 
         // Get previous cumulative realized cancels to compare against for ETAS updates.
         let old_cumulative_realized_cancels = tick_value.cumulative_realized_cancels;

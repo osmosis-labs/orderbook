@@ -283,7 +283,7 @@ pub fn run_market_order(
     order: &mut MarketOrder,
     tick_bound: i64,
 ) -> Result<(Uint128, BankMsg), ContractError> {
-    let orderbook =
+    let mut orderbook =
         ORDERBOOKS
             .load(storage, &order.book_id)
             .map_err(|_| ContractError::InvalidBookId {
@@ -339,6 +339,17 @@ pub fn run_market_order(
         let (current_tick_id, mut current_tick) = maybe_current_tick?;
         let tick_price = tick_to_price(current_tick_id)?;
 
+        // Update current tick pointer as we visit ticks
+        match order.order_direction.opposite() {
+            OrderDirection::Ask => orderbook.next_ask_tick = current_tick_id,
+            OrderDirection::Bid => orderbook.next_bid_tick = current_tick_id,
+        }
+
+        // Early exit if order filled
+        if order.quantity.is_zero() {
+            break;
+        }
+
         let output_quantity = amount_to_value(
             order.order_direction,
             order.quantity,
@@ -389,6 +400,9 @@ pub fn run_market_order(
     for (tick_id, tick_state) in tick_updates {
         TICK_STATE.save(storage, &(order.book_id, tick_id), &tick_state)?;
     }
+
+    // Update tick pointers in orderbook
+    ORDERBOOKS.save(storage, &order.book_id, &orderbook)?;
 
     // TODO: If we intend to support refunds for partial fills, we will need to return
     // the consumed input here as well. If we choose not to, we should error in this case.

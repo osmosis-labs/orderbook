@@ -98,9 +98,9 @@ pub fn place_limit(
 
     let response = Response::default();
     // Run order fill if criteria met
-    // if should_fill {
-    //     todo!()
-    // }
+    if should_fill {
+        todo!()
+    }
 
     let quantity_fullfilled = quantity.checked_sub(limit_order.quantity)?;
 

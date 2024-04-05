@@ -1215,7 +1215,6 @@ struct RunMarketOrderMovingTickTestCase {
     operations: Vec<OrderOperation>,
     // (tick_id, direction), (etas, ctt)
     expected_tick_values: Vec<((i64, OrderDirection), TickValues)>,
-    expected_error: Option<ContractError>,
 }
 
 #[test]
@@ -1225,7 +1224,7 @@ fn test_run_market_order_moving_tick() {
     let info = mock_info("sender", &[]);
     let test_cases: Vec<RunMarketOrderMovingTickTestCase> = vec![
         RunMarketOrderMovingTickTestCase {
-            name: "all asks filled",
+            name: "positive tick movement on filled market bid",
             operations: vec![
                 OrderOperation::PlaceLimit(LimitOrder::new(
                     book_id,
@@ -1308,10 +1307,9 @@ fn test_run_market_order_moving_tick() {
                     },
                 ),
             ],
-            expected_error: None,
         },
         RunMarketOrderMovingTickTestCase {
-            name: "all asks filled",
+            name: "negative tick movement on filled market ask",
             operations: vec![
                 OrderOperation::PlaceLimit(LimitOrder::new(
                     book_id,
@@ -1394,7 +1392,6 @@ fn test_run_market_order_moving_tick() {
                     },
                 ),
             ],
-            expected_error: None,
         },
     ];
 

@@ -1126,7 +1126,7 @@ fn test_run_market_order() {
 #[derive(Clone)]
 enum OrderOperation {
     RunMarket(MarketOrder),
-    PlaceLimitMulti((&'static [i64], usize, Uint128, i64)),
+    _PlaceLimitMulti((&'static [i64], usize, Uint128, i64)),
     PlaceLimit(LimitOrder),
 }
 
@@ -1147,7 +1147,7 @@ impl OrderOperation {
                 run_market_order(deps.storage, &mut order, tick_bound).unwrap();
                 Ok(())
             }
-            OrderOperation::PlaceLimitMulti((
+            OrderOperation::_PlaceLimitMulti((
                 tick_ids,
                 orders_per_tick,
                 quantity_per_order,
@@ -1204,6 +1204,7 @@ fn test_run_market_order_moving_tick() {
         RunMarketOrderMovingTickTestCase {
             name: "positive tick movement on filled market bid",
             operations: vec![
+                // Place Ask on first tick
                 OrderOperation::PlaceLimit(LimitOrder::new(
                     book_id,
                     0,
@@ -1213,6 +1214,7 @@ fn test_run_market_order_moving_tick() {
                     Uint128::from(10u128),
                     Decimal256::zero(),
                 )),
+                // Place Ask on second tick
                 OrderOperation::PlaceLimit(LimitOrder::new(
                     book_id,
                     1,
@@ -1222,12 +1224,14 @@ fn test_run_market_order_moving_tick() {
                     Uint128::from(10u128),
                     Decimal256::zero(),
                 )),
+                // Fill all limits on tick 0 and 50% of tick 1, leaving tick 0 empty and forcing positive movement
                 OrderOperation::RunMarket(MarketOrder::new(
                     book_id,
                     Uint128::from(15u128),
                     OrderDirection::Bid,
                     Addr::unchecked("buyer"),
                 )),
+                // Place Bid on first tick to create overlapping state
                 OrderOperation::PlaceLimit(LimitOrder::new(
                     book_id,
                     0,
@@ -1242,6 +1246,7 @@ fn test_run_market_order_moving_tick() {
                 (
                     (0, OrderDirection::Ask),
                     TickValues {
+                        // Entire tick has been filled
                         effective_total_amount_swapped: decimal256_from_u128(10u128),
                         cumulative_total_value: decimal256_from_u128(10u128),
                         total_amount_of_liquidity: Decimal256::zero(),
@@ -1250,6 +1255,7 @@ fn test_run_market_order_moving_tick() {
                 (
                     (1, OrderDirection::Ask),
                     TickValues {
+                        // 50% of this tick has been filled
                         effective_total_amount_swapped: decimal256_from_u128(5u128),
                         cumulative_total_value: decimal256_from_u128(10u128),
                         total_amount_of_liquidity: decimal256_from_u128(5u128),
@@ -1258,6 +1264,7 @@ fn test_run_market_order_moving_tick() {
                 (
                     (0, OrderDirection::Bid),
                     TickValues {
+                        // None of this tick has been filled
                         effective_total_amount_swapped: Decimal256::zero(),
                         cumulative_total_value: decimal256_from_u128(10u128),
                         total_amount_of_liquidity: decimal256_from_u128(10u128),
@@ -1268,6 +1275,7 @@ fn test_run_market_order_moving_tick() {
         RunMarketOrderMovingTickTestCase {
             name: "negative tick movement on filled market ask",
             operations: vec![
+                // Place Bid on first tick
                 OrderOperation::PlaceLimit(LimitOrder::new(
                     book_id,
                     0,
@@ -1277,6 +1285,7 @@ fn test_run_market_order_moving_tick() {
                     Uint128::from(10u128),
                     Decimal256::zero(),
                 )),
+                // Place Bid on negative tick
                 OrderOperation::PlaceLimit(LimitOrder::new(
                     book_id,
                     -1,
@@ -1286,12 +1295,14 @@ fn test_run_market_order_moving_tick() {
                     Uint128::from(10u128),
                     Decimal256::zero(),
                 )),
+                // Fill entire first tick and 50% of next tick to force negative movement
                 OrderOperation::RunMarket(MarketOrder::new(
                     book_id,
                     Uint128::from(15u128),
                     OrderDirection::Ask,
                     Addr::unchecked("buyer"),
                 )),
+                // Place Ask on first tick
                 OrderOperation::PlaceLimit(LimitOrder::new(
                     book_id,
                     0,
@@ -1306,6 +1317,7 @@ fn test_run_market_order_moving_tick() {
                 (
                     (0, OrderDirection::Bid),
                     TickValues {
+                        // Entire tick has been filled
                         effective_total_amount_swapped: decimal256_from_u128(10u128),
                         cumulative_total_value: decimal256_from_u128(10u128),
                         total_amount_of_liquidity: Decimal256::zero(),
@@ -1314,6 +1326,7 @@ fn test_run_market_order_moving_tick() {
                 (
                     (-1, OrderDirection::Bid),
                     TickValues {
+                        // 50% of tick has been filled
                         effective_total_amount_swapped: decimal256_from_u128(5u128),
                         cumulative_total_value: decimal256_from_u128(10u128),
                         total_amount_of_liquidity: decimal256_from_u128(5u128),
@@ -1322,6 +1335,7 @@ fn test_run_market_order_moving_tick() {
                 (
                     (0, OrderDirection::Ask),
                     TickValues {
+                        // None of tick has been filled (overlapping state)
                         effective_total_amount_swapped: Decimal256::zero(),
                         cumulative_total_value: decimal256_from_u128(10u128),
                         total_amount_of_liquidity: decimal256_from_u128(10u128),
@@ -1332,6 +1346,7 @@ fn test_run_market_order_moving_tick() {
         RunMarketOrderMovingTickTestCase {
             name: "negative tick movement followed by positive movement",
             operations: vec![
+                // Place Bid on first tick
                 OrderOperation::PlaceLimit(LimitOrder::new(
                     book_id,
                     0,
@@ -1341,6 +1356,7 @@ fn test_run_market_order_moving_tick() {
                     Uint128::from(10u128),
                     Decimal256::zero(),
                 )),
+                // Place Bid on negative tick
                 OrderOperation::PlaceLimit(LimitOrder::new(
                     book_id,
                     -1,
@@ -1350,12 +1366,14 @@ fn test_run_market_order_moving_tick() {
                     Uint128::from(10u128),
                     Decimal256::zero(),
                 )),
+                // Fill entire first tick and 50% of next tick to force negative movement
                 OrderOperation::RunMarket(MarketOrder::new(
                     book_id,
                     Uint128::from(15u128),
                     OrderDirection::Ask,
                     Addr::unchecked("buyer"),
                 )),
+                // Place Ask on first tick
                 OrderOperation::PlaceLimit(LimitOrder::new(
                     book_id,
                     0,
@@ -1365,12 +1383,14 @@ fn test_run_market_order_moving_tick() {
                     Uint128::from(10u128),
                     Decimal256::zero(),
                 )),
+                // Fill entire ask to force positive movement
                 OrderOperation::RunMarket(MarketOrder::new(
                     book_id,
                     Uint128::from(10u128),
                     OrderDirection::Bid,
                     Addr::unchecked("buyer"),
                 )),
+                // Place Bid on first tick to update previous state
                 OrderOperation::PlaceLimit(LimitOrder::new(
                     book_id,
                     0,
@@ -1385,6 +1405,9 @@ fn test_run_market_order_moving_tick() {
                 (
                     (0, OrderDirection::Bid),
                     TickValues {
+                        // Tick was originally filled on negative movement
+                        // A total value of 12 remains at the end of these swaps
+                        // 10 filled from first movement, 12 placed after second
                         effective_total_amount_swapped: decimal256_from_u128(10u128),
                         cumulative_total_value: decimal256_from_u128(22u128),
                         total_amount_of_liquidity: decimal256_from_u128(12u128),
@@ -1393,6 +1416,7 @@ fn test_run_market_order_moving_tick() {
                 (
                     (-1, OrderDirection::Bid),
                     TickValues {
+                        // 50% of tick filled
                         effective_total_amount_swapped: decimal256_from_u128(5u128),
                         cumulative_total_value: decimal256_from_u128(10u128),
                         total_amount_of_liquidity: decimal256_from_u128(5u128),
@@ -1401,6 +1425,7 @@ fn test_run_market_order_moving_tick() {
                 (
                     (0, OrderDirection::Ask),
                     TickValues {
+                        // Entire tick filled
                         effective_total_amount_swapped: decimal256_from_u128(10u128),
                         cumulative_total_value: decimal256_from_u128(10u128),
                         total_amount_of_liquidity: Decimal256::zero(),
@@ -1411,6 +1436,7 @@ fn test_run_market_order_moving_tick() {
         RunMarketOrderMovingTickTestCase {
             name: "positive tick movement followed by negative movement",
             operations: vec![
+                // Place Ask on first tick
                 OrderOperation::PlaceLimit(LimitOrder::new(
                     book_id,
                     0,
@@ -1420,6 +1446,7 @@ fn test_run_market_order_moving_tick() {
                     Uint128::from(10u128),
                     Decimal256::zero(),
                 )),
+                // Place Ask on second tick
                 OrderOperation::PlaceLimit(LimitOrder::new(
                     book_id,
                     1,
@@ -1429,12 +1456,14 @@ fn test_run_market_order_moving_tick() {
                     Uint128::from(10u128),
                     Decimal256::zero(),
                 )),
+                // Fill entire first tick and 50% of second tick to force positive movement
                 OrderOperation::RunMarket(MarketOrder::new(
                     book_id,
                     Uint128::from(15u128),
                     OrderDirection::Bid,
                     Addr::unchecked("buyer"),
                 )),
+                // Place Bid on first tick
                 OrderOperation::PlaceLimit(LimitOrder::new(
                     book_id,
                     0,
@@ -1444,12 +1473,14 @@ fn test_run_market_order_moving_tick() {
                     Uint128::from(10u128),
                     Decimal256::zero(),
                 )),
+                // Fill entire first tick to force negative movement
                 OrderOperation::RunMarket(MarketOrder::new(
                     book_id,
                     Uint128::from(10u128),
                     OrderDirection::Ask,
                     Addr::unchecked("buyer"),
                 )),
+                // Place Ask on first tick to update previous state
                 OrderOperation::PlaceLimit(LimitOrder::new(
                     book_id,
                     0,
@@ -1464,6 +1495,9 @@ fn test_run_market_order_moving_tick() {
                 (
                     (0, OrderDirection::Ask),
                     TickValues {
+                        // Tick was originally filled on positive movement
+                        // A total value of 12 remains at the end of these swaps
+                        // 10 filled from first movement, 12 placed after second
                         effective_total_amount_swapped: decimal256_from_u128(10u128),
                         cumulative_total_value: decimal256_from_u128(22u128),
                         total_amount_of_liquidity: decimal256_from_u128(12u128),
@@ -1472,6 +1506,7 @@ fn test_run_market_order_moving_tick() {
                 (
                     (1, OrderDirection::Ask),
                     TickValues {
+                        // Tick 50% filled
                         effective_total_amount_swapped: decimal256_from_u128(5u128),
                         cumulative_total_value: decimal256_from_u128(10u128),
                         total_amount_of_liquidity: decimal256_from_u128(5u128),
@@ -1480,6 +1515,7 @@ fn test_run_market_order_moving_tick() {
                 (
                     (0, OrderDirection::Bid),
                     TickValues {
+                        // Tick entirely filled
                         effective_total_amount_swapped: decimal256_from_u128(10u128),
                         cumulative_total_value: decimal256_from_u128(10u128),
                         total_amount_of_liquidity: Decimal256::zero(),

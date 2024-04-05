@@ -1,4 +1,5 @@
 use crate::sumtree::node::{generate_node_id, NodeType, TreeNode, NODES};
+use crate::sumtree::test::test_fuzz::prepare_sumtree;
 use crate::sumtree::test::test_node::assert_internal_values;
 use crate::sumtree::tree::{get_prefix_sum, TREE};
 use crate::types::OrderDirection;
@@ -160,16 +161,12 @@ fn test_get_prefix_sum_valid() {
     for test in test_cases {
         let mut deps = mock_dependencies();
 
-        let mut root_id = generate_node_id(deps.as_mut().storage, book_id, tick_id).unwrap();
-        let mut tree = TreeNode::new(book_id, tick_id, direction, root_id, NodeType::default());
-        TREE.save(
-            deps.as_mut().storage,
-            &(book_id, tick_id, &direction.to_string()),
-            &root_id,
-        )
-        .unwrap();
-        NODES
-            .save(deps.as_mut().storage, &(book_id, tick_id, tree.key), &tree)
+        let mut tree = prepare_sumtree(&mut deps.as_mut(), book_id, tick_id, direction);
+        let mut root_id = TREE
+            .load(
+                deps.as_mut().storage,
+                &(book_id, tick_id, &direction.to_string()),
+            )
             .unwrap();
 
         // Insert nodes into tree

@@ -629,6 +629,7 @@ struct RunMarketOrderTestCase {
     sent: Uint128,
     expected_output: Uint128,
     expected_tick_etas: Vec<(i64, Decimal256)>,
+    expected_tick_pointers: Vec<(OrderDirection, i64)>,
     expected_error: Option<ContractError>,
 }
 
@@ -673,6 +674,7 @@ fn test_run_market_order() {
                 -1500000,
                 Decimal256::from_ratio(Uint128::new(850), Uint128::one()),
             )],
+            expected_tick_pointers: vec![(OrderDirection::Ask, -1500000)],
             expected_error: None,
         },
         RunMarketOrderTestCase {
@@ -707,6 +709,7 @@ fn test_run_market_order() {
                 40000000,
                 Decimal256::from_ratio(Uint128::new(50_000_000), Uint128::one()),
             )],
+            expected_tick_pointers: vec![(OrderDirection::Ask, 40000000)],
             expected_error: None,
         },
         RunMarketOrderTestCase {
@@ -742,6 +745,7 @@ fn test_run_market_order() {
                 -17765433,
                 Decimal256::from_ratio(Uint128::new(12), Uint128::one()),
             )],
+            expected_tick_pointers: vec![(OrderDirection::Ask, -17765433)],
             expected_error: None,
         },
         RunMarketOrderTestCase {
@@ -788,6 +792,7 @@ fn test_run_market_order() {
                     Decimal256::from_ratio(Uint128::new(500), Uint128::one()),
                 ),
             ],
+            expected_tick_pointers: vec![(OrderDirection::Ask, 40000000)],
             expected_error: None,
         },
         RunMarketOrderTestCase {
@@ -822,6 +827,7 @@ fn test_run_market_order() {
                 40000000,
                 Decimal256::from_ratio(Uint128::new(2), Uint128::one()),
             )],
+            expected_tick_pointers: vec![(OrderDirection::Bid, 40000000)],
             expected_error: None,
         },
         RunMarketOrderTestCase {
@@ -857,6 +863,7 @@ fn test_run_market_order() {
                 -17765433,
                 Decimal256::from_ratio(Uint128::new(81_000), Uint128::one()),
             )],
+            expected_tick_pointers: vec![(OrderDirection::Bid, -17765433)],
             expected_error: None,
         },
         RunMarketOrderTestCase {
@@ -881,6 +888,7 @@ fn test_run_market_order() {
 
             expected_output: Uint128::zero(),
             expected_tick_etas: vec![(10, Decimal256::zero())],
+            expected_tick_pointers: vec![(OrderDirection::Ask, 10)],
             expected_error: Some(ContractError::InvalidBookId {
                 book_id: invalid_book_id,
             }),
@@ -905,6 +913,7 @@ fn test_run_market_order() {
             ),
             expected_output: Uint128::zero(),
             expected_tick_etas: vec![(10, Decimal256::zero())],
+            expected_tick_pointers: vec![(OrderDirection::Ask, 10)],
             expected_error: Some(ContractError::InvalidTickId {
                 tick_id: MIN_TICK - 1,
             }),
@@ -929,6 +938,7 @@ fn test_run_market_order() {
             ),
             expected_output: Uint128::zero(),
             expected_tick_etas: vec![(10, Decimal256::zero())],
+            expected_tick_pointers: vec![(OrderDirection::Bid, MIN_TICK)],
             expected_error: Some(ContractError::InvalidTickId {
                 tick_id: MAX_TICK + 1,
             }),
@@ -959,6 +969,7 @@ fn test_run_market_order() {
 
             expected_output: Uint128::zero(),
             expected_tick_etas: vec![(-1500000, Decimal256::zero())],
+            expected_tick_pointers: vec![(OrderDirection::Ask, -1500000)],
             expected_error: Some(ContractError::InvalidTickId { tick_id: MIN_TICK }),
         },
         RunMarketOrderTestCase {
@@ -995,6 +1006,7 @@ fn test_run_market_order() {
                 40000000,
                 Decimal256::from_ratio(Uint128::new(25_000_000), Uint128::one()),
             )],
+            expected_tick_pointers: vec![(OrderDirection::Ask, 40000000)],
             expected_error: None,
         },
     ];
@@ -1066,6 +1078,18 @@ fn test_run_market_order() {
                 "{}",
                 format_test_name(test.name)
             );
+        }
+
+        // Assert orderbook tick pointers were updated as expected
+        let post_process_orderbook = ORDERBOOKS
+            .load(deps.as_ref().storage, &valid_book_id)
+            .unwrap();
+        for (direction, tick_id) in test.expected_tick_pointers {
+            let pointer = match direction {
+                OrderDirection::Ask => post_process_orderbook.next_ask_tick,
+                OrderDirection::Bid => post_process_orderbook.next_bid_tick,
+            };
+            assert_eq!(tick_id, pointer, "{}", format_test_name(test.name));
         }
 
         // Regardless of whether we error, orders should not be modified.

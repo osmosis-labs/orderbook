@@ -117,7 +117,7 @@ fn prefix_sum_walk(
             return Ok(Decimal256::zero());
         }
 
-        if target_etas <= left_child.get_max_range() {
+        if target_etas < left_child.get_max_range() {
             // Since the target ETAS is within the left child's range, we can safely conclude
             // that everything below the right child should not be in our prefix sum.
             let right_sum = right_child.map_or(Decimal256::zero(), |r| r.get_value());

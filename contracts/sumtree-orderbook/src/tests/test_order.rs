@@ -14,13 +14,15 @@ use crate::{
 };
 use cosmwasm_std::{
     coin, testing::mock_dependencies, Addr, BankMsg, Coin, DepsMut, Empty, Env, MessageInfo,
-    SubMsg, Uint128, Uint256,
+    SubMsg, Uint128,
 };
 use cosmwasm_std::{
     testing::{mock_dependencies_with_balances, mock_env, mock_info},
     Decimal256,
 };
 use cw_utils::PaymentError;
+
+use super::test_utils::decimal256_from_u128;
 
 #[allow(clippy::uninlined_format_args)]
 fn format_test_name(name: &str) -> String {
@@ -315,13 +317,13 @@ fn test_place_limit() {
             .get_values(test.order_direction);
         assert_eq!(
             state.total_amount_of_liquidity,
-            Decimal256::from_ratio(test.quantity, Uint256::one()),
+            decimal256_from_u128(test.quantity),
             "{}",
             format_test_name(test.name)
         );
         assert_eq!(
             state.cumulative_total_value,
-            Decimal256::from_ratio(test.quantity, Uint256::one()),
+            decimal256_from_u128(test.quantity),
             "{}",
             format_test_name(test.name)
         );
@@ -489,7 +491,7 @@ fn test_cancel_limit() {
             if test.place_order {
                 assert_eq!(
                     state.total_amount_of_liquidity,
-                    Decimal256::from_ratio(test.quantity, Uint256::one()),
+                    decimal256_from_u128(test.quantity),
                     "{}",
                     format_test_name(test.name)
                 );
@@ -670,10 +672,7 @@ fn test_run_market_order() {
             // Bidding 1000 units of input into tick -1500000, which corresponds to $0.85,
             // implies 1000*0.85 = 850 units of output.
             expected_output: Uint128::new(850),
-            expected_tick_etas: vec![(
-                -1500000,
-                Decimal256::from_ratio(Uint128::new(850), Uint128::one()),
-            )],
+            expected_tick_etas: vec![(-1500000, decimal256_from_u128(Uint128::new(850)))],
             expected_tick_pointers: vec![(OrderDirection::Ask, -1500000)],
             expected_error: None,
         },
@@ -705,10 +704,7 @@ fn test_run_market_order() {
             //
             // This implies 1000*50000 = 50,000,000 units of output.
             expected_output: Uint128::new(50_000_000),
-            expected_tick_etas: vec![(
-                40000000,
-                Decimal256::from_ratio(Uint128::new(50_000_000), Uint128::one()),
-            )],
+            expected_tick_etas: vec![(40000000, decimal256_from_u128(Uint128::new(50_000_000)))],
             expected_tick_pointers: vec![(OrderDirection::Ask, 40000000)],
             expected_error: None,
         },
@@ -741,10 +737,7 @@ fn test_run_market_order() {
             // This implies 1000*0.012345670000000000 = 12.34567 units of output,
             // truncated to 12 units.
             expected_output: Uint128::new(12),
-            expected_tick_etas: vec![(
-                -17765433,
-                Decimal256::from_ratio(Uint128::new(12), Uint128::one()),
-            )],
+            expected_tick_etas: vec![(-17765433, decimal256_from_u128(Uint128::new(12)))],
             expected_tick_pointers: vec![(OrderDirection::Ask, -17765433)],
             expected_error: None,
         },
@@ -783,14 +776,8 @@ fn test_run_market_order() {
             // the tick.
             expected_output: Uint128::new(1000),
             expected_tick_etas: vec![
-                (
-                    -1500000,
-                    Decimal256::from_ratio(Uint128::new(500), Uint128::one()),
-                ),
-                (
-                    40000000,
-                    Decimal256::from_ratio(Uint128::new(500), Uint128::one()),
-                ),
+                (-1500000, decimal256_from_u128(Uint128::new(500))),
+                (40000000, decimal256_from_u128(Uint128::new(500))),
             ],
             expected_tick_pointers: vec![(OrderDirection::Ask, 40000000)],
             expected_error: None,
@@ -823,10 +810,7 @@ fn test_run_market_order() {
             //
             // This implies 100,000/50000 = 2 units of output.
             expected_output: Uint128::new(2),
-            expected_tick_etas: vec![(
-                40000000,
-                Decimal256::from_ratio(Uint128::new(2), Uint128::one()),
-            )],
+            expected_tick_etas: vec![(40000000, decimal256_from_u128(Uint128::new(2)))],
             expected_tick_pointers: vec![(OrderDirection::Bid, 40000000)],
             expected_error: None,
         },
@@ -859,10 +843,7 @@ fn test_run_market_order() {
             // This implies 1000 / 0.012345670000000000 = 81,000.059 units of output,
             // which gets truncated to 81,000 units.
             expected_output: Uint128::new(81_000),
-            expected_tick_etas: vec![(
-                -17765433,
-                Decimal256::from_ratio(Uint128::new(81_000), Uint128::one()),
-            )],
+            expected_tick_etas: vec![(-17765433, decimal256_from_u128(Uint128::new(81_000)))],
             expected_tick_pointers: vec![(OrderDirection::Bid, -17765433)],
             expected_error: None,
         },
@@ -1002,10 +983,7 @@ fn test_run_market_order() {
             // However, since the book only has 25,000,000 units of liquidity, that is how much
             // is filled.
             expected_output: Uint128::new(25_000_000),
-            expected_tick_etas: vec![(
-                40000000,
-                Decimal256::from_ratio(Uint128::new(25_000_000), Uint128::one()),
-            )],
+            expected_tick_etas: vec![(40000000, decimal256_from_u128(Uint128::new(25_000_000)))],
             expected_tick_pointers: vec![(OrderDirection::Ask, 40000000)],
             expected_error: None,
         },
@@ -1264,46 +1242,25 @@ fn test_run_market_order_moving_tick() {
                 (
                     (0, OrderDirection::Ask),
                     TickValues {
-                        effective_total_amount_swapped: Decimal256::from_ratio(
-                            Uint256::from_u128(10),
-                            Uint256::one(),
-                        ),
-                        cumulative_total_value: Decimal256::from_ratio(
-                            Uint256::from_u128(10),
-                            Uint256::one(),
-                        ),
+                        effective_total_amount_swapped: decimal256_from_u128(10u128),
+                        cumulative_total_value: decimal256_from_u128(10u128),
                         total_amount_of_liquidity: Decimal256::zero(),
                     },
                 ),
                 (
                     (1, OrderDirection::Ask),
                     TickValues {
-                        effective_total_amount_swapped: Decimal256::from_ratio(
-                            Uint256::from_u128(5),
-                            Uint256::one(),
-                        ),
-                        cumulative_total_value: Decimal256::from_ratio(
-                            Uint256::from_u128(10),
-                            Uint256::one(),
-                        ),
-                        total_amount_of_liquidity: Decimal256::from_ratio(
-                            Uint256::from_u128(5),
-                            Uint256::one(),
-                        ),
+                        effective_total_amount_swapped: decimal256_from_u128(5u128),
+                        cumulative_total_value: decimal256_from_u128(10u128),
+                        total_amount_of_liquidity: decimal256_from_u128(5u128),
                     },
                 ),
                 (
                     (0, OrderDirection::Bid),
                     TickValues {
                         effective_total_amount_swapped: Decimal256::zero(),
-                        cumulative_total_value: Decimal256::from_ratio(
-                            Uint256::from_u128(10),
-                            Uint256::one(),
-                        ),
-                        total_amount_of_liquidity: Decimal256::from_ratio(
-                            Uint256::from_u128(10),
-                            Uint256::one(),
-                        ),
+                        cumulative_total_value: decimal256_from_u128(10u128),
+                        total_amount_of_liquidity: decimal256_from_u128(10u128),
                     },
                 ),
             ],
@@ -1349,46 +1306,183 @@ fn test_run_market_order_moving_tick() {
                 (
                     (0, OrderDirection::Bid),
                     TickValues {
-                        effective_total_amount_swapped: Decimal256::from_ratio(
-                            Uint256::from_u128(10),
-                            Uint256::one(),
-                        ),
-                        cumulative_total_value: Decimal256::from_ratio(
-                            Uint256::from_u128(10),
-                            Uint256::one(),
-                        ),
+                        effective_total_amount_swapped: decimal256_from_u128(10u128),
+                        cumulative_total_value: decimal256_from_u128(10u128),
                         total_amount_of_liquidity: Decimal256::zero(),
                     },
                 ),
                 (
                     (-1, OrderDirection::Bid),
                     TickValues {
-                        effective_total_amount_swapped: Decimal256::from_ratio(
-                            Uint256::from_u128(5),
-                            Uint256::one(),
-                        ),
-                        cumulative_total_value: Decimal256::from_ratio(
-                            Uint256::from_u128(10),
-                            Uint256::one(),
-                        ),
-                        total_amount_of_liquidity: Decimal256::from_ratio(
-                            Uint256::from_u128(5),
-                            Uint256::one(),
-                        ),
+                        effective_total_amount_swapped: decimal256_from_u128(5u128),
+                        cumulative_total_value: decimal256_from_u128(10u128),
+                        total_amount_of_liquidity: decimal256_from_u128(5u128),
                     },
                 ),
                 (
                     (0, OrderDirection::Ask),
                     TickValues {
                         effective_total_amount_swapped: Decimal256::zero(),
-                        cumulative_total_value: Decimal256::from_ratio(
-                            Uint256::from_u128(10),
-                            Uint256::one(),
-                        ),
-                        total_amount_of_liquidity: Decimal256::from_ratio(
-                            Uint256::from_u128(10),
-                            Uint256::one(),
-                        ),
+                        cumulative_total_value: decimal256_from_u128(10u128),
+                        total_amount_of_liquidity: decimal256_from_u128(10u128),
+                    },
+                ),
+            ],
+        },
+        RunMarketOrderMovingTickTestCase {
+            name: "negative tick movement followed by positive movement",
+            operations: vec![
+                OrderOperation::PlaceLimit(LimitOrder::new(
+                    book_id,
+                    0,
+                    0,
+                    OrderDirection::Bid,
+                    Addr::unchecked(info.sender.as_str()),
+                    Uint128::from(10u128),
+                    Decimal256::zero(),
+                )),
+                OrderOperation::PlaceLimit(LimitOrder::new(
+                    book_id,
+                    -1,
+                    0,
+                    OrderDirection::Bid,
+                    Addr::unchecked(info.sender.as_str()),
+                    Uint128::from(10u128),
+                    Decimal256::zero(),
+                )),
+                OrderOperation::RunMarket(MarketOrder::new(
+                    book_id,
+                    Uint128::from(15u128),
+                    OrderDirection::Ask,
+                    Addr::unchecked("buyer"),
+                )),
+                OrderOperation::PlaceLimit(LimitOrder::new(
+                    book_id,
+                    0,
+                    0,
+                    OrderDirection::Ask,
+                    Addr::unchecked(info.sender.as_str()),
+                    Uint128::from(10u128),
+                    Decimal256::zero(),
+                )),
+                OrderOperation::RunMarket(MarketOrder::new(
+                    book_id,
+                    Uint128::from(10u128),
+                    OrderDirection::Bid,
+                    Addr::unchecked("buyer"),
+                )),
+                OrderOperation::PlaceLimit(LimitOrder::new(
+                    book_id,
+                    0,
+                    0,
+                    OrderDirection::Bid,
+                    Addr::unchecked(info.sender.as_str()),
+                    Uint128::from(12u128),
+                    Decimal256::zero(),
+                )),
+            ],
+            expected_tick_values: vec![
+                (
+                    (0, OrderDirection::Bid),
+                    TickValues {
+                        effective_total_amount_swapped: decimal256_from_u128(10u128),
+                        cumulative_total_value: decimal256_from_u128(22u128),
+                        total_amount_of_liquidity: decimal256_from_u128(12u128),
+                    },
+                ),
+                (
+                    (-1, OrderDirection::Bid),
+                    TickValues {
+                        effective_total_amount_swapped: decimal256_from_u128(5u128),
+                        cumulative_total_value: decimal256_from_u128(10u128),
+                        total_amount_of_liquidity: decimal256_from_u128(5u128),
+                    },
+                ),
+                (
+                    (0, OrderDirection::Ask),
+                    TickValues {
+                        effective_total_amount_swapped: decimal256_from_u128(10u128),
+                        cumulative_total_value: decimal256_from_u128(10u128),
+                        total_amount_of_liquidity: Decimal256::zero(),
+                    },
+                ),
+            ],
+        },
+        RunMarketOrderMovingTickTestCase {
+            name: "positive tick movement followed by negative movement",
+            operations: vec![
+                OrderOperation::PlaceLimit(LimitOrder::new(
+                    book_id,
+                    0,
+                    0,
+                    OrderDirection::Ask,
+                    Addr::unchecked(info.sender.as_str()),
+                    Uint128::from(10u128),
+                    Decimal256::zero(),
+                )),
+                OrderOperation::PlaceLimit(LimitOrder::new(
+                    book_id,
+                    1,
+                    0,
+                    OrderDirection::Ask,
+                    Addr::unchecked(info.sender.as_str()),
+                    Uint128::from(10u128),
+                    Decimal256::zero(),
+                )),
+                OrderOperation::RunMarket(MarketOrder::new(
+                    book_id,
+                    Uint128::from(15u128),
+                    OrderDirection::Bid,
+                    Addr::unchecked("buyer"),
+                )),
+                OrderOperation::PlaceLimit(LimitOrder::new(
+                    book_id,
+                    0,
+                    0,
+                    OrderDirection::Bid,
+                    Addr::unchecked(info.sender.as_str()),
+                    Uint128::from(10u128),
+                    Decimal256::zero(),
+                )),
+                OrderOperation::RunMarket(MarketOrder::new(
+                    book_id,
+                    Uint128::from(10u128),
+                    OrderDirection::Ask,
+                    Addr::unchecked("buyer"),
+                )),
+                OrderOperation::PlaceLimit(LimitOrder::new(
+                    book_id,
+                    0,
+                    0,
+                    OrderDirection::Ask,
+                    Addr::unchecked(info.sender.as_str()),
+                    Uint128::from(12u128),
+                    Decimal256::zero(),
+                )),
+            ],
+            expected_tick_values: vec![
+                (
+                    (0, OrderDirection::Ask),
+                    TickValues {
+                        effective_total_amount_swapped: decimal256_from_u128(10u128),
+                        cumulative_total_value: decimal256_from_u128(22u128),
+                        total_amount_of_liquidity: decimal256_from_u128(12u128),
+                    },
+                ),
+                (
+                    (1, OrderDirection::Ask),
+                    TickValues {
+                        effective_total_amount_swapped: decimal256_from_u128(5u128),
+                        cumulative_total_value: decimal256_from_u128(10u128),
+                        total_amount_of_liquidity: decimal256_from_u128(5u128),
+                    },
+                ),
+                (
+                    (0, OrderDirection::Bid),
+                    TickValues {
+                        effective_total_amount_swapped: decimal256_from_u128(10u128),
+                        cumulative_total_value: decimal256_from_u128(10u128),
+                        total_amount_of_liquidity: Decimal256::zero(),
                     },
                 ),
             ],

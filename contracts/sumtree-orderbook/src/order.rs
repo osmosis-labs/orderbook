@@ -2,7 +2,7 @@ use crate::constants::{MAX_TICK, MIN_TICK};
 use crate::error::ContractError;
 use crate::state::{new_order_id, orders, ORDERBOOKS, TICK_STATE};
 use crate::sumtree::node::{generate_node_id, NodeType, TreeNode};
-use crate::sumtree::tree::{get_root_node, TREE};
+use crate::sumtree::tree::get_or_init_root_node;
 use crate::tick_math::{amount_to_value, tick_to_price, RoundingDirection};
 use crate::types::{LimitOrder, MarketOrder, OrderDirection, TickState, REPLY_ID_REFUND};
 use cosmwasm_std::{
@@ -179,25 +179,8 @@ pub fn cancel_limit(
     );
 
     // Fetch the sumtree from storage, or create one if it does not exist
-    let mut tree =
-        if let Ok(tree) = get_root_node(deps.storage, book_id, tick_id, order.order_direction) {
-            tree
-        } else {
-            let new_root = TreeNode::new(
-                order.book_id,
-                order.tick_id,
-                order.order_direction,
-                generate_node_id(deps.storage, book_id, tick_id)?,
-                NodeType::default(),
-            );
-            TREE.save(
-                deps.storage,
-                &(book_id, tick_id, &order.order_direction.to_string()),
-                &new_root.key,
-            )?;
-            new_root
-        };
-
+    let mut tree = get_or_init_root_node(deps.storage, book_id, tick_id, order.order_direction)?;
+  
     // Generate info for new node to insert to sumtree
     let node_id = generate_node_id(deps.storage, order.book_id, order.tick_id)?;
     let mut curr_tick_state = TICK_STATE

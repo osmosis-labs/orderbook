@@ -1,6 +1,5 @@
 use crate::{error::ContractResult, types::OrderDirection};
-
-use super::node::{TreeNode, NODES};
+use super::node::{generate_node_id, NodeType, TreeNode, NODES};
 use cosmwasm_std::{Decimal256, Storage};
 use cw_storage_plus::Map;
 
@@ -16,6 +15,35 @@ pub fn get_root_node(
 ) -> ContractResult<TreeNode> {
     let root_id = TREE.load(storage, &(book_id, tick_id, &direction.to_string()))?;
     Ok(NODES.load(storage, &(book_id, tick_id, root_id))?)
+}
+
+#[allow(dead_code)]
+/// Retrieves the root node of a specific book and tick from storage.
+/// If it is not available, initializes a sumtree and returns the root.
+pub fn get_or_init_root_node(
+    storage: &mut dyn Storage,
+    book_id: u64,
+    tick_id: i64,
+    direction: OrderDirection,
+) -> ContractResult<TreeNode> {
+    let tree = if let Ok(tree) = get_root_node(storage, book_id, tick_id, direction) {
+        tree
+    } else {
+        let new_root = TreeNode::new(
+            book_id,
+            tick_id,
+            direction,
+            generate_node_id(storage, book_id, tick_id)?,
+            NodeType::default(),
+        );
+        TREE.save(
+            storage,
+            &(book_id, tick_id, &direction.to_string()),
+            &new_root.key,
+        )?;
+        new_root
+    };
+    Ok(tree)
 }
 
 #[allow(dead_code)]
@@ -88,7 +116,7 @@ fn prefix_sum_walk(
             return Ok(Decimal256::zero());
         }
 
-        if target_etas <= left_child.get_max_range() {
+        if target_etas < left_child.get_max_range() {
             // Since the target ETAS is within the left child's range, we can safely conclude
             // that everything below the right child should not be in our prefix sum.
             let right_sum = right_child.map_or(Decimal256::zero(), |r| r.get_value());

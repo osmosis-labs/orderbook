@@ -83,6 +83,9 @@ pub enum ContractError {
 
     #[error("Cannot cancel an order that has partially or fully been filled")]
     CancelFilledOrder,
+
+    #[error("Invalid tick state: syncing tick pushed ETAS past CTT")]
+    InvalidTickSync,
 }
 
 pub type ContractResult<T> = Result<T, ContractError>;

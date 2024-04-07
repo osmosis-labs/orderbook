@@ -80,7 +80,7 @@ pub fn place_limit(
     let mut tick_values = tick_state.get_values(order_direction);
 
     // Build limit order
-    let limit_order = LimitOrder::new(
+    let mut limit_order = LimitOrder::new(
         book_id,
         tick_id,
         order_id,
@@ -96,10 +96,18 @@ pub fn place_limit(
         OrderDirection::Bid => tick_id >= orderbook.next_ask_tick,
     };
 
-    let response = Response::default();
+    let mut response = Response::default();
     // Run order fill if criteria met
     if should_fill {
-        todo!()
+        let mut market_order = MarketOrder::from(limit_order.clone());
+        let tick_bound = match market_order.order_direction {
+            OrderDirection::Bid => MAX_TICK,
+            OrderDirection::Ask => MIN_TICK,
+        };
+        let (_, fill_msg) = run_market_order(deps.storage, &mut market_order, tick_bound)?;
+        response = response.add_submessage(SubMsg::reply_on_error(fill_msg, 1));
+
+        limit_order.quantity = market_order.quantity;
     }
 
     let quantity_fullfilled = quantity.checked_sub(limit_order.quantity)?;
@@ -277,7 +285,7 @@ pub fn run_market_order(
     order: &mut MarketOrder,
     tick_bound: i64,
 ) -> Result<(Uint128, BankMsg), ContractError> {
-    let orderbook =
+    let mut orderbook =
         ORDERBOOKS
             .load(storage, &order.book_id)
             .map_err(|_| ContractError::InvalidBookId {
@@ -334,6 +342,17 @@ pub fn run_market_order(
         let mut current_tick_values = current_tick.get_values(order.order_direction.opposite());
         let tick_price = tick_to_price(current_tick_id)?;
 
+        // Update current tick pointer as we visit ticks
+        match order.order_direction.opposite() {
+            OrderDirection::Ask => orderbook.next_ask_tick = current_tick_id,
+            OrderDirection::Bid => orderbook.next_bid_tick = current_tick_id,
+        }
+
+        // Early exit if order filled
+        if order.quantity.is_zero() {
+            break;
+        }
+
         let output_quantity = amount_to_value(
             order.order_direction,
             order.quantity,
@@ -386,6 +405,9 @@ pub fn run_market_order(
     for (tick_id, tick_state) in tick_updates {
         TICK_STATE.save(storage, &(order.book_id, tick_id), &tick_state)?;
     }
+
+    // Update tick pointers in orderbook
+    ORDERBOOKS.save(storage, &order.book_id, &orderbook)?;
 
     // TODO: If we intend to support refunds for partial fills, we will need to return
     // the consumed input here as well. If we choose not to, we should error in this case.

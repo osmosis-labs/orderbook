@@ -13,7 +13,7 @@ struct SyncTickTestCase {
     new_etas_per_sync: Decimal256,
     num_syncs: u32,
     expected_cumulative_realized: Decimal256,
-    expected_new_etas_per_sync: Decimal256,
+    expected_new_etas_post_sync: Decimal256,
 }
 
 #[test]
@@ -41,7 +41,7 @@ fn test_sync_tick() {
             expected_cumulative_realized: Decimal256::from_ratio(5u128, 1u128),
 
             // The ETAS should be updated to reflect the 5 units of realized cancellations
-            expected_new_etas_per_sync: Decimal256::from_ratio(3u128 + 5u128, 1u128),
+            expected_new_etas_post_sync: Decimal256::from_ratio(3u128 + 5u128, 1u128),
         },
         SyncTickTestCase {
             name: "No unrealized cancels",
@@ -61,7 +61,7 @@ fn test_sync_tick() {
             expected_cumulative_realized: Decimal256::zero(),
 
             // The ETAS should remain unchanged as there are no unrealized cancellations
-            expected_new_etas_per_sync: Decimal256::from_ratio(5u128, 1u128),
+            expected_new_etas_post_sync: Decimal256::from_ratio(5u128, 1u128),
         },
         SyncTickTestCase {
             name: "Multiple unrealized cancels",
@@ -85,31 +85,7 @@ fn test_sync_tick() {
 
             // The ETAS should be updated to reflect all units of realized cancellations
             // and the original ETAS
-            expected_new_etas_per_sync: Decimal256::from_ratio(5 + 15u128, 1u128),
-        },
-        SyncTickTestCase {
-            name: "Multiple unrealized cancels",
-            // Tick with:
-            // * 20 units of available liquidity
-            // * 15 units of unrealized cancellations
-            initial_tick_values: build_tick_values(20, 15),
-
-            // Multiple unrealized cancels
-            unrealized_cancels: vec![
-                NodeType::leaf_uint256(2u32, 3u32),
-                NodeType::leaf_uint256(5u32, 12u32),
-            ],
-
-            // Update tick to a new ETAS that encompasses all unrealized cancels
-            new_etas_per_sync: Decimal256::from_ratio(5u128, 1u128),
-            num_syncs: 1,
-
-            // All unrealized cancels become realized
-            expected_cumulative_realized: Decimal256::from_ratio(15u128, 1u128),
-
-            // The ETAS should be updated to reflect all units of realized cancellations
-            // and the original ETAS
-            expected_new_etas_per_sync: Decimal256::from_ratio(5 + 15u128, 1u128),
+            expected_new_etas_post_sync: Decimal256::from_ratio(5 + 15u128, 1u128),
         },
         SyncTickTestCase {
             name: "Multiple syncs",
@@ -124,7 +100,7 @@ fn test_sync_tick() {
                 NodeType::leaf_uint256(50u32, 12u32),
                 NodeType::leaf_uint256(62u32, 10u32),
                 NodeType::leaf_uint256(80u32, 28u32),
-                NodeType::leaf_uint256(108u32, 70u32),
+                NodeType::leaf_uint256(128u32, 70u32),
             ],
 
             // Increment tick ETAS by 30 per iteration for 3 iterations.
@@ -132,7 +108,7 @@ fn test_sync_tick() {
             // Iteration 2: first two nodes included
             // Iteration 3: first four nodes are incldued
             new_etas_per_sync: Decimal256::from_ratio(30u128, 1u128),
-            num_syncs: 3,
+            num_syncs: 4,
 
             // By end of iteration 3, the amounts of the first four nodes should be included.
             // This is equal to 30 + 12 + 10 + 28 = 80
@@ -140,7 +116,7 @@ fn test_sync_tick() {
 
             // The new ETAS includes all the incremented amounts (3 * 30 each) which represent fills,
             // plus the amount of realized cancellations
-            expected_new_etas_per_sync: Decimal256::from_ratio((3u128 * 30u128) + 80u128, 1u128),
+            expected_new_etas_post_sync: Decimal256::from_ratio((4u128 * 30u128) + 80u128, 1u128),
         },
     ];
 
@@ -210,7 +186,7 @@ fn test_sync_tick() {
             test.name
         );
         assert_eq!(
-            test.expected_new_etas_per_sync, updated_tick_values.effective_total_amount_swapped,
+            test.expected_new_etas_post_sync, updated_tick_values.effective_total_amount_swapped,
             "Assertion failed on case: {}",
             test.name
         );

@@ -1403,6 +1403,8 @@ fn test_run_market_order_moving_tick() {
             ],
             expected_tick_values: vec![
                 (
+// Recall that each tick has two sets of values (one for each order direction).
+// (0, OrderDirection::Bid) corresponds to the bid values of tick 0.
                     (0, OrderDirection::Bid),
                     TickValues {
                         // Tick was originally filled on negative movement

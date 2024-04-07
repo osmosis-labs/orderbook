@@ -20,7 +20,7 @@ struct TestNodeInsertCase {
 
 // Asserts all values of internal nodes are as expected
 pub fn assert_internal_values(
-    test_name: &'static str,
+    test_name: &str,
     deps: Deps,
     internals: Vec<&TreeNode>,
     should_be_balanced: bool,

@@ -1,4 +1,5 @@
 use crate::sumtree::node::{generate_node_id, NodeType, TreeNode, NODES};
+use crate::sumtree::test::test_fuzz::prepare_sumtree;
 use crate::sumtree::test::test_node::assert_internal_values;
 use crate::sumtree::tree::{get_or_init_root_node, get_prefix_sum, get_root_node, TREE};
 use crate::types::OrderDirection;

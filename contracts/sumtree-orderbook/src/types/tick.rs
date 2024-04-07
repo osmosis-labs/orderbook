@@ -73,33 +73,3 @@ impl TickState {
         }
     }
 }
-
-/// Represents the state of a specific price tick in a liquidity pool.
-///
-/// The state is split into two parts for the ask and bid directions.
-#[cw_serde]
-#[derive(Default)]
-pub struct TickState {
-    /// Values for the ask direction of the tick
-    pub ask_values: TickValues,
-    /// Values for the bid direction of the tick
-    pub bid_values: TickValues,
-}
-
-impl TickState {
-    pub fn get_values(&self, direction: OrderDirection) -> TickValues {
-        if direction == OrderDirection::Ask {
-            self.ask_values.clone()
-        } else {
-            self.bid_values.clone()
-        }
-    }
-
-    pub fn set_values(&mut self, direction: OrderDirection, values: TickValues) {
-        if direction == OrderDirection::Ask {
-            self.ask_values = values;
-        } else {
-            self.bid_values = values;
-        }
-    }
-}

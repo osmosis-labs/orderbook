@@ -225,7 +225,5 @@ pub fn insert_and_refetch(
     let root_id = TREE
         .load(storage, &(book_id, tick_id, &direction.to_string()))
         .unwrap();
-    let tree = NODES.load(storage, &(book_id, tick_id, root_id)).unwrap();
-
-    tree
+    NODES.load(storage, &(book_id, tick_id, root_id)).unwrap()
 }

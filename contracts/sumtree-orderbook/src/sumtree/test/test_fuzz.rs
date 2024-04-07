@@ -7,11 +7,13 @@ use rand::{rngs::StdRng, Rng, SeedableRng};
 
 use crate::sumtree::node::{generate_node_id, NodeType, TreeNode, NODES};
 use crate::sumtree::tree::{get_prefix_sum, TREE};
+use crate::types::OrderDirection;
 
 use super::test_node::assert_internal_values;
 
 const DEFAULT_BOOK_ID: u64 = 0;
 const DEFAULT_TICK_ID: i64 = 0;
+const DEFAULT_DIRECTION: OrderDirection = OrderDirection::Bid;
 
 #[test]
 fn test_fuzz_insert() {
@@ -28,7 +30,12 @@ fn test_fuzz_insert() {
 
         // Set up sumtree to insert into
         let mut deps = mock_dependencies();
-        prepare_sumtree(&mut deps.as_mut(), DEFAULT_BOOK_ID, DEFAULT_TICK_ID);
+        prepare_sumtree(
+            &mut deps.as_mut(),
+            DEFAULT_BOOK_ID,
+            DEFAULT_TICK_ID,
+            DEFAULT_DIRECTION,
+        );
 
         // Generate a list of `num_nodes` nodes, each directly adjacent to each other
         // as would be the case with newly created limit orders on a tick
@@ -64,6 +71,7 @@ fn test_fuzz_insert() {
                 &mut deps.as_mut(),
                 DEFAULT_BOOK_ID,
                 DEFAULT_TICK_ID,
+                DEFAULT_DIRECTION,
                 &mut node.clone(),
             );
 
@@ -87,11 +95,20 @@ fn test_fuzz_insert() {
 }
 
 // prepare_sumtree sets up an empty sumtree and returns the root node.
-pub fn prepare_sumtree(deps: &mut DepsMut, book_id: u64, tick_id: i64) -> TreeNode {
+pub fn prepare_sumtree(
+    deps: &mut DepsMut,
+    book_id: u64,
+    tick_id: i64,
+    direction: OrderDirection,
+) -> TreeNode {
     let root_id = generate_node_id(deps.storage, book_id, tick_id).unwrap();
-    let tree = TreeNode::new(book_id, tick_id, root_id, NodeType::default());
-    TREE.save(deps.storage, &(book_id, tick_id), &root_id)
-        .unwrap();
+    let tree = TreeNode::new(book_id, tick_id, direction, root_id, NodeType::default());
+    TREE.save(
+        deps.storage,
+        &(book_id, tick_id, &direction.to_string()),
+        &root_id,
+    )
+    .unwrap();
     NODES
         .save(deps.storage, &(book_id, tick_id, tree.key), &tree)
         .unwrap();
@@ -106,16 +123,21 @@ pub fn insert_node(
     deps: &mut DepsMut,
     book_id: u64,
     tick_id: i64,
+    direction: OrderDirection,
     node: &mut TreeNode,
 ) -> TreeNode {
-    let mut root_id = TREE.load(deps.storage, &(book_id, tick_id)).unwrap();
+    let mut root_id = TREE
+        .load(deps.storage, &(book_id, tick_id, &direction.to_string()))
+        .unwrap();
     let mut tree = NODES
         .load(deps.storage, &(book_id, tick_id, root_id))
         .unwrap();
 
     tree.insert(deps.storage, node).unwrap();
 
-    root_id = TREE.load(deps.storage, &(book_id, tick_id)).unwrap();
+    root_id = TREE
+        .load(deps.storage, &(book_id, tick_id, &direction.to_string()))
+        .unwrap();
     NODES
         .load(deps.storage, &(book_id, tick_id, root_id))
         .unwrap()
@@ -142,6 +164,7 @@ pub fn random_leaf_uint256_node(
     let new_node = TreeNode::new(
         book_id,
         tick_id,
+        DEFAULT_DIRECTION,
         new_node_id,
         NodeType::leaf(start_etas, Decimal256::from_ratio(rng.gen::<u32>(), 1u128)),
     );

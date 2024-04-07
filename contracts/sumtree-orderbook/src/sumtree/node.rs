@@ -11,7 +11,7 @@ use cosmwasm_std::Uint256;
 use cosmwasm_std::{ensure, Decimal256, Storage};
 use cw_storage_plus::Map;
 
-use crate::{error::ContractResult, sumtree::tree::TREE, ContractError};
+use crate::{error::ContractResult, sumtree::tree::TREE, types::OrderDirection, ContractError};
 
 pub const NODES: Map<&(u64, i64, u64), TreeNode> = Map::new("nodes");
 pub const NODE_ID_COUNTER: Map<&(u64, i64), u64> = Map::new("node_id");
@@ -108,6 +108,7 @@ pub struct TreeNode {
     pub key: u64,
     pub book_id: u64,
     pub tick_id: i64,
+    pub direction: OrderDirection,
     pub left: Option<u64>,
     pub right: Option<u64>,
     pub parent: Option<u64>,
@@ -118,11 +119,18 @@ pub struct TreeNode {
 pub type BFSVec = Vec<Vec<(Option<TreeNode>, Option<TreeNode>)>>;
 
 impl TreeNode {
-    pub fn new(book_id: u64, tick_id: i64, key: u64, node_type: NodeType) -> Self {
+    pub fn new(
+        book_id: u64,
+        tick_id: i64,
+        direction: OrderDirection,
+        key: u64,
+        node_type: NodeType,
+    ) -> Self {
         Self {
             key,
             book_id,
             tick_id,
+            direction,
             left: None,
             right: None,
             parent: None,
@@ -502,6 +510,7 @@ impl TreeNode {
         let mut new_parent = TreeNode::new(
             self.book_id,
             self.tick_id,
+            self.direction,
             id,
             NodeType::internal(accumulator, (new_min, new_max)),
         );
@@ -657,7 +666,11 @@ impl TreeNode {
 
         // If the left node has no parent, it becomes the new root.
         if left.parent.is_none() {
-            TREE.save(storage, &(left.book_id, left.tick_id), &left.key)?;
+            TREE.save(
+                storage,
+                &(left.book_id, left.tick_id, &left.direction.to_string()),
+                &left.key,
+            )?;
         }
 
         // Synchronize the range and value of the current node.
@@ -687,7 +700,7 @@ impl TreeNode {
     pub fn rotate_left(&mut self, storage: &mut dyn Storage) -> ContractResult<()> {
         // Retrieve the parent node, if any.
         let maybe_parent = self.get_parent(storage)?;
-      
+
         // Determine if the current node is a left or right child of its parent.
         let is_left_child = maybe_parent
             .clone()
@@ -720,9 +733,13 @@ impl TreeNode {
 
         // If the left node has no parent, it becomes the new root.
         if right.parent.is_none() {
-            TREE.save(storage, &(right.book_id, right.tick_id), &right.key)?;
+            TREE.save(
+                storage,
+                &(right.book_id, right.tick_id, &self.direction.to_string()),
+                &right.key,
+            )?;
         }
-      
+
         // Synchronize the range and value of the current node.
         self.sync_range_and_value(storage)?;
         right.sync_range_and_value(storage)?;

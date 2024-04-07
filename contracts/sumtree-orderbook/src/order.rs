@@ -77,16 +77,17 @@ pub fn place_limit(
     let mut tick_state = TICK_STATE
         .load(deps.storage, &(book_id, tick_id))
         .unwrap_or_default();
+    let mut tick_values = tick_state.get_values(order_direction);
 
     // Build limit order
-    let limit_order = LimitOrder::new(
+    let mut limit_order = LimitOrder::new(
         book_id,
         tick_id,
         order_id,
         order_direction,
         info.sender.clone(),
         quantity,
-        tick_state.cumulative_total_value,
+        tick_values.cumulative_total_value,
     );
 
     // Determine if the order needs to be filled
@@ -95,10 +96,18 @@ pub fn place_limit(
         OrderDirection::Bid => tick_id >= orderbook.next_ask_tick,
     };
 
-    let response = Response::default();
+    let mut response = Response::default();
     // Run order fill if criteria met
     if should_fill {
-        todo!()
+        let mut market_order = MarketOrder::from(limit_order.clone());
+        let tick_bound = match market_order.order_direction {
+            OrderDirection::Bid => MAX_TICK,
+            OrderDirection::Ask => MIN_TICK,
+        };
+        let (_, fill_msg) = run_market_order(deps.storage, &mut market_order, tick_bound)?;
+        response = response.add_submessage(SubMsg::reply_on_error(fill_msg, 1));
+
+        limit_order.quantity = market_order.quantity;
     }
 
     let quantity_fullfilled = quantity.checked_sub(limit_order.quantity)?;
@@ -108,7 +117,7 @@ pub fn place_limit(
         // Save the order to the orderbook
         orders().save(deps.storage, &(book_id, tick_id, order_id), &limit_order)?;
 
-        tick_state.total_amount_of_liquidity = tick_state
+        tick_values.total_amount_of_liquidity = tick_values
             .total_amount_of_liquidity
             .checked_add(Decimal256::from_ratio(
                 limit_order.quantity.u128(),
@@ -117,10 +126,11 @@ pub fn place_limit(
             .unwrap();
     }
 
-    tick_state.cumulative_total_value = tick_state
+    tick_values.cumulative_total_value = tick_values
         .cumulative_total_value
         .checked_add(Decimal256::from_ratio(quantity, Uint256::one()))?;
 
+    tick_state.set_values(order_direction, tick_values);
     TICK_STATE.save(deps.storage, &(book_id, tick_id), &tick_state)?;
 
     Ok(response
@@ -162,24 +172,31 @@ pub fn cancel_limit(
     let tick_state = TICK_STATE
         .load(deps.storage, &(book_id, tick_id))
         .unwrap_or_default();
+    let tick_values = tick_state.get_values(order.order_direction);
     ensure!(
-        tick_state.effective_total_amount_swapped <= order.etas,
+        tick_values.effective_total_amount_swapped <= order.etas,
         ContractError::CancelFilledOrder
     );
 
     // Fetch the sumtree from storage, or create one if it does not exist
-    let mut tree = if let Ok(tree) = get_root_node(deps.storage, book_id, tick_id) {
-        tree
-    } else {
-        let new_root = TreeNode::new(
-            order.book_id,
-            order.tick_id,
-            generate_node_id(deps.storage, book_id, tick_id)?,
-            NodeType::default(),
-        );
-        TREE.save(deps.storage, &(book_id, tick_id), &new_root.key)?;
-        new_root
-    };
+    let mut tree =
+        if let Ok(tree) = get_root_node(deps.storage, book_id, tick_id, order.order_direction) {
+            tree
+        } else {
+            let new_root = TreeNode::new(
+                order.book_id,
+                order.tick_id,
+                order.order_direction,
+                generate_node_id(deps.storage, book_id, tick_id)?,
+                NodeType::default(),
+            );
+            TREE.save(
+                deps.storage,
+                &(book_id, tick_id, &order.order_direction.to_string()),
+                &new_root.key,
+            )?;
+            new_root
+        };
 
     // Generate info for new node to insert to sumtree
     let node_id = generate_node_id(deps.storage, order.book_id, order.tick_id)?;
@@ -189,10 +206,12 @@ pub fn cancel_limit(
         .ok_or(ContractError::InvalidTickId {
             tick_id: order.tick_id,
         })?;
+    let mut curr_tick_values = curr_tick_state.get_values(order.order_direction);
 
     let mut new_node = TreeNode::new(
         order.book_id,
         order.tick_id,
+        order.order_direction,
         node_id,
         NodeType::leaf(
             order.etas,
@@ -226,10 +245,10 @@ pub fn cancel_limit(
         &(order.book_id, order.tick_id, order.order_id),
     )?;
 
-    curr_tick_state.total_amount_of_liquidity = curr_tick_state
+    curr_tick_values.total_amount_of_liquidity = curr_tick_values
         .total_amount_of_liquidity
         .checked_sub(Decimal256::from_ratio(order.quantity, Uint256::one()))?;
-
+    curr_tick_state.set_values(order.order_direction, curr_tick_values);
     TICK_STATE.save(
         deps.storage,
         &(order.book_id, order.tick_id),
@@ -337,6 +356,7 @@ pub fn run_market_order(
     let mut tick_updates: Vec<(i64, TickState)> = Vec::new();
     for maybe_current_tick in ticks {
         let (current_tick_id, mut current_tick) = maybe_current_tick?;
+        let mut current_tick_values = current_tick.get_values(order.order_direction.opposite());
         let tick_price = tick_to_price(current_tick_id)?;
 
         // Update current tick pointer as we visit ticks
@@ -362,18 +382,19 @@ pub fn run_market_order(
 
         // If order quantity is less than the current tick's liquidity, fill the whole order.
         // Otherwise, fill the whole tick.
-        let fill_amount_dec = if output_quantity_dec < current_tick.total_amount_of_liquidity {
+        let fill_amount_dec = if output_quantity_dec < current_tick_values.total_amount_of_liquidity
+        {
             output_quantity_dec
         } else {
-            current_tick.total_amount_of_liquidity
+            current_tick_values.total_amount_of_liquidity
         };
 
         // Update tick and order state to process the fill
-        current_tick.total_amount_of_liquidity = current_tick
+        current_tick_values.total_amount_of_liquidity = current_tick_values
             .total_amount_of_liquidity
             .checked_sub(fill_amount_dec)?;
 
-        current_tick.effective_total_amount_swapped = current_tick
+        current_tick_values.effective_total_amount_swapped = current_tick_values
             .effective_total_amount_swapped
             .checked_add(fill_amount_dec)?;
 
@@ -389,6 +410,7 @@ pub fn run_market_order(
         )?;
         order.quantity = order.quantity.checked_sub(input_filled)?;
 
+        current_tick.set_values(order.order_direction.opposite(), current_tick_values);
         // Add the updated tick state to the vector
         tick_updates.push((current_tick_id, current_tick));
 

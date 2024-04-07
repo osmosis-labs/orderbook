@@ -1,5 +1,4 @@
 use crate::{error::ContractResult, types::OrderDirection};
-
 use super::node::{generate_node_id, NodeType, TreeNode, NODES};
 use cosmwasm_std::{Decimal256, Storage};
 use cw_storage_plus::Map;

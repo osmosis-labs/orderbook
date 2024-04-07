@@ -180,7 +180,7 @@ pub fn cancel_limit(
 
     // Fetch the sumtree from storage, or create one if it does not exist
     let mut tree = get_or_init_root_node(deps.storage, book_id, tick_id, order.order_direction)?;
-
+  
     // Generate info for new node to insert to sumtree
     let node_id = generate_node_id(deps.storage, order.book_id, order.tick_id)?;
     let mut curr_tick_state = TICK_STATE

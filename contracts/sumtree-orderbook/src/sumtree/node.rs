@@ -379,13 +379,17 @@ impl TreeNode {
     /// If the node is internal or the current node is a leaf an error is returned.
     ///
     /// If the node is a leaf it will be inserted by the following priority:
+    /// Internal conditions:
     /// 1. New node fits in left internal range, insert left
     /// 2. New node fits in right internal range, insert right
     /// 3. Both left and right are internal, node does not fit in either, insert left
-    /// 4. New node does not fit in right range and left node is a leaf, split left
-    /// 5. New node does not fit in left range and right node is a leaf, split right
+    /// Splitting conditions:
+    /// 4. New node does not fit in right range (or is less than right.min if right is a leaf) and left node is a leaf, split left
+    /// 5. New node does not fit in left range (or is greater than or equal to left.max when left is a leaf) and right node is a leaf, split right
+    /// Reordering conditions:
     /// 6. Right node is empty, new node is lower than left node, move left node to right and insert left
     /// 7. Left node is empty, new node is higher than right node, move right node to left and insert right
+    /// Empty conditions:
     /// 8. Left node is empty, insert left
     /// 9. Right is empty, insert right
     pub fn insert(
@@ -422,14 +426,18 @@ impl TreeNode {
             .map_or(false, |right| new_node.is_in_right_range(right));
 
         // Check if new node's max is strictly less than left node's min
-        // As node ranges may overlap on equality comparisons (i.e. left_node.max == right_node.min) we check strictly here and non-strictly on following check
         let is_less_than_left = maybe_left
             .clone()
+            // As node ranges may overlap on equality comparisons (i.e. left_node.max == right_node.min) we check strictly here
             .map_or(false, |left| new_node.is_strictly_less_than(left));
         // Check if new node's min is greater than right node's max
         let is_greater_than_right = maybe_right
             .clone()
+            // As node ranges may overlap on equality comparisons (i.e. left_node.max == right_node.min) we check non-strictly here
             .map_or(false, |right| new_node.is_greater_than(right));
+
+        // Internal conditions
+        // One node is internal and the new node fits in its range, or both are internal and the new node does not fit in either range
 
         // Case 1: Node fits in left internal range, insert left
         if is_left_internal && is_in_left_range {
@@ -458,8 +466,11 @@ impl TreeNode {
             return Ok(());
         }
 
+        // Splitting conditions
+        // One node is a leaf and the new node does not fit in range of the other, split the leaf node
+        // Note: the "other" node may be a leaf, in which case we are checking if it is less than left.max/greater than or equal to right.min with the "in range" check
+
         // Case 4: Left is a leaf, new node is lower than right node, split left node
-        // Note: Right here can be a leaf or internal
         if left_is_leaf && maybe_right.is_some() && !is_in_right_range {
             let mut left = maybe_left.unwrap();
             let new_left = left.split(storage, new_node)?;
@@ -470,7 +481,6 @@ impl TreeNode {
         }
 
         // Case 5: Right is leaf, new node is greater than left node, split right node
-        // Note: Left here can be a leaf or internal
         if right_is_leaf && maybe_left.is_some() && !is_in_left_range {
             let mut right = maybe_right.unwrap();
             let new_right = right.split(storage, new_node)?;
@@ -479,6 +489,9 @@ impl TreeNode {
             self.rebalance(storage)?;
             return Ok(());
         }
+
+        // Reordering conditions
+        // One node is empty but the new node must reorder the current leaf
 
         // Case 6: Right node is empty, new node is lower than left node, move left node to right and insert left
         if is_less_than_left && maybe_right.is_none() {
@@ -503,6 +516,7 @@ impl TreeNode {
             return Ok(());
         }
 
+        // Empty conditions
         // No conditions are met for inserting to an internal, reodering nodes or splitting a leaf
         // In this case one of the nodes must be empty
 

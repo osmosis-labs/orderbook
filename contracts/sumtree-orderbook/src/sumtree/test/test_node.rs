@@ -221,7 +221,7 @@ fn test_node_insert_cases() {
             expected: vec![1, 5, 2, 9, 4, 8, 7, 3, 6],
             print: true,
         },
-                // Pre
+        // Pre
         // ---
         //          1: 20 1-30
         //     ┌────────────────┐
@@ -235,7 +235,7 @@ fn test_node_insert_cases() {
         //     ┌────────────────┐
         // 2: 1 10         ->4: 12 8
         TestNodeInsertCase {
-            name: "Case 4: New node does not fit in right range and left node is a leaf, split left",
+            name: "Case 4: New node does not fit in right range (or is less than right.min if right is a leaf) and left node is a leaf, split left",
             nodes: vec![
                 NodeType::leaf_uint256(1u32, 10u32),
                 NodeType::leaf_uint256(20u32, 10u32),
@@ -260,7 +260,7 @@ fn test_node_insert_cases() {
         //     ┌────────────────┐                ┌────────────────┐
         // 2: 1 10         4: 12 8            3: 20 10        -> 6: 30 8
         TestNodeInsertCase {
-            name: "Case 5: New node does not fit in left range and right node is a leaf, split right",
+            name: "Case 5: New node does not fit in left range (or is greater than or equal to left.max when left is a leaf) and right node is a leaf, split right",
             nodes: vec![
                 NodeType::leaf_uint256(1u32, 10u32),
                 NodeType::leaf_uint256(20u32, 10u32),
@@ -300,6 +300,7 @@ fn test_node_insert_cases() {
         //     expected: vec![1, 3, 2],
         //     print: true,
         // },
+        
         // Pre
         // ---
         // No Tree

@@ -534,6 +534,23 @@ impl TreeNode {
     /// Split nodes are ordered by ETAS in ascending order left to right.
     ///
     /// Returns an ID for the new parent node
+    ///
+    // Example (right node is split):
+    // Pre
+    // ---
+    //                            1: 28 1-30
+    //             ┌────────────────────────────────┐
+    //        5: 18 1-20                       3: 20 10
+    //     ┌────────────────┐
+    // 2: 1 10         4: 12 8
+    //
+    // Post
+    // ----
+    //                          1: 36 1-38
+    //             ┌────────────────────────────────┐
+    //        5: 18 1-20                     7: 18 20-38
+    //     ┌────────────────┐                ┌────────────────┐
+    // 2: 1 10         4: 12 8            3: 20 10        -> 6: 30 8
     pub fn split(
         &mut self,
         storage: &mut dyn Storage,

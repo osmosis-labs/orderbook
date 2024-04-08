@@ -232,27 +232,27 @@ impl TreeNode {
         self.get_min_range() >= right_node.get_min_range()
     }
 
-    /// Determines if the minimum range of `other_node` is less than or equal to the minimum range of `self`.
+    /// Determines if the current node's max is less than or equal to the min of the provided node
     pub fn is_less_than(&self, other_node: TreeNode) -> bool {
         let other_node_min = other_node.get_min_range();
 
         self.get_max_range() <= other_node_min
     }
 
-    /// Determines if the minimum range of `other_node` is strictly less than the minimum range of `self`.
+    /// Determines if the current node's max is less than the min of the provided node
     pub fn is_strictly_less_than(&self, other_node: TreeNode) -> bool {
         let other_node_min = other_node.get_min_range();
         self.get_max_range() < other_node_min
     }
 
-    /// Determines if the minimum range of `other_node` is greater than or equal to the maximum range of `self`.
+    /// Determines if the current node's min is greater than or equal to the max of the provided node
     pub fn is_greater_than(&self, other_node: TreeNode) -> bool {
         let other_node_max = other_node.get_max_range();
 
         other_node_max <= self.get_min_range()
     }
 
-    /// Determines if the minimum range of `other_node` is strictly greater than the maximum range of `self`.
+    /// Determines if the current node's min is greater than the max of the provided node
     pub fn is_strictly_greater_than(&self, other_node: TreeNode) -> bool {
         let other_node_max = other_node.get_max_range();
 

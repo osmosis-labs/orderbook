@@ -1,10 +1,13 @@
 use crate::constants::{MAX_TICK, MIN_TICK};
-use crate::error::ContractError;
+use crate::error::{ContractError, ContractResult};
 use crate::state::{new_order_id, orders, ORDERBOOKS, TICK_STATE};
 use crate::sumtree::node::{generate_node_id, NodeType, TreeNode};
 use crate::sumtree::tree::get_or_init_root_node;
+use crate::tick::sync_tick;
 use crate::tick_math::{amount_to_value, tick_to_price, RoundingDirection};
-use crate::types::{LimitOrder, MarketOrder, OrderDirection, TickState, REPLY_ID_REFUND};
+use crate::types::{
+    LimitOrder, MarketOrder, OrderDirection, TickState, REPLY_ID_CLAIM, REPLY_ID_REFUND,
+};
 use cosmwasm_std::{
     coin, ensure, ensure_eq, BankMsg, Decimal256, DepsMut, Env, MessageInfo, Order, Response,
     Storage, SubMsg, Uint128, Uint256,
@@ -180,7 +183,7 @@ pub fn cancel_limit(
 
     // Fetch the sumtree from storage, or create one if it does not exist
     let mut tree = get_or_init_root_node(deps.storage, book_id, tick_id, order.order_direction)?;
-  
+
     // Generate info for new node to insert to sumtree
     let node_id = generate_node_id(deps.storage, order.book_id, order.tick_id)?;
     let mut curr_tick_state = TICK_STATE
@@ -420,4 +423,68 @@ pub fn run_market_order(
             amount: vec![coin(total_output.u128(), output_denom)],
         },
     ))
+}
+
+pub(crate) fn claim_order(
+    storage: &mut dyn Storage,
+    book_id: u64,
+    tick_id: i64,
+    order_id: u64,
+) -> ContractResult<SubMsg> {
+    let key = (book_id, tick_id, order_id);
+    // Check for the order, error if not found
+    let mut order = orders()
+        .may_load(storage, &key)?
+        .ok_or(ContractError::OrderNotFound {
+            book_id,
+            tick_id,
+            order_id,
+        })?;
+    let orderbook = ORDERBOOKS
+        .may_load(storage, &book_id)?
+        .ok_or(ContractError::InvalidBookId { book_id })?;
+
+    // Sync tick values for current order direction
+    let tick_state = TICK_STATE.load(storage, &(book_id, tick_id))?;
+    let tick_values = tick_state.get_values(order.order_direction);
+    sync_tick(
+        storage,
+        book_id,
+        tick_id,
+        tick_values.effective_total_amount_swapped,
+    )?;
+
+    // Calculate amount of order that is currently filled (may be partial)
+    let amount_filled_dec = tick_values
+        .effective_total_amount_swapped
+        .checked_sub(order.etas)?
+        .min(Decimal256::from_ratio(order.quantity, 1u128));
+    let amount_filled = Uint128::try_from(amount_filled_dec.to_uint_floor())?;
+
+    order.quantity = order.quantity.checked_sub(amount_filled)?;
+    order.etas = order.etas.checked_add(amount_filled_dec)?;
+
+    // If order fully filled then remove
+    if order.quantity.is_zero() {
+        orders().remove(storage, &key)?;
+    // Else update in state
+    } else {
+        orders().save(storage, &key, &order)?;
+    }
+
+    // Calculate amount to be sent to order owner
+    let tick_price = tick_to_price(tick_id)?;
+    let amount = amount_to_value(
+        order.order_direction,
+        amount_filled,
+        tick_price,
+        RoundingDirection::Down,
+    )?;
+    let denom = orderbook.get_opposite_denom(&order.order_direction);
+    let bank_msg = BankMsg::Send {
+        to_address: order.owner.to_string(),
+        amount: vec![coin(amount.u128(), denom)],
+    };
+
+    Ok(SubMsg::reply_on_error(bank_msg, REPLY_ID_CLAIM))
 }

@@ -431,6 +431,14 @@ pub(crate) fn claim_order(
     tick_id: i64,
     order_id: u64,
 ) -> ContractResult<SubMsg> {
+    let orderbook = ORDERBOOKS
+        .may_load(storage, &book_id)?
+        .ok_or(ContractError::InvalidBookId { book_id })?;
+    // Sync tick values for current order direction
+    let tick_state = TICK_STATE
+        .may_load(storage, &(book_id, tick_id))?
+        .ok_or(ContractError::InvalidTickId { tick_id })?;
+
     let key = (book_id, tick_id, order_id);
     // Check for the order, error if not found
     let mut order = orders()
@@ -440,12 +448,7 @@ pub(crate) fn claim_order(
             tick_id,
             order_id,
         })?;
-    let orderbook = ORDERBOOKS
-        .may_load(storage, &book_id)?
-        .ok_or(ContractError::InvalidBookId { book_id })?;
 
-    // Sync tick values for current order direction
-    let tick_state = TICK_STATE.load(storage, &(book_id, tick_id))?;
     let tick_values = tick_state.get_values(order.order_direction);
     sync_tick(
         storage,

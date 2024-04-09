@@ -86,6 +86,9 @@ pub enum ContractError {
 
     #[error("Invalid tick state: syncing tick pushed ETAS past CTT")]
     InvalidTickSync,
+
+    #[error("Zero Claim: Nothing to be claimed yet")]
+    ZeroClaim,
 }
 
 pub type ContractResult<T> = Result<T, ContractError>;

@@ -464,6 +464,8 @@ pub(crate) fn claim_order(
         .min(Decimal256::from_ratio(order.quantity, 1u128));
     let amount_filled = Uint128::try_from(amount_filled_dec.to_uint_floor())?;
 
+    ensure!(!amount_filled.is_zero(), ContractError::ZeroClaim);
+
     order.quantity = order.quantity.checked_sub(amount_filled)?;
     order.etas = order.etas.checked_add(amount_filled_dec)?;
 

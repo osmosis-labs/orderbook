@@ -1610,6 +1610,7 @@ fn test_claim_order() {
     let quote_denom = "quote";
     let base_denom = "base";
     let test_cases: Vec<ClaimOrderTestCase> = vec![
+        // A tick id of 0 operates on a tick price of 1
         ClaimOrderTestCase {
             name: "valid basic full claim",
             operations: vec![
@@ -1721,6 +1722,7 @@ fn test_claim_order() {
             expected_order_state: None,
             expected_error: None,
         },
+        // All large positive tick orders operate on a tick price of 2
         ClaimOrderTestCase {
             name: "valid basic full claim (large positive tick)",
             operations: vec![
@@ -1814,6 +1816,7 @@ fn test_claim_order() {
                     OrderDirection::Bid,
                     Addr::unchecked("buyer"),
                 )),
+                // Claim the first partial fill
                 OrderOperation::Claim((valid_book_id, LARGE_POSITIVE_TICK, 0)),
                 OrderOperation::RunMarket(MarketOrder::new(
                     valid_book_id,
@@ -1836,6 +1839,7 @@ fn test_claim_order() {
             expected_order_state: None,
             expected_error: None,
         },
+        // All Large Negative Tick orders operate on a tick price of 0.5
         ClaimOrderTestCase {
             name: "valid basic full claim (large negative tick)",
             operations: vec![
@@ -1887,6 +1891,7 @@ fn test_claim_order() {
                     OrderDirection::Ask,
                     Addr::unchecked("buyer"),
                 )),
+                // Claim the first partial fill
                 OrderOperation::Claim((valid_book_id, LARGE_NEGATIVE_TICK, 0)),
                 OrderOperation::RunMarket(MarketOrder::new(
                     valid_book_id,
@@ -1901,7 +1906,6 @@ fn test_claim_order() {
             expected_output: SubMsg::reply_on_error(
                 BankMsg::Send {
                     to_address: Addr::unchecked("sender").to_string(),
-                    // Tick price is 0.09, 0.09 * 100 = 9
                     amount: vec![coin(25u128, base_denom)],
                 },
                 REPLY_ID_CLAIM,

@@ -425,6 +425,8 @@ pub fn run_market_order(
     ))
 }
 
+// TODO: Remove once execute messages are wired up
+#[allow(dead_code)]
 pub(crate) fn claim_order(
     storage: &mut dyn Storage,
     book_id: u64,
@@ -449,6 +451,7 @@ pub(crate) fn claim_order(
             order_id,
         })?;
 
+    // Sync the tick the order is on to ensure correct ETAS
     let tick_values = tick_state.get_values(order.order_direction);
     sync_tick(
         storage,
@@ -485,7 +488,10 @@ pub(crate) fn claim_order(
         tick_price,
         RoundingDirection::Down,
     )?;
+
+    // Cannot send a zero amount, may be zero'd out by rounding
     ensure!(!amount.is_zero(), ContractError::ZeroClaim);
+
     let denom = orderbook.get_opposite_denom(&order.order_direction);
     let bank_msg = BankMsg::Send {
         to_address: order.owner.to_string(),

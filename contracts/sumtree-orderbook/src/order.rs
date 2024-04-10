@@ -425,8 +425,9 @@ pub fn run_market_order(
     ))
 }
 
-// TODO: Remove once execute messages are wired up
+// TODO: Remove #[allow] once execute messages are wired up
 #[allow(dead_code)]
+// Note: This can be called by anyone
 pub(crate) fn claim_order(
     storage: &mut dyn Storage,
     book_id: u64,
@@ -467,6 +468,7 @@ pub(crate) fn claim_order(
         .min(Decimal256::from_ratio(order.quantity, 1u128));
     let amount_filled = Uint128::try_from(amount_filled_dec.to_uint_floor())?;
 
+    // Early exit if nothing has been filled
     ensure!(!amount_filled.is_zero(), ContractError::ZeroClaim);
 
     order.quantity = order.quantity.checked_sub(amount_filled)?;

@@ -461,6 +461,12 @@ pub(crate) fn claim_order(
         tick_values.effective_total_amount_swapped,
     )?;
 
+    // Resync tick post sync call
+    let tick_state = TICK_STATE
+        .may_load(storage, &(book_id, tick_id))?
+        .ok_or(ContractError::InvalidTickId { tick_id })?;
+    let tick_values = tick_state.get_values(order.order_direction);
+
     // Calculate amount of order that is currently filled (may be partial)
     let amount_filled_dec = tick_values
         .effective_total_amount_swapped

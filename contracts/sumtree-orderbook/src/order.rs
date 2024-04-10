@@ -485,6 +485,7 @@ pub(crate) fn claim_order(
         tick_price,
         RoundingDirection::Down,
     )?;
+    ensure!(!amount.is_zero(), ContractError::ZeroClaim);
     let denom = orderbook.get_opposite_denom(&order.order_direction);
     let bank_msg = BankMsg::Send {
         to_address: order.owner.to_string(),

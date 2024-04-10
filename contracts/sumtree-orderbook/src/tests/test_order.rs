@@ -2017,7 +2017,7 @@ fn test_claim_order() {
             expected_error: Some(ContractError::InvalidTickId { tick_id: 1 }),
         },
         ClaimOrderTestCase {
-            name: "invalid tick id",
+            name: "invalid order id",
             operations: vec![
                 OrderOperation::PlaceLimit(LimitOrder::new(
                     valid_book_id,

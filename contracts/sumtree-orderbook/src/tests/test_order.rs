@@ -1134,6 +1134,7 @@ enum OrderOperation {
     _PlaceLimitMulti((&'static [i64], usize, Uint128, i64)),
     PlaceLimit(LimitOrder),
     Claim((u64, i64, u64)),
+    Cancel((u64, i64, u64)),
 }
 
 impl OrderOperation {
@@ -1192,6 +1193,14 @@ impl OrderOperation {
             }
             OrderOperation::Claim((book_id, tick_id, order_id)) => {
                 claim_order(deps.storage, book_id, tick_id, order_id).unwrap();
+                Ok(())
+            }
+            OrderOperation::Cancel((book_id, tick_id, order_id)) => {
+                let order = orders()
+                    .load(deps.as_ref().storage, &(book_id, tick_id, order_id))
+                    .unwrap();
+                let info = mock_info(order.owner.as_str(), &[]);
+                cancel_limit(deps, env, info, book_id, tick_id, order_id).unwrap();
                 Ok(())
             }
         }
@@ -1952,6 +1961,48 @@ fn test_claim_order() {
             expected_order_state: None,
             expected_error: None,
         },
+        ClaimOrderTestCase {
+            name: "ASK: full claim with a previous cancellation",
+            operations: vec![
+                OrderOperation::PlaceLimit(LimitOrder::new(
+                    valid_book_id,
+                    valid_tick_id,
+                    0,
+                    OrderDirection::Ask,
+                    Addr::unchecked("sender"),
+                    Uint128::from(50u128),
+                    Decimal256::zero(),
+                )),
+                OrderOperation::PlaceLimit(LimitOrder::new(
+                    valid_book_id,
+                    valid_tick_id,
+                    1,
+                    OrderDirection::Ask,
+                    Addr::unchecked("sender"),
+                    Uint128::from(100u128),
+                    Decimal256::zero(),
+                )),
+                OrderOperation::Cancel((valid_book_id, valid_tick_id, 0)),
+                OrderOperation::RunMarket(MarketOrder::new(
+                    valid_book_id,
+                    Uint128::from(100u128),
+                    OrderDirection::Bid,
+                    Addr::unchecked("buyer"),
+                )),
+            ],
+            order_id: 1,
+            book_id: valid_book_id,
+            tick_id: valid_tick_id,
+            expected_output: SubMsg::reply_on_error(
+                BankMsg::Send {
+                    to_address: Addr::unchecked("sender").to_string(),
+                    amount: vec![coin(100u128, quote_denom)],
+                },
+                REPLY_ID_CLAIM,
+            ),
+            expected_order_state: None,
+            expected_error: None,
+        },
         // A tick id of 0 operates on a tick price of 1
         ClaimOrderTestCase {
             name: "BID: valid basic full claim",
@@ -2295,6 +2346,48 @@ fn test_claim_order() {
             expected_error: None,
         },
         ClaimOrderTestCase {
+            name: "BID: full claim with a previous cancellation",
+            operations: vec![
+                OrderOperation::PlaceLimit(LimitOrder::new(
+                    valid_book_id,
+                    valid_tick_id,
+                    0,
+                    OrderDirection::Bid,
+                    Addr::unchecked("sender"),
+                    Uint128::from(50u128),
+                    Decimal256::zero(),
+                )),
+                OrderOperation::PlaceLimit(LimitOrder::new(
+                    valid_book_id,
+                    valid_tick_id,
+                    1,
+                    OrderDirection::Bid,
+                    Addr::unchecked("sender"),
+                    Uint128::from(100u128),
+                    Decimal256::zero(),
+                )),
+                OrderOperation::Cancel((valid_book_id, valid_tick_id, 0)),
+                OrderOperation::RunMarket(MarketOrder::new(
+                    valid_book_id,
+                    Uint128::from(100u128),
+                    OrderDirection::Ask,
+                    Addr::unchecked("buyer"),
+                )),
+            ],
+            order_id: 1,
+            book_id: valid_book_id,
+            tick_id: valid_tick_id,
+            expected_output: SubMsg::reply_on_error(
+                BankMsg::Send {
+                    to_address: Addr::unchecked("sender").to_string(),
+                    amount: vec![coin(100u128, base_denom)],
+                },
+                REPLY_ID_CLAIM,
+            ),
+            expected_order_state: None,
+            expected_error: None,
+        },
+        ClaimOrderTestCase {
             name: "invalid book id",
             operations: vec![
                 OrderOperation::PlaceLimit(LimitOrder::new(
@@ -2441,6 +2534,42 @@ fn test_claim_order() {
                 )),
             ],
             order_id: 1,
+            book_id: valid_book_id,
+            tick_id: valid_tick_id,
+            expected_output: SubMsg::reply_on_error(
+                BankMsg::Send {
+                    to_address: Addr::unchecked("sender").to_string(),
+                    amount: vec![coin(5u128, quote_denom)],
+                },
+                REPLY_ID_CLAIM,
+            ),
+            expected_order_state: None,
+            expected_error: Some(ContractError::ZeroClaim),
+        },
+        ClaimOrderTestCase {
+            name: "zero claim amount (cancelled order larger etas than order)",
+            operations: vec![
+                OrderOperation::PlaceLimit(LimitOrder::new(
+                    valid_book_id,
+                    valid_tick_id,
+                    0,
+                    OrderDirection::Ask,
+                    Addr::unchecked("sender"),
+                    Uint128::from(10u128),
+                    Decimal256::zero(),
+                )),
+                OrderOperation::PlaceLimit(LimitOrder::new(
+                    valid_book_id,
+                    valid_tick_id,
+                    0,
+                    OrderDirection::Ask,
+                    Addr::unchecked("sender"),
+                    Uint128::from(100u128),
+                    Decimal256::zero(),
+                )),
+                OrderOperation::Cancel((valid_book_id, valid_tick_id, 1)),
+            ],
+            order_id: 0,
             book_id: valid_book_id,
             tick_id: valid_tick_id,
             expected_output: SubMsg::reply_on_error(

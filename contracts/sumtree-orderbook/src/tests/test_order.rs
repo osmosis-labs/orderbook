@@ -2532,7 +2532,7 @@ fn test_claim_order() {
         // Test Setup
         let mut deps = mock_dependencies();
         let env = mock_env();
-        let info = mock_info("sender", &[coin(10u128, base_denom)]);
+        let info = mock_info("sender", &[]);
         create_orderbook(
             deps.as_mut(),
             env.clone(),
@@ -3222,7 +3222,7 @@ fn test_claim_order_moving_tick() {
         // Test Setup
         let mut deps = mock_dependencies();
         let env = mock_env();
-        let info = mock_info("sender", &[coin(10u128, base_denom)]);
+        let info = mock_info("sender", &[]);
         create_orderbook(
             deps.as_mut(),
             env.clone(),

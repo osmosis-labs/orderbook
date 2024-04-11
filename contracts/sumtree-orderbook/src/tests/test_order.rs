@@ -2076,6 +2076,41 @@ fn test_claim_order() {
             expected_order_state: None,
             expected_error: Some(ContractError::ZeroClaim),
         },
+        ClaimOrderTestCase {
+            name: "zero claim amount (tick etas < order etas)",
+            operations: vec![
+                OrderOperation::PlaceLimit(LimitOrder::new(
+                    valid_book_id,
+                    valid_tick_id,
+                    0,
+                    OrderDirection::Ask,
+                    Addr::unchecked("sender"),
+                    Uint128::from(10u128),
+                    Decimal256::zero(),
+                )),
+                OrderOperation::PlaceLimit(LimitOrder::new(
+                    valid_book_id,
+                    valid_tick_id,
+                    0,
+                    OrderDirection::Ask,
+                    Addr::unchecked("sender"),
+                    Uint128::from(10u128),
+                    Decimal256::zero(),
+                )),
+            ],
+            order_id: 1,
+            book_id: valid_book_id,
+            tick_id: valid_tick_id,
+            expected_output: SubMsg::reply_on_error(
+                BankMsg::Send {
+                    to_address: Addr::unchecked("sender").to_string(),
+                    amount: vec![coin(5u128, quote_denom)],
+                },
+                REPLY_ID_CLAIM,
+            ),
+            expected_order_state: None,
+            expected_error: Some(ContractError::ZeroClaim),
+        },
     ];
 
     for test in test_cases {

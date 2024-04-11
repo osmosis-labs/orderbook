@@ -466,6 +466,11 @@ pub(crate) fn claim_order(
         .may_load(storage, &(book_id, tick_id))?
         .ok_or(ContractError::InvalidTickId { tick_id })?;
     let tick_values = tick_state.get_values(order.order_direction);
+    // Early exit if nothing has been filled
+    ensure!(
+        tick_values.effective_total_amount_swapped > order.etas,
+        ContractError::ZeroClaim
+    );
 
     // Calculate amount of order that is currently filled (may be partial)
     let amount_filled_dec = tick_values
@@ -473,9 +478,6 @@ pub(crate) fn claim_order(
         .checked_sub(order.etas)?
         .min(Decimal256::from_ratio(order.quantity, 1u128));
     let amount_filled = Uint128::try_from(amount_filled_dec.to_uint_floor())?;
-
-    // Early exit if nothing has been filled
-    ensure!(!amount_filled.is_zero(), ContractError::ZeroClaim);
 
     order.quantity = order.quantity.checked_sub(amount_filled)?;
     order.etas = order.etas.checked_add(amount_filled_dec)?;

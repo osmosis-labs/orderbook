@@ -89,6 +89,9 @@ pub enum ContractError {
 
     #[error("Zero Claim: Nothing to be claimed yet")]
     ZeroClaim,
+
+    #[error("Node insertion error")]
+    NodeInsertionError,
 }
 
 pub type ContractResult<T> = Result<T, ContractError>;

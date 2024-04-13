@@ -129,7 +129,7 @@ pub fn assert_internal_values(
 }
 
 #[test]
-fn test_node_insert_valid() {
+fn test_node_insert_cases() {
     let book_id = 1;
     let tick_id = 1;
     let direction = OrderDirection::Bid;
@@ -152,7 +152,7 @@ fn test_node_insert_valid() {
         //     ┌────────────────┐
         //  2: 1 5          ->8: 6 6
         TestNodeInsertCase {
-            name: "Case 1a: Left Internal, Right Internal, Left Insert",
+            name: "Case 1: New node fits in left internal range, insert left",
             nodes: vec![
                 NodeType::leaf_uint256(1u32, 5u32),
                 NodeType::leaf_uint256(20u32, 10u32),
@@ -181,7 +181,7 @@ fn test_node_insert_valid() {
         //                                                             ┌────────────────┐
         //                                                         3: 20 5         ->8: 25 5
         TestNodeInsertCase {
-            name: "Case 1b: Left Internal, Right Internal, Right Insert",
+            name: "Case 2: New node fits in right internal range, insert right",
             nodes: vec![
                 NodeType::leaf_uint256(1u32, 11u32),
                 NodeType::leaf_uint256(20u32, 5u32),
@@ -194,57 +194,31 @@ fn test_node_insert_valid() {
         },
         // Pre
         // ---
-        // No Tree
+        //                        1: 30 1-38                                
+        //             ┌────────────────────────────────┐                
+        //        5: 17 1-18                     7: 13 20-38                
+        //     ┌────────────────┐                ┌────────────────┐        
+        // 2: 1 11         4: 12 6            3: 20 5         6: 30 8  
         //
         // Post
         // ----
-        //            1: 10 1-11
-        //     ┌────────
-        // ->2: 1 10
+        //                                                1: 32 1-38                                                                
+        //                     ┌────────────────────────────────────────────────────────────────┐                                
+        //                5: 19 1-20                                                     7: 13 20-38                                
+        //     ┌────────────────────────────────┐                                ┌────────────────────────────────┐                
+        // 2: 1 11                        9: 8 12-20                            3: 20 5                         6: 30 8                
+        //                             ┌────────────────┐                                                                        
+        //                         4: 12 6         8: 18 2  
         TestNodeInsertCase {
-            name: "Case 2: First Node Insert",
-            nodes: vec![NodeType::leaf_uint256(1u32, 10u32)],
-            expected: vec![1, 2],
-            print: true,
-        },
-        // Pre
-        // ---
-        //     1: 10 1-11
-        //     ┌────────
-        // 2: 1 10
-        //
-        // Post
-        // ----
-        //          1: 20 1-22
-        //     ┌────────────────┐
-        // 2: 1 10         ->3: 12 10
-        TestNodeInsertCase {
-            name: "Case 3: Left Leaf, Right Empty",
+            name: "Case 3: Both left and right are internal, node does not fit in either, insert left",
             nodes: vec![
-                NodeType::leaf_uint256(1u32, 10u32),
-                NodeType::leaf_uint256(12u32, 10u32),
+                NodeType::leaf_uint256(1u32, 11u32),
+                NodeType::leaf_uint256(20u32, 5u32),
+                NodeType::leaf_uint256(12u32, 6u32),
+                NodeType::leaf_uint256(30u32, 8u32),
+                NodeType::leaf_uint256(18u32, 2u32),
             ],
-            expected: vec![1, 2, 3],
-            print: true,
-        },
-        // Pre
-        // ---
-        //     1: 10 12-22
-        //     ┌────────
-        // 2: 12 10
-        //
-        // Post
-        // ----
-        //          1: 20 1-22
-        //     ┌────────────────┐
-        // ->2: 1 10         3: 12 10
-        TestNodeInsertCase {
-            name: "Case 3: Left Leaf, Right Empty, Larger Order First",
-            nodes: vec![
-                NodeType::leaf_uint256(12u32, 10u32),
-                NodeType::leaf_uint256(1u32, 10u32),
-            ],
-            expected: vec![1, 3, 2],
+            expected: vec![1, 5, 2, 9, 4, 8, 7, 3, 6],
             print: true,
         },
         // Pre
@@ -261,7 +235,7 @@ fn test_node_insert_valid() {
         //     ┌────────────────┐
         // 2: 1 10         ->4: 12 8
         TestNodeInsertCase {
-            name: "Case 4: Left Leaf, Right Leaf, Left Insert",
+            name: "Case 4: New node does not fit in right range (or is less than right.min if right is a leaf) and left node is a leaf, split left",
             nodes: vec![
                 NodeType::leaf_uint256(1u32, 10u32),
                 NodeType::leaf_uint256(20u32, 10u32),
@@ -286,7 +260,7 @@ fn test_node_insert_valid() {
         //     ┌────────────────┐                ┌────────────────┐
         // 2: 1 10         4: 12 8            3: 20 10        -> 6: 30 8
         TestNodeInsertCase {
-            name: "Case 5: Left Internal, Right Leaf, Right Insert",
+            name: "Case 5: New node does not fit in left range (or is greater than or equal to left.max when left is a leaf) and right node is a leaf, split right",
             nodes: vec![
                 NodeType::leaf_uint256(1u32, 10u32),
                 NodeType::leaf_uint256(20u32, 10u32),
@@ -294,6 +268,72 @@ fn test_node_insert_valid() {
                 NodeType::leaf_uint256(30u32, 8u32),
             ],
             expected: vec![1, 5, 2, 4, 7, 3, 6],
+            print: true,
+        },
+        // Pre
+        // ---
+        //     1: 10 12-22
+        //     ┌────────
+        // 2: 12 10
+        //
+        // Post
+        // ----
+        //          1: 20 1-22
+        //     ┌────────────────┐
+        // ->2: 1 10         3: 12 10
+        TestNodeInsertCase {
+            name: "Case 6: Right node is empty, new node is lower than left node, move left node to right and insert left",
+            nodes: vec![
+                NodeType::leaf_uint256(12u32, 10u32),
+                NodeType::leaf_uint256(1u32, 10u32),
+            ],
+            expected: vec![1, 3, 2],
+            print: true,
+        },
+        // TODO: Explicitly build trees in this test to allow testing case 7
+        // TestNodeInsertCase {
+        //     name: "Case 7: Left node is empty, new node is higher than right node, move right node to left and insert right",
+        //     nodes: vec![
+        //         NodeType::leaf_uint256(12u32, 10u32),
+        //         NodeType::leaf_uint256(1u32, 10u32),
+        //     ],
+        //     expected: vec![1, 3, 2],
+        //     print: true,
+        // },
+        
+        // Pre
+        // ---
+        // No Tree
+        //
+        // Post
+        // ----
+        //            1: 10 1-11
+        //     ┌────────
+        // ->2: 1 10
+        TestNodeInsertCase {
+            name: "Case 8: Left node is empty, insert left",
+            nodes: vec![NodeType::leaf_uint256(1u32, 10u32)],
+            expected: vec![1, 2],
+            print: true,
+        },
+        // Pre
+        // ---
+        //     1: 10 1-11
+        //     ┌────────
+        // 2: 1 10
+        //
+        // Post
+        // ----
+        //          1: 20 1-22
+        //     ┌────────────────┐
+        // 2: 1 10         ->3: 12 10
+        TestNodeInsertCase {
+            name: "Case 9: Right is empty, insert right",
+            nodes: vec![
+                NodeType::leaf_uint256(1u32, 10u32),
+                NodeType::leaf_uint256(12u32, 10u32),
+            ],
+            expected: vec![1, 2, 3],
             print: true,
         },
         TestNodeInsertCase {
@@ -337,7 +377,7 @@ fn test_node_insert_valid() {
                 .unwrap();
             tree.insert(deps.as_mut().storage, &mut tree_node).unwrap();
 
-            // Print tree at second last node to see pre-insert
+            //Print tree at second last node to see pre-insert
             if test.nodes.len() >= 2 && idx == test.nodes.len() - 2 && test.print {
                 print_tree("Pre-Insert Tree", test.name, &tree, &deps.as_ref());
             }

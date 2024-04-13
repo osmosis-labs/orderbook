@@ -222,6 +222,43 @@ impl TreeNode {
         }
     }
 
+    /// Determines if the node's minimum range is less than the maximum range of the given left node.
+    pub fn is_in_left_range(&self, left_node: TreeNode) -> bool {
+        self.get_min_range() < left_node.get_max_range()
+    }
+
+    /// Determines if the node's minimum range is greater than or equal to the minimum range of the given right node.
+    pub fn is_in_right_range(&self, right_node: TreeNode) -> bool {
+        self.get_min_range() >= right_node.get_min_range()
+    }
+
+    /// Determines if the current node's max is less than or equal to the min of the provided node
+    pub fn is_less_than(&self, other_node: TreeNode) -> bool {
+        let other_node_min = other_node.get_min_range();
+
+        self.get_max_range() <= other_node_min
+    }
+
+    /// Determines if the current node's max is less than the min of the provided node
+    pub fn is_strictly_less_than(&self, other_node: TreeNode) -> bool {
+        let other_node_min = other_node.get_min_range();
+        self.get_max_range() < other_node_min
+    }
+
+    /// Determines if the current node's min is greater than or equal to the max of the provided node
+    pub fn is_greater_than(&self, other_node: TreeNode) -> bool {
+        let other_node_max = other_node.get_max_range();
+
+        other_node_max <= self.get_min_range()
+    }
+
+    /// Determines if the current node's min is greater than the max of the provided node
+    pub fn is_strictly_greater_than(&self, other_node: TreeNode) -> bool {
+        let other_node_max = other_node.get_max_range();
+
+        other_node_max < self.get_min_range()
+    }
+
     pub fn set_value(&mut self, value: Decimal256) -> ContractResult<()> {
         match &mut self.node_type {
             NodeType::Internal { accumulator, .. } => {
@@ -339,64 +376,88 @@ impl TreeNode {
 
     /// Inserts a given node in to the tree
     ///
-    /// If the node is internal an error is returned.
+    /// If the node is internal or the current node is a leaf an error is returned.
     ///
     /// If the node is a leaf it will be inserted by the following priority:
-    /// 1. New node fits in either left or right range, insert accordingly
-    /// 2. Left is empty, insert left
-    /// 3. Out of range for left, Right is empty, insert right
-    /// 4. Left is leaf, split left
-    /// 5. Left is out of range, right is leaf, split right
+    /// Internal conditions:
+    /// 1. New node fits in left internal range, insert left
+    /// 2. New node fits in right internal range, insert right
+    /// 3. Both left and right are internal, node does not fit in either, insert left
+    /// Splitting conditions:
+    /// 4. New node does not fit in right range (or is less than right.min if right is a leaf) and left node is a leaf, split left
+    /// 5. New node does not fit in left range (or is greater than or equal to left.max when left is a leaf) and right node is a leaf, split right
+    /// Reordering conditions:
+    /// 6. Right node is empty, new node is lower than left node, move left node to right and insert left
+    /// 7. Left node is empty, new node is higher than right node, move right node to left and insert right
+    /// Empty conditions:
+    /// 8. Left node is empty, insert left
+    /// 9. Right is empty, insert right
     pub fn insert(
         &mut self,
         storage: &mut dyn Storage,
         new_node: &mut TreeNode,
     ) -> ContractResult<()> {
+        // Current node must be internal
         ensure!(self.is_internal(), ContractError::InvalidNodeType);
+        // New node must be a leaf
         ensure!(!new_node.is_internal(), ContractError::InvalidNodeType);
 
-        // New node is being placed below current, update ranges and accumulator as tree is traversed
-        self.add_value(new_node.get_value())?;
-        if self.get_min_range() > new_node.get_min_range() {
-            self.set_min_range(new_node.get_min_range())?;
-        }
+        // Check all three conditions for each node
 
-        if self.get_max_range() < new_node.get_max_range() {
-            self.set_max_range(new_node.get_max_range())?;
-        }
-
+        // Either node may be empty
         let maybe_left = self.get_left(storage)?;
         let maybe_right = self.get_right(storage)?;
 
+        // Either node can be internal
         let is_left_internal = maybe_left.clone().map_or(false, |l| l.is_internal());
         let is_right_internal = maybe_right.clone().map_or(false, |r| r.is_internal());
-        let is_in_left_range = maybe_left.clone().map_or(false, |left| {
-            new_node.get_min_range() < left.get_max_range()
-        });
-        let is_in_right_range = maybe_right.clone().map_or(false, |right| {
-            new_node.get_min_range() >= right.get_min_range()
-        });
 
-        // Case 1 Left
+        // Either node can be a leaf
+        let left_is_leaf = maybe_left.is_some() && !is_left_internal;
+        let right_is_leaf = maybe_right.is_some() && !is_right_internal;
+
+        // Check if new node is lower than the left node's max, false if node does not exist
+        let is_in_left_range = maybe_left
+            .clone()
+            .map_or(false, |left| new_node.is_in_left_range(left));
+        // Check if new node is higher than the right node's min, false if node does not exist
+        let is_in_right_range = maybe_right
+            .clone()
+            .map_or(false, |right| new_node.is_in_right_range(right));
+
+        // Check if new node's max is strictly less than left node's min
+        let is_less_than_left = maybe_left
+            .clone()
+            // As node ranges may overlap on equality comparisons (i.e. left_node.max == right_node.min) we check strictly here
+            .map_or(false, |left| new_node.is_strictly_less_than(left));
+        // Check if new node's min is greater than right node's max
+        let is_greater_than_right = maybe_right
+            .clone()
+            // As node ranges may overlap on equality comparisons (i.e. left_node.max == right_node.min) we check non-strictly here
+            .map_or(false, |right| new_node.is_greater_than(right));
+
+        // Internal conditions
+        // One node is internal and the new node fits in its range, or both are internal and the new node does not fit in either range
+
+        // Case 1: Node fits in left internal range, insert left
         if is_left_internal && is_in_left_range {
             self.save(storage)?;
-            // Can unwrap as node must exist
             let mut left = maybe_left.unwrap();
             left.insert(storage, new_node)?;
             self.rebalance(storage)?;
             return Ok(());
         }
 
-        // Case 1 Right
+        // Case 2: Node fits in right internal range, insert right
         if is_right_internal && is_in_right_range {
             self.save(storage)?;
-            // Can unwrap as node must exist
             let mut right = maybe_right.unwrap();
             right.insert(storage, new_node)?;
             self.rebalance(storage)?;
             return Ok(());
         }
 
+        // Case 3: Both left and right are internal, node does not fit in either, insert left
         if is_right_internal && is_left_internal {
             self.save(storage)?;
             let mut left = maybe_left.unwrap();
@@ -405,21 +466,35 @@ impl TreeNode {
             return Ok(());
         }
 
-        // Case 2
-        if maybe_left.is_none() {
-            self.left = Some(new_node.key);
-            new_node.parent = Some(self.key);
-            new_node.save(storage)?;
+        // Splitting conditions
+        // One node is a leaf and the new node does not fit in range of the other, split the leaf node
+        // Note: the "other" node may be a leaf, in which case we are checking if it is less than left.max/greater than or equal to right.min with the "in range" check
+
+        // Case 4: Left is a leaf, new node is lower than right node, split left node
+        if left_is_leaf && maybe_right.is_some() && !is_in_right_range {
+            let mut left = maybe_left.unwrap();
+            let new_left = left.split(storage, new_node)?;
+            self.left = Some(new_left);
             self.save(storage)?;
             self.rebalance(storage)?;
             return Ok(());
         }
 
-        // Case 3: reordering
-        let is_lower_than_left_leaf = maybe_left.clone().map_or(false, |l| {
-            !l.is_internal() && new_node.get_max_range() <= l.get_min_range()
-        });
-        if is_lower_than_left_leaf && maybe_right.is_none() {
+        // Case 5: Right is leaf, new node is greater than left node, split right node
+        if right_is_leaf && maybe_left.is_some() && !is_in_left_range {
+            let mut right = maybe_right.unwrap();
+            let new_right = right.split(storage, new_node)?;
+            self.right = Some(new_right);
+            self.save(storage)?;
+            self.rebalance(storage)?;
+            return Ok(());
+        }
+
+        // Reordering conditions
+        // One node is empty but the new node must reorder the current leaf
+
+        // Case 6: Right node is empty, new node is lower than left node, move left node to right and insert left
+        if is_less_than_left && maybe_right.is_none() {
             self.right = self.left;
             self.left = Some(new_node.key);
             new_node.parent = Some(self.key);
@@ -429,37 +504,9 @@ impl TreeNode {
             return Ok(());
         }
 
-        // Case 3
-        if !is_in_left_range && maybe_right.is_none() {
-            self.right = Some(new_node.key);
-            new_node.parent = Some(self.key);
-            new_node.save(storage)?;
-            self.save(storage)?;
-            self.rebalance(storage)?;
-            return Ok(());
-        }
-
-        let left_is_leaf = maybe_left.clone().map_or(false, |left| !left.is_internal());
-        let right_is_leaf = maybe_right
-            .clone()
-            .map_or(false, |right| !right.is_internal());
-        let is_higher_than_right_leaf = maybe_right.clone().map_or(false, |r| {
-            !r.is_internal() && new_node.get_min_range() >= r.get_max_range()
-        });
-
-        // Case 4
-        if left_is_leaf && !is_higher_than_right_leaf {
-            let mut left = maybe_left.unwrap();
-            let new_left = left.split(storage, new_node)?;
-            self.left = Some(new_left);
-            self.save(storage)?;
-            self.rebalance(storage)?;
-            return Ok(());
-        }
-
-        // Case 5: Reordering
         // TODO: Add edge case test for this
-        if is_higher_than_right_leaf && maybe_left.is_none() {
+        // Case 7: Left node is empty, new node is higher than right node, move right node to left and insert right
+        if maybe_left.is_none() && is_greater_than_right {
             self.left = self.right;
             self.right = Some(new_node.key);
             new_node.parent = Some(self.key);
@@ -469,23 +516,55 @@ impl TreeNode {
             return Ok(());
         }
 
-        // Case 5
-        if !is_in_left_range && right_is_leaf {
-            let mut right = maybe_right.unwrap();
-            let new_right = right.split(storage, new_node)?;
-            self.right = Some(new_right);
+        // Empty conditions
+        // No conditions are met for inserting to an internal, reodering nodes or splitting a leaf
+        // In this case one of the nodes must be empty
+
+        // Case 8: Left node is empty, insert left
+        if maybe_left.is_none() {
+            self.left = Some(new_node.key);
+            new_node.parent = Some(self.key);
+            new_node.save(storage)?;
             self.save(storage)?;
             self.rebalance(storage)?;
             return Ok(());
         }
 
-        Ok(())
+        // Case 9: Right node is empty, insert right
+        if maybe_right.is_none() {
+            self.right = Some(new_node.key);
+            new_node.parent = Some(self.key);
+            new_node.save(storage)?;
+            self.save(storage)?;
+            self.rebalance(storage)?;
+            return Ok(());
+        }
+
+        // Node did not fit in to any case, error
+        Err(ContractError::NodeInsertionError)
     }
 
     /// Splits a given node by generating a new parent internal node and assigning the current and new node as ordered children.
     /// Split nodes are ordered by ETAS in ascending order left to right.
     ///
     /// Returns an ID for the new parent node
+    ///
+    // Example (right node is split):
+    // Pre
+    // ---
+    //                            1: 28 1-30
+    //             ┌────────────────────────────────┐
+    //        5: 18 1-20                       3: 20 10
+    //     ┌────────────────┐
+    // 2: 1 10         4: 12 8
+    //
+    // Post
+    // ----
+    //                          1: 36 1-38
+    //             ┌────────────────────────────────┐
+    //        5: 18 1-20                     7: 18 20-38
+    //     ┌────────────────┐                ┌────────────────┐
+    // 2: 1 10         4: 12 8            3: 20 10        -> 6: 30 8
     pub fn split(
         &mut self,
         storage: &mut dyn Storage,

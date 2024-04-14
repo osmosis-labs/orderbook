@@ -9,7 +9,6 @@ pub struct InstantiateMsg {}
 /// Message type for `execute` entry_point
 #[cw_serde]
 pub enum ExecuteMsg {
-    // === Orderbook ===
     CreateOrderbook {
         quote_denom: String,
         base_denom: String,
@@ -25,7 +24,16 @@ pub enum ExecuteMsg {
         tick_id: i64,
         order_id: u64,
     },
-    PlaceMarket,
+    PlaceMarket {
+        book_id: u64,
+        order_direction: OrderDirection,
+        quantity: Uint128,
+    },
+    ClaimLimit {
+        book_id: u64,
+        tick_id: i64,
+        order_id: u64,
+    },
 }
 
 /// Message type for `migrate` entry_point

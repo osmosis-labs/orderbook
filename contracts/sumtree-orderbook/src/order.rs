@@ -257,6 +257,7 @@ pub fn claim_limit(
     tick_id: i64,
     order_id: u64,
 ) -> Result<Response, ContractError> {
+    nonpayable(&info)?;
     // TODO: Replace this with a call to `claim_order` from https://github.com/osmosis-labs/orderbook/pull/106
     // let _result = claim_order(storage, book_id, tick_id, order_id)?;
 

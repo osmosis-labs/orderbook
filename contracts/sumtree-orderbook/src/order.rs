@@ -180,7 +180,7 @@ pub fn cancel_limit(
 
     // Fetch the sumtree from storage, or create one if it does not exist
     let mut tree = get_or_init_root_node(deps.storage, book_id, tick_id, order.order_direction)?;
-  
+
     // Generate info for new node to insert to sumtree
     let node_id = generate_node_id(deps.storage, order.book_id, order.tick_id)?;
     let mut curr_tick_state = TICK_STATE
@@ -249,16 +249,49 @@ pub fn cancel_limit(
         .add_submessage(refund_msg))
 }
 
-pub fn place_market(
+pub fn claim_limit(
     _deps: DepsMut,
     _env: Env,
     info: MessageInfo,
+    book_id: u64,
+    tick_id: i64,
+    order_id: u64,
 ) -> Result<Response, ContractError> {
-    // TODO: Implement place_market
+    nonpayable(&info)?;
+    // TODO: Replace this with a call to `claim_order` from https://github.com/osmosis-labs/orderbook/pull/106
+    // let _result = claim_order(storage, book_id, tick_id, order_id)?;
+
+    Ok(Response::new()
+        .add_attribute("method", "claimMarket")
+        .add_attribute("owner", info.sender))
+}
+
+pub fn place_market(
+    deps: DepsMut,
+    _env: Env,
+    info: MessageInfo,
+    book_id: u64,
+    order_direction: OrderDirection,
+    quantity: Uint128,
+) -> Result<Response, ContractError> {
+    // Build market order from inputs
+    let mut market_order =
+        MarketOrder::new(book_id, quantity, order_direction, info.sender.clone());
+
+    // Market orders always run until either the input is filled or the orderbook is exhausted.
+    let tick_bound = match order_direction {
+        OrderDirection::Bid => MAX_TICK,
+        OrderDirection::Ask => MIN_TICK,
+    };
+
+    // Process the market order
+    let (output, bank_msg) = run_market_order(deps.storage, &mut market_order, tick_bound)?;
 
     Ok(Response::new()
         .add_attribute("method", "placeMarket")
-        .add_attribute("owner", info.sender))
+        .add_attribute("owner", info.sender)
+        .add_attribute("output_quantity", output.to_string())
+        .add_message(bank_msg))
 }
 
 // run_market_order processes a market order from the current active tick on the order's orderbook

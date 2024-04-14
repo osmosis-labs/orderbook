@@ -57,8 +57,6 @@ pub fn execute(
     msg: ExecuteMsg,
 ) -> Result<Response, ContractError> {
     match msg {
-        // === Orderbook ===
-
         // Creates a new orderbook
         ExecuteMsg::CreateOrderbook {
             quote_denom,
@@ -81,7 +79,18 @@ pub fn execute(
         } => order::cancel_limit(deps, env, info, book_id, tick_id, order_id),
 
         // Places a market order on the passed in market
-        ExecuteMsg::PlaceMarket => order::place_market(deps, env, info),
+        ExecuteMsg::PlaceMarket {
+            book_id,
+            order_direction,
+            quantity,
+        } => order::place_market(deps, env, info, book_id, order_direction, quantity),
+
+        // Claims a limit order with given ID
+        ExecuteMsg::ClaimLimit {
+            book_id,
+            tick_id,
+            order_id,
+        } => order::claim_limit(deps, env, info, book_id, tick_id, order_id),
     }
 }
 

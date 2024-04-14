@@ -45,7 +45,7 @@ pub struct LimitOrder {
     pub owner: Addr,
     pub quantity: Uint128,
     pub etas: Decimal256,
-    pub auto_claim_bounty: Option<Decimal>,
+    pub claim_bounty: Option<Decimal>,
 }
 
 impl LimitOrder {
@@ -57,7 +57,7 @@ impl LimitOrder {
         owner: Addr,
         quantity: Uint128,
         etas: Decimal256,
-        auto_claim_bounty: Option<Decimal>,
+        claim_bounty: Option<Decimal>,
     ) -> Self {
         LimitOrder {
             book_id,
@@ -67,7 +67,7 @@ impl LimitOrder {
             owner,
             quantity,
             etas,
-            auto_claim_bounty,
+            claim_bounty,
         }
     }
 }

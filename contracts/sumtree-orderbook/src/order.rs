@@ -24,7 +24,7 @@ pub fn place_limit(
     tick_id: i64,
     order_direction: OrderDirection,
     quantity: Uint128,
-    auto_claim_bounty: Option<Decimal>,
+    claim_bounty: Option<Decimal>,
 ) -> Result<Response, ContractError> {
     // Validate book_id exists
     let mut orderbook = ORDERBOOKS
@@ -84,11 +84,11 @@ pub fn place_limit(
     let mut tick_values = tick_state.get_values(order_direction);
 
     ensure!(
-        auto_claim_bounty.is_none()
-            || (auto_claim_bounty.unwrap() >= Decimal::zero()
-                && auto_claim_bounty.unwrap() <= Decimal::one()),
+        claim_bounty.is_none()
+            || (claim_bounty.unwrap() >= Decimal::zero()
+                && claim_bounty.unwrap() <= Decimal::one()),
         ContractError::InvalidAutoClaimBounty {
-            auto_claim_bounty: auto_claim_bounty
+            claim_bounty: claim_bounty
         }
     );
 
@@ -101,7 +101,7 @@ pub fn place_limit(
         info.sender.clone(),
         quantity,
         tick_values.cumulative_total_value,
-        auto_claim_bounty,
+        claim_bounty,
     );
 
     // Determine if the order needs to be filled
@@ -559,6 +559,9 @@ pub(crate) fn claim_order(
     ensure!(!amount.is_zero(), ContractError::ZeroClaim);
 
     let denom = orderbook.get_opposite_denom(&order.order_direction);
+
+    // TODO: handle auto claim bounties here
+
     let bank_msg = BankMsg::Send {
         to_address: order.owner.to_string(),
         amount: vec![coin(amount.u128(), denom)],

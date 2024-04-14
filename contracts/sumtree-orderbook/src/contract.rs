@@ -69,7 +69,7 @@ pub fn execute(
             tick_id,
             order_direction,
             quantity,
-            auto_claim_bounty,
+            claim_bounty,
         } => dispatch_place_limit(
             deps,
             env,
@@ -78,7 +78,7 @@ pub fn execute(
             tick_id,
             order_direction,
             quantity,
-            auto_claim_bounty,
+            claim_bounty,
         ),
 
         // Cancels limit order with given ID
@@ -140,7 +140,7 @@ pub fn dispatch_place_limit(
     tick_id: i64,
     order_direction: OrderDirection,
     quantity: Uint128,
-    auto_claim_bounty: Option<Decimal>,
+    claim_bounty: Option<Decimal>,
 ) -> Result<Response, ContractError> {
     order::place_limit(
         &mut deps,
@@ -150,6 +150,6 @@ pub fn dispatch_place_limit(
         tick_id,
         order_direction,
         quantity,
-        auto_claim_bounty,
+        claim_bounty,
     )
 }

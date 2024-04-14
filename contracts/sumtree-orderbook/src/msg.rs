@@ -18,7 +18,7 @@ pub enum ExecuteMsg {
         tick_id: i64,
         order_direction: OrderDirection,
         quantity: Uint128,
-        auto_claim_bounty: Option<Decimal>,
+        claim_bounty: Option<Decimal>,
     },
     CancelLimit {
         book_id: u64,

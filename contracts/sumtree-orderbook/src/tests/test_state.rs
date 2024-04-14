@@ -62,7 +62,7 @@ fn test_order_iteration() {
             quantity: Uint128::new(i as u128),
             order_direction: OrderDirection::Ask,
             etas: Decimal256::zero(),
-            auto_claim_bounty: None,
+            claim_bounty: None,
         };
         orders()
             .save(&mut storage, &(book_id, tick, i), &order)

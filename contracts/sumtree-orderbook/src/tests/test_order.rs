@@ -1953,7 +1953,15 @@ fn test_claim_order() {
                 },
                 REPLY_ID_CLAIM,
             ),
-            expected_order_state: None,
+            expected_order_state: Some(LimitOrder::new(
+                valid_book_id,
+                MIN_TICK,
+                0,
+                OrderDirection::Ask,
+                Addr::unchecked("sender"),
+                Uint128::from(7u128),
+                decimal256_from_u128(3u128),
+            )),
             expected_error: None,
         },
         // A tick id of 0 operates on a tick price of 1
@@ -2569,9 +2577,6 @@ fn test_claim_order() {
     ];
 
     for test in test_cases {
-        println!("--------------------------------");
-        println!("Running test: {}", test.name);
-        println!("--------------------------------");
         // Test Setup
         let mut deps = mock_dependencies();
         let env = mock_env();

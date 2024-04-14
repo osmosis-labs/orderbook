@@ -537,9 +537,6 @@ pub(crate) fn claim_order(
 
     // Calculate amount to be sent to order owner
     let tick_price = tick_to_price(tick_id)?;
-    println!("tick_id: {:?}", tick_id);
-    println!("tick_price: {:?}", tick_price);
-    println!("amount_filled: {:?}", amount_filled);
     let amount = amount_to_value(
         order.order_direction,
         amount_filled,

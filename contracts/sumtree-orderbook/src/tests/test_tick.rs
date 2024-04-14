@@ -34,7 +34,7 @@ fn test_sync_tick() {
     let test_cases = vec![
         // --- Bid-only cases ---
         SyncTickTestCase {
-            name: "Basic Sync",
+            name: "Basic Sync - Bid",
             // Tick with:
             // * 5 units of available liquidity
             // * 5 units of unrealized cancellations
@@ -59,7 +59,7 @@ fn test_sync_tick() {
             expected_new_ask_etas_post_sync: Decimal256::zero(),
         },
         SyncTickTestCase {
-            name: "No unrealized cancels",
+            name: "No unrealized cancels - Bid",
             // Tick with:
             // * 10 units of available liquidity
             // * 0 units of unrealized cancellations
@@ -84,7 +84,7 @@ fn test_sync_tick() {
             expected_new_ask_etas_post_sync: Decimal256::zero(),
         },
         SyncTickTestCase {
-            name: "Multiple unrealized cancels",
+            name: "Multiple unrealized cancels - Bid",
             // Tick with:
             // * 20 units of available liquidity
             // * 15 units of unrealized cancellations
@@ -113,7 +113,7 @@ fn test_sync_tick() {
             expected_new_ask_etas_post_sync: Decimal256::zero(),
         },
         SyncTickTestCase {
-            name: "Multiple syncs",
+            name: "Multiple syncs - Bid",
             // Tick with:
             // * 200 units of available liquidity
             // * 150 units of unrealized cancellations
@@ -272,7 +272,7 @@ fn test_sync_tick() {
         },
         // --- Bid and Ask cases ---
         SyncTickTestCase {
-            name: "Bid and Ask - Basic Sync",
+            name: "Basic Sync - Bid and Ask",
             // Tick with:
             // * 5 units of available liquidity for both bid and ask
             // * 5 units of unrealized cancellations for both bid and ask
@@ -297,7 +297,7 @@ fn test_sync_tick() {
             expected_new_ask_etas_post_sync: Decimal256::from_ratio(3u128 + 5u128, 1u128),
         },
         SyncTickTestCase {
-            name: "Bid and Ask - Multiple Syncs",
+            name: "Multiple Syncs - Bid and Ask",
             // Tick with:
             // * 100 units of available liquidity for bid, 200 for ask
             // * 50 units of unrealized cancellations for bid, 150 for ask

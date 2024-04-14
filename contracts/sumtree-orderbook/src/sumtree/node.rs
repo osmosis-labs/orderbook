@@ -234,8 +234,8 @@ impl TreeNode {
 
     /// Determines if the current node's max is less than the min of the provided node
     pub fn below_range(&self, node: TreeNode) -> bool {
-        // This comparison is inclusive because the top of `self` being exactly adjacent to the bottom
-        // of `node` implies `self` is below `node`.
+        // This comparison is inclusive because the left node in an adjacent pair is considered strictly below
+        // the right node.
         //
         // Since range bounds can overlap, this comparison is inclusive for both below and above range
         // checks.
@@ -244,8 +244,8 @@ impl TreeNode {
 
     /// Determines if the current node's min is greater than or equal to the max of the provided node
     pub fn above_range(&self, node: TreeNode) -> bool {
-        // This comparison is inclusive because the bottom of `self`'s range being exactly adjacent to
-        // the top of `node`'s range implies `self` is above `node`.
+        // This comparison is inclusive because the right node in an adjacent pair is considered strictly above
+        // the left node.
         //
         // Since range bounds can overlap, this comparison is inclusive for both below and above range
         // checks.

@@ -1,10 +1,13 @@
 use crate::constants::{MAX_TICK, MIN_TICK};
-use crate::error::ContractError;
+use crate::error::{ContractError, ContractResult};
 use crate::state::{new_order_id, orders, ORDERBOOKS, TICK_STATE};
 use crate::sumtree::node::{generate_node_id, NodeType, TreeNode};
 use crate::sumtree::tree::get_or_init_root_node;
+use crate::tick::sync_tick;
 use crate::tick_math::{amount_to_value, tick_to_price, RoundingDirection};
-use crate::types::{LimitOrder, MarketOrder, OrderDirection, TickState, REPLY_ID_REFUND};
+use crate::types::{
+    LimitOrder, MarketOrder, OrderDirection, TickState, REPLY_ID_CLAIM, REPLY_ID_REFUND,
+};
 use cosmwasm_std::{
     coin, ensure, ensure_eq, BankMsg, Decimal256, DepsMut, Env, MessageInfo, Order, Response,
     Storage, SubMsg, Uint128, Uint256,
@@ -258,12 +261,17 @@ pub fn claim_limit(
     order_id: u64,
 ) -> Result<Response, ContractError> {
     nonpayable(&info)?;
-    // TODO: Replace this with a call to `claim_order` from https://github.com/osmosis-labs/orderbook/pull/106
-    // let _result = claim_order(storage, book_id, tick_id, order_id)?;
+
+    let (amount_claimed, bank_msg) = claim_order(_deps.storage, book_id, tick_id, order_id)?;
 
     Ok(Response::new()
         .add_attribute("method", "claimMarket")
-        .add_attribute("owner", info.sender))
+        .add_attribute("owner", info.sender)
+        .add_attribute("book_id", book_id.to_string())
+        .add_attribute("tick_id", tick_id.to_string())
+        .add_attribute("order_id", order_id.to_string())
+        .add_attribute("amount_claimed", amount_claimed.to_string())
+        .add_submessage(bank_msg))
 }
 
 pub fn place_market(
@@ -453,4 +461,97 @@ pub fn run_market_order(
             amount: vec![coin(total_output.u128(), output_denom)],
         },
     ))
+}
+
+// Note: This can be called by anyone
+pub(crate) fn claim_order(
+    storage: &mut dyn Storage,
+    book_id: u64,
+    tick_id: i64,
+    order_id: u64,
+) -> ContractResult<(Uint128, SubMsg)> {
+    let orderbook = ORDERBOOKS
+        .may_load(storage, &book_id)?
+        .ok_or(ContractError::InvalidBookId { book_id })?;
+    // Fetch tick values for current order direction
+    let tick_state = TICK_STATE
+        .may_load(storage, &(book_id, tick_id))?
+        .ok_or(ContractError::InvalidTickId { tick_id })?;
+
+    let key = (book_id, tick_id, order_id);
+    // Check for the order, error if not found
+    let mut order = orders()
+        .may_load(storage, &key)?
+        .ok_or(ContractError::OrderNotFound {
+            book_id,
+            tick_id,
+            order_id,
+        })?;
+
+    // Sync the tick the order is on to ensure correct ETAS
+    let bid_tick_values = tick_state.get_values(OrderDirection::Bid);
+    let ask_tick_values = tick_state.get_values(OrderDirection::Ask);
+    sync_tick(
+        storage,
+        book_id,
+        tick_id,
+        bid_tick_values.effective_total_amount_swapped,
+        ask_tick_values.effective_total_amount_swapped,
+    )?;
+
+    // Re-fetch tick post sync call
+    let tick_state = TICK_STATE
+        .may_load(storage, &(book_id, tick_id))?
+        .ok_or(ContractError::InvalidTickId { tick_id })?;
+    let tick_values = tick_state.get_values(order.order_direction);
+
+    // Early exit if nothing has been filled
+    ensure!(
+        tick_values.effective_total_amount_swapped > order.etas,
+        ContractError::ZeroClaim
+    );
+
+    // Calculate amount of order that is currently filled (may be partial).
+    // We take the min between (tick_ETAS - order_ETAS) and the order quantity to ensure
+    // we don't claim more than the order has available.
+    let amount_filled_dec = tick_values
+        .effective_total_amount_swapped
+        .checked_sub(order.etas)?
+        .min(Decimal256::from_ratio(order.quantity, 1u128));
+    let amount_filled = Uint128::try_from(amount_filled_dec.to_uint_floor())?;
+
+    // Update order state to reflect the claimed amount.
+    //
+    // By subtracting the order quantity and moving up the start ETAS,
+    // the order should effectively be left as a fresh order with the remaining quantity.
+    order.quantity = order.quantity.checked_sub(amount_filled)?;
+    order.etas = order.etas.checked_add(amount_filled_dec)?;
+
+    // If order fully filled then remove
+    if order.quantity.is_zero() {
+        orders().remove(storage, &key)?;
+    // Else update in state
+    } else {
+        orders().save(storage, &key, &order)?;
+    }
+
+    // Calculate amount to be sent to order owner
+    let tick_price = tick_to_price(tick_id)?;
+    let amount = amount_to_value(
+        order.order_direction,
+        amount_filled,
+        tick_price,
+        RoundingDirection::Down,
+    )?;
+
+    // Cannot send a zero amount, may be zero'd out by rounding
+    ensure!(!amount.is_zero(), ContractError::ZeroClaim);
+
+    let denom = orderbook.get_opposite_denom(&order.order_direction);
+    let bank_msg = BankMsg::Send {
+        to_address: order.owner.to_string(),
+        amount: vec![coin(amount.u128(), denom)],
+    };
+
+    Ok((amount, SubMsg::reply_on_error(bank_msg, REPLY_ID_CLAIM)))
 }

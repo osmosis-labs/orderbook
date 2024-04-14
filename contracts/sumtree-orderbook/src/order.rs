@@ -261,12 +261,17 @@ pub fn claim_limit(
     order_id: u64,
 ) -> Result<Response, ContractError> {
     nonpayable(&info)?;
-    // TODO: Replace this with a call to `claim_order` from https://github.com/osmosis-labs/orderbook/pull/106
-    // let _result = claim_order(storage, book_id, tick_id, order_id)?;
+
+    let (amount_claimed, refund_submsg) = claim_order(_deps.storage, book_id, tick_id, order_id)?;
 
     Ok(Response::new()
         .add_attribute("method", "claimMarket")
-        .add_attribute("owner", info.sender))
+        .add_attribute("owner", info.sender)
+        .add_attribute("book_id", book_id.to_string())
+        .add_attribute("tick_id", tick_id.to_string())
+        .add_attribute("order_id", order_id.to_string())
+        .add_attribute("amount_claimed", amount_claimed.to_string())
+        .add_submessage(refund_submsg))
 }
 
 pub fn place_market(
@@ -466,11 +471,11 @@ pub(crate) fn claim_order(
     book_id: u64,
     tick_id: i64,
     order_id: u64,
-) -> ContractResult<SubMsg> {
+) -> ContractResult<(Uint128, SubMsg)> {
     let orderbook = ORDERBOOKS
         .may_load(storage, &book_id)?
         .ok_or(ContractError::InvalidBookId { book_id })?;
-    // Sync tick values for current order direction
+    // Fetch tick values for current order direction
     let tick_state = TICK_STATE
         .may_load(storage, &(book_id, tick_id))?
         .ok_or(ContractError::InvalidTickId { tick_id })?;
@@ -544,5 +549,5 @@ pub(crate) fn claim_order(
         amount: vec![coin(amount.u128(), denom)],
     };
 
-    Ok(SubMsg::reply_on_error(bank_msg, REPLY_ID_CLAIM))
+    Ok((amount, SubMsg::reply_on_error(bank_msg, REPLY_ID_CLAIM)))
 }

@@ -2565,7 +2565,12 @@ fn test_claim_order() {
         let res = res.unwrap();
 
         // Assert that the generated bank message is as expected
-        assert_eq!(res, test.expected_output, "{}", format_test_name(test.name));
+        assert_eq!(
+            res.1,
+            test.expected_output,
+            "{}",
+            format_test_name(test.name)
+        );
 
         // Check order in state
         let maybe_order = orders()
@@ -3255,7 +3260,12 @@ fn test_claim_order_moving_tick() {
         let res = res.unwrap();
 
         // Assert that the generated bank message is as expected
-        assert_eq!(res, test.expected_output, "{}", format_test_name(test.name));
+        assert_eq!(
+            res.1,
+            test.expected_output,
+            "{}",
+            format_test_name(test.name)
+        );
 
         // Check order in state
         let maybe_order = orders()

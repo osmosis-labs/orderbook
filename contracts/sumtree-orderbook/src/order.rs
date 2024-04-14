@@ -453,19 +453,22 @@ pub(crate) fn claim_order(
         })?;
 
     // Sync the tick the order is on to ensure correct ETAS
-    let tick_values = tick_state.get_values(order.order_direction);
+    let bid_tick_values = tick_state.get_values(OrderDirection::Bid);
+    let ask_tick_values = tick_state.get_values(OrderDirection::Ask);
     sync_tick(
         storage,
         book_id,
         tick_id,
-        tick_values.effective_total_amount_swapped,
+        bid_tick_values.effective_total_amount_swapped,
+        ask_tick_values.effective_total_amount_swapped,
     )?;
 
-    // Resync tick post sync call
+    // Re-fetch tick post sync call
     let tick_state = TICK_STATE
         .may_load(storage, &(book_id, tick_id))?
         .ok_or(ContractError::InvalidTickId { tick_id })?;
     let tick_values = tick_state.get_values(order.order_direction);
+
     // Early exit if nothing has been filled
     ensure!(
         tick_values.effective_total_amount_swapped > order.etas,

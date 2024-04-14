@@ -6,10 +6,11 @@ use crate::sumtree::tree::get_or_init_root_node;
 use crate::tick::sync_tick;
 use crate::tick_math::{amount_to_value, tick_to_price, RoundingDirection};
 use crate::types::{
-    LimitOrder, MarketOrder, OrderDirection, TickState, REPLY_ID_CLAIM, REPLY_ID_REFUND,
+    LimitOrder, MarketOrder, OrderDirection, TickState, REPLY_ID_CLAIM, REPLY_ID_CLAIM_BOUNTY,
+    REPLY_ID_REFUND,
 };
 use cosmwasm_std::{
-    coin, ensure, ensure_eq, BankMsg, Decimal, Decimal256, DepsMut, Env, MessageInfo, Order,
+    coin, ensure, ensure_eq, Addr, BankMsg, Decimal, Decimal256, DepsMut, Env, MessageInfo, Order,
     Response, Storage, SubMsg, Uint128, Uint256,
 };
 use cw_storage_plus::Bound;
@@ -273,16 +274,23 @@ pub fn claim_limit(
 ) -> Result<Response, ContractError> {
     nonpayable(&info)?;
 
-    let (amount_claimed, bank_msg) = claim_order(_deps.storage, book_id, tick_id, order_id)?;
+    let (amount_claimed, bank_msg, bounty_msg) = claim_order(
+        _deps.storage,
+        info.sender.clone(),
+        book_id,
+        tick_id,
+        order_id,
+    )?;
 
     Ok(Response::new()
         .add_attribute("method", "claimMarket")
-        .add_attribute("owner", info.sender)
+        .add_attribute("sender", info.sender)
         .add_attribute("book_id", book_id.to_string())
         .add_attribute("tick_id", tick_id.to_string())
         .add_attribute("order_id", order_id.to_string())
         .add_attribute("amount_claimed", amount_claimed.to_string())
-        .add_submessage(bank_msg))
+        .add_submessage(bank_msg)
+        .add_submessage(bounty_msg))
 }
 
 pub fn place_market(
@@ -477,10 +485,11 @@ pub fn run_market_order(
 // Note: This can be called by anyone
 pub(crate) fn claim_order(
     storage: &mut dyn Storage,
+    sender: Addr,
     book_id: u64,
     tick_id: i64,
     order_id: u64,
-) -> ContractResult<(Uint128, SubMsg)> {
+) -> ContractResult<(Uint128, SubMsg, SubMsg)> {
     let orderbook = ORDERBOOKS
         .may_load(storage, &book_id)?
         .ok_or(ContractError::InvalidBookId { book_id })?;
@@ -548,7 +557,7 @@ pub(crate) fn claim_order(
 
     // Calculate amount to be sent to order owner
     let tick_price = tick_to_price(tick_id)?;
-    let amount = amount_to_value(
+    let mut amount = amount_to_value(
         order.order_direction,
         amount_filled,
         tick_price,
@@ -560,12 +569,32 @@ pub(crate) fn claim_order(
 
     let denom = orderbook.get_opposite_denom(&order.order_direction);
 
-    // TODO: handle auto claim bounties here
+    // Send claim bounty to sender if applicable
+    let mut bounty = Uint128::zero();
+    if let Some(claim_bounty) = order.claim_bounty {
+        // Multiply by the claim bounty ratio and convert to Uint128.
+        // Ensure claimed amount is updated to reflect the bounty.
+        let bounty_amount =
+            Decimal::from_ratio(amount, Uint128::one()).checked_mul(claim_bounty)?;
+        bounty = bounty_amount.to_uint_floor();
+        amount = amount.checked_sub(bounty)?;
+    }
 
+    // Claimed amount always goes to the order owner
     let bank_msg = BankMsg::Send {
         to_address: order.owner.to_string(),
-        amount: vec![coin(amount.u128(), denom)],
+        amount: vec![coin(amount.u128(), denom.clone())],
     };
 
-    Ok((amount, SubMsg::reply_on_error(bank_msg, REPLY_ID_CLAIM)))
+    // Bounty always goes to the sender
+    let bounty_msg = BankMsg::Send {
+        to_address: sender.to_string(),
+        amount: vec![coin(bounty.u128(), denom.clone())],
+    };
+
+    Ok((
+        amount,
+        SubMsg::reply_on_error(bank_msg, REPLY_ID_CLAIM),
+        SubMsg::reply_on_error(bounty_msg, REPLY_ID_CLAIM_BOUNTY),
+    ))
 }

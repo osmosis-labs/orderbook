@@ -1,7 +1,7 @@
 #[cfg(not(feature = "library"))]
 use cosmwasm_std::entry_point;
 use cosmwasm_std::{
-    ensure, Binary, Deps, DepsMut, Env, MessageInfo, Reply, Response, StdResult, Uint128,
+    ensure, Binary, Decimal, Deps, DepsMut, Env, MessageInfo, Reply, Response, StdResult, Uint128,
 };
 use cw2::set_contract_version;
 
@@ -69,7 +69,17 @@ pub fn execute(
             tick_id,
             order_direction,
             quantity,
-        } => dispatch_place_limit(deps, env, info, book_id, tick_id, order_direction, quantity),
+            auto_claim_bounty,
+        } => dispatch_place_limit(
+            deps,
+            env,
+            info,
+            book_id,
+            tick_id,
+            order_direction,
+            quantity,
+            auto_claim_bounty,
+        ),
 
         // Cancels limit order with given ID
         ExecuteMsg::CancelLimit {
@@ -130,6 +140,7 @@ pub fn dispatch_place_limit(
     tick_id: i64,
     order_direction: OrderDirection,
     quantity: Uint128,
+    auto_claim_bounty: Option<Decimal>,
 ) -> Result<Response, ContractError> {
     order::place_limit(
         &mut deps,
@@ -139,5 +150,6 @@ pub fn dispatch_place_limit(
         tick_id,
         order_direction,
         quantity,
+        auto_claim_bounty,
     )
 }

@@ -79,6 +79,7 @@ impl OrderOperation {
                     limit_order.tick_id,
                     limit_order.order_direction,
                     limit_order.quantity,
+                    limit_order.auto_claim_bounty,
                 )?;
                 Ok(())
             }
@@ -128,6 +129,7 @@ pub(crate) fn generate_limit_orders(
                 // We set these values to zero since they will be unused anyway
                 order_id: 0,
                 etas: Decimal256::zero(),
+                auto_claim_bounty: None,
             };
             orders.push(order);
         }
@@ -162,6 +164,7 @@ pub(crate) fn place_multiple_limit_orders(
             order.tick_id,
             order.order_direction,
             order.quantity,
+            order.auto_claim_bounty,
         )?;
     }
     Ok(())

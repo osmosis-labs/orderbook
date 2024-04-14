@@ -1,5 +1,3 @@
-use std::i64::MIN;
-
 use crate::{
     constants::{MAX_TICK, MIN_TICK},
     error::ContractError,
@@ -188,6 +186,7 @@ fn test_place_limit() {
             test.tick_id,
             test.order_direction,
             test.quantity,
+            None,
         );
 
         // --- Assertions ---
@@ -446,6 +445,7 @@ fn test_cancel_limit() {
                 test.tick_id,
                 test.order_direction,
                 test.quantity,
+                None,
             )
             .unwrap();
         }
@@ -1147,6 +1147,7 @@ fn test_run_market_order_moving_tick() {
                     Addr::unchecked(info.sender.as_str()),
                     Uint128::from(10u128),
                     Decimal256::zero(),
+                    None,
                 )),
                 // Place Ask on second tick
                 OrderOperation::PlaceLimit(LimitOrder::new(
@@ -1157,6 +1158,7 @@ fn test_run_market_order_moving_tick() {
                     Addr::unchecked(info.sender.as_str()),
                     Uint128::from(10u128),
                     Decimal256::zero(),
+                    None,
                 )),
                 // Fill all limits on tick 0 and 50% of tick 1, leaving tick 0 empty and forcing positive movement
                 OrderOperation::RunMarket(MarketOrder::new(
@@ -1174,6 +1176,7 @@ fn test_run_market_order_moving_tick() {
                     Addr::unchecked(info.sender.as_str()),
                     Uint128::from(10u128),
                     Decimal256::zero(),
+                    None,
                 )),
             ],
             expected_tick_values: vec![
@@ -1224,6 +1227,7 @@ fn test_run_market_order_moving_tick() {
                     Addr::unchecked(info.sender.as_str()),
                     Uint128::from(10u128),
                     Decimal256::zero(),
+                    None,
                 )),
                 // Place Bid on negative tick
                 OrderOperation::PlaceLimit(LimitOrder::new(
@@ -1234,6 +1238,7 @@ fn test_run_market_order_moving_tick() {
                     Addr::unchecked(info.sender.as_str()),
                     Uint128::from(10u128),
                     Decimal256::zero(),
+                    None,
                 )),
                 // Fill entire first tick and 50% of next tick to force negative movement
                 OrderOperation::RunMarket(MarketOrder::new(
@@ -1251,6 +1256,7 @@ fn test_run_market_order_moving_tick() {
                     Addr::unchecked(info.sender.as_str()),
                     Uint128::from(10u128),
                     Decimal256::zero(),
+                    None,
                 )),
             ],
             expected_tick_values: vec![
@@ -1301,6 +1307,7 @@ fn test_run_market_order_moving_tick() {
                     Addr::unchecked(info.sender.as_str()),
                     Uint128::from(10u128),
                     Decimal256::zero(),
+                    None,
                 )),
                 // Place Bid on negative tick
                 OrderOperation::PlaceLimit(LimitOrder::new(
@@ -1311,6 +1318,7 @@ fn test_run_market_order_moving_tick() {
                     Addr::unchecked(info.sender.as_str()),
                     Uint128::from(10u128),
                     Decimal256::zero(),
+                    None,
                 )),
                 // Fill entire first tick and 50% of next tick to force negative movement
                 OrderOperation::RunMarket(MarketOrder::new(
@@ -1328,6 +1336,7 @@ fn test_run_market_order_moving_tick() {
                     Addr::unchecked(info.sender.as_str()),
                     Uint128::from(10u128),
                     Decimal256::zero(),
+                    None,
                 )),
                 // Fill entire ask to force positive movement
                 OrderOperation::RunMarket(MarketOrder::new(
@@ -1345,6 +1354,7 @@ fn test_run_market_order_moving_tick() {
                     Addr::unchecked(info.sender.as_str()),
                     Uint128::from(12u128),
                     Decimal256::zero(),
+                    None,
                 )),
             ],
             expected_tick_values: vec![
@@ -1399,6 +1409,7 @@ fn test_run_market_order_moving_tick() {
                     Addr::unchecked(info.sender.as_str()),
                     Uint128::from(10u128),
                     Decimal256::zero(),
+                    None,
                 )),
                 // Place Ask on second tick
                 OrderOperation::PlaceLimit(LimitOrder::new(
@@ -1409,6 +1420,7 @@ fn test_run_market_order_moving_tick() {
                     Addr::unchecked(info.sender.as_str()),
                     Uint128::from(10u128),
                     Decimal256::zero(),
+                    None,
                 )),
                 // Fill entire first tick and 50% of second tick to force positive movement
                 OrderOperation::RunMarket(MarketOrder::new(
@@ -1426,6 +1438,7 @@ fn test_run_market_order_moving_tick() {
                     Addr::unchecked(info.sender.as_str()),
                     Uint128::from(10u128),
                     Decimal256::zero(),
+                    None,
                 )),
                 // Fill entire first tick to force negative movement
                 OrderOperation::RunMarket(MarketOrder::new(
@@ -1443,6 +1456,7 @@ fn test_run_market_order_moving_tick() {
                     Addr::unchecked(info.sender.as_str()),
                     Uint128::from(12u128),
                     Decimal256::zero(),
+                    None,
                 )),
             ],
             expected_tick_values: vec![
@@ -1546,6 +1560,7 @@ fn test_claim_order() {
                     Addr::unchecked("sender"),
                     Uint128::from(10u128),
                     Decimal256::zero(),
+                    None,
                 )),
                 OrderOperation::RunMarket(MarketOrder::new(
                     valid_book_id,
@@ -1578,6 +1593,7 @@ fn test_claim_order() {
                     Addr::unchecked("sender"),
                     Uint128::from(10u128),
                     Decimal256::zero(),
+                    None,
                 )),
                 OrderOperation::RunMarket(MarketOrder::new(
                     valid_book_id,
@@ -1604,6 +1620,7 @@ fn test_claim_order() {
                 Addr::unchecked("sender"),
                 Uint128::from(5u128),
                 decimal256_from_u128(5u128),
+                None,
             )),
             expected_error: None,
         },
@@ -1618,6 +1635,7 @@ fn test_claim_order() {
                     Addr::unchecked("sender"),
                     Uint128::from(10u128),
                     Decimal256::zero(),
+                    None,
                 )),
                 OrderOperation::RunMarket(MarketOrder::new(
                     valid_book_id,
@@ -1658,6 +1676,7 @@ fn test_claim_order() {
                     Addr::unchecked("sender"),
                     Uint128::from(10u128),
                     Decimal256::zero(),
+                    None,
                 )),
                 OrderOperation::RunMarket(MarketOrder::new(
                     valid_book_id,
@@ -1692,6 +1711,7 @@ fn test_claim_order() {
                     Addr::unchecked("sender"),
                     Uint128::from(10u128),
                     Decimal256::zero(),
+                    None,
                 )),
                 OrderOperation::RunMarket(MarketOrder::new(
                     valid_book_id,
@@ -1720,6 +1740,7 @@ fn test_claim_order() {
                 Addr::unchecked("sender"),
                 Uint128::from(6u128),
                 decimal256_from_u128(4u128),
+                None,
             )),
             expected_error: None,
         },
@@ -1734,6 +1755,7 @@ fn test_claim_order() {
                     Addr::unchecked("sender"),
                     Uint128::from(10u128),
                     Decimal256::zero(),
+                    None,
                 )),
                 OrderOperation::RunMarket(MarketOrder::new(
                     valid_book_id,
@@ -1777,6 +1799,7 @@ fn test_claim_order() {
                     Addr::unchecked("sender"),
                     Uint128::from(100u128),
                     Decimal256::zero(),
+                    None,
                 )),
                 OrderOperation::RunMarket(MarketOrder::new(
                     valid_book_id,
@@ -1809,6 +1832,7 @@ fn test_claim_order() {
                     Addr::unchecked("sender"),
                     Uint128::from(100u128),
                     Decimal256::zero(),
+                    None,
                 )),
                 OrderOperation::RunMarket(MarketOrder::new(
                     valid_book_id,
@@ -1835,6 +1859,7 @@ fn test_claim_order() {
                 Addr::unchecked("sender"),
                 Uint128::from(50u128),
                 decimal256_from_u128(50u128),
+                None,
             )),
             expected_error: None,
         },
@@ -1849,6 +1874,7 @@ fn test_claim_order() {
                     Addr::unchecked("sender"),
                     Uint128::from(100u128),
                     Decimal256::zero(),
+                    None,
                 )),
                 OrderOperation::RunMarket(MarketOrder::new(
                     valid_book_id,
@@ -1889,6 +1915,7 @@ fn test_claim_order() {
                     Addr::unchecked("sender"),
                     Uint128::from(50u128),
                     Decimal256::zero(),
+                    None,
                 )),
                 OrderOperation::PlaceLimit(LimitOrder::new(
                     valid_book_id,
@@ -1898,6 +1925,7 @@ fn test_claim_order() {
                     Addr::unchecked("sender"),
                     Uint128::from(100u128),
                     Decimal256::zero(),
+                    None,
                 )),
                 OrderOperation::Cancel((valid_book_id, valid_tick_id, 0)),
                 OrderOperation::RunMarket(MarketOrder::new(
@@ -1931,6 +1959,7 @@ fn test_claim_order() {
                     Addr::unchecked("sender"),
                     Uint128::from(10u128),
                     Decimal256::zero(),
+                    None,
                 )),
                 OrderOperation::RunMarket(MarketOrder::new(
                     valid_book_id,
@@ -1961,6 +1990,7 @@ fn test_claim_order() {
                 Addr::unchecked("sender"),
                 Uint128::from(7u128),
                 decimal256_from_u128(3u128),
+                None,
             )),
             expected_error: None,
         },
@@ -1976,6 +2006,7 @@ fn test_claim_order() {
                     Addr::unchecked("sender"),
                     Uint128::from(10u128),
                     Decimal256::zero(),
+                    None,
                 )),
                 OrderOperation::RunMarket(MarketOrder::new(
                     valid_book_id,
@@ -2008,6 +2039,7 @@ fn test_claim_order() {
                     Addr::unchecked("sender"),
                     Uint128::from(10u128),
                     Decimal256::zero(),
+                    None,
                 )),
                 OrderOperation::RunMarket(MarketOrder::new(
                     valid_book_id,
@@ -2034,6 +2066,7 @@ fn test_claim_order() {
                 Addr::unchecked("sender"),
                 Uint128::from(5u128),
                 decimal256_from_u128(5u128),
+                None,
             )),
             expected_error: None,
         },
@@ -2048,6 +2081,7 @@ fn test_claim_order() {
                     Addr::unchecked("sender"),
                     Uint128::from(10u128),
                     Decimal256::zero(),
+                    None,
                 )),
                 OrderOperation::RunMarket(MarketOrder::new(
                     valid_book_id,
@@ -2088,6 +2122,7 @@ fn test_claim_order() {
                     Addr::unchecked("sender"),
                     Uint128::from(10u128),
                     Decimal256::zero(),
+                    None,
                 )),
                 OrderOperation::RunMarket(MarketOrder::new(
                     valid_book_id,
@@ -2122,6 +2157,7 @@ fn test_claim_order() {
                     Addr::unchecked("sender"),
                     Uint128::from(10u128),
                     Decimal256::zero(),
+                    None,
                 )),
                 OrderOperation::RunMarket(MarketOrder::new(
                     valid_book_id,
@@ -2149,6 +2185,7 @@ fn test_claim_order() {
                 Addr::unchecked("sender"),
                 Uint128::from(5u128),
                 decimal256_from_u128(5u128),
+                None,
             )),
             expected_error: None,
         },
@@ -2163,6 +2200,7 @@ fn test_claim_order() {
                     Addr::unchecked("sender"),
                     Uint128::from(10u128),
                     Decimal256::zero(),
+                    None,
                 )),
                 OrderOperation::RunMarket(MarketOrder::new(
                     valid_book_id,
@@ -2205,6 +2243,7 @@ fn test_claim_order() {
                     Addr::unchecked("sender"),
                     Uint128::from(100u128),
                     Decimal256::zero(),
+                    None,
                 )),
                 OrderOperation::RunMarket(MarketOrder::new(
                     valid_book_id,
@@ -2237,6 +2276,7 @@ fn test_claim_order() {
                     Addr::unchecked("sender"),
                     Uint128::from(100u128),
                     Decimal256::zero(),
+                    None,
                 )),
                 OrderOperation::RunMarket(MarketOrder::new(
                     valid_book_id,
@@ -2263,6 +2303,7 @@ fn test_claim_order() {
                 Addr::unchecked("sender"),
                 Uint128::from(50u128),
                 decimal256_from_u128(50u128),
+                None,
             )),
             expected_error: None,
         },
@@ -2277,6 +2318,7 @@ fn test_claim_order() {
                     Addr::unchecked("sender"),
                     Uint128::from(100u128),
                     Decimal256::zero(),
+                    None,
                 )),
                 OrderOperation::RunMarket(MarketOrder::new(
                     valid_book_id,
@@ -2317,6 +2359,7 @@ fn test_claim_order() {
                     Addr::unchecked("sender"),
                     Uint128::from(50u128),
                     Decimal256::zero(),
+                    None,
                 )),
                 OrderOperation::PlaceLimit(LimitOrder::new(
                     valid_book_id,
@@ -2326,6 +2369,7 @@ fn test_claim_order() {
                     Addr::unchecked("sender"),
                     Uint128::from(100u128),
                     Decimal256::zero(),
+                    None,
                 )),
                 OrderOperation::Cancel((valid_book_id, valid_tick_id, 0)),
                 OrderOperation::RunMarket(MarketOrder::new(
@@ -2359,6 +2403,7 @@ fn test_claim_order() {
                     Addr::unchecked("sender"),
                     Uint128::from(10u128),
                     Decimal256::zero(),
+                    None,
                 )),
                 OrderOperation::RunMarket(MarketOrder::new(
                     valid_book_id,
@@ -2391,6 +2436,7 @@ fn test_claim_order() {
                     Addr::unchecked("sender"),
                     Uint128::from(10u128),
                     Decimal256::zero(),
+                    None,
                 )),
                 OrderOperation::RunMarket(MarketOrder::new(
                     valid_book_id,
@@ -2423,6 +2469,7 @@ fn test_claim_order() {
                     Addr::unchecked("sender"),
                     Uint128::from(10u128),
                     Decimal256::zero(),
+                    None,
                 )),
                 OrderOperation::RunMarket(MarketOrder::new(
                     valid_book_id,
@@ -2459,6 +2506,7 @@ fn test_claim_order() {
                     Addr::unchecked("sender"),
                     Uint128::from(10u128),
                     Decimal256::zero(),
+                    None,
                 )),
                 OrderOperation::Cancel((valid_book_id, valid_tick_id, 0)),
             ],
@@ -2489,6 +2537,7 @@ fn test_claim_order() {
                 Addr::unchecked("sender"),
                 Uint128::from(10u128),
                 Decimal256::zero(),
+                None,
             ))],
             order_id: 0,
             book_id: valid_book_id,
@@ -2514,6 +2563,7 @@ fn test_claim_order() {
                     Addr::unchecked("sender"),
                     Uint128::from(10u128),
                     Decimal256::zero(),
+                    None,
                 )),
                 OrderOperation::PlaceLimit(LimitOrder::new(
                     valid_book_id,
@@ -2523,6 +2573,7 @@ fn test_claim_order() {
                     Addr::unchecked("sender"),
                     Uint128::from(10u128),
                     Decimal256::zero(),
+                    None,
                 )),
             ],
             order_id: 1,
@@ -2549,6 +2600,7 @@ fn test_claim_order() {
                     Addr::unchecked("sender"),
                     Uint128::from(10u128),
                     Decimal256::zero(),
+                    None,
                 )),
                 OrderOperation::PlaceLimit(LimitOrder::new(
                     valid_book_id,
@@ -2558,6 +2610,7 @@ fn test_claim_order() {
                     Addr::unchecked("sender"),
                     Uint128::from(100u128),
                     Decimal256::zero(),
+                    None,
                 )),
                 OrderOperation::Cancel((valid_book_id, valid_tick_id, 1)),
             ],
@@ -2668,6 +2721,7 @@ fn test_claim_order_moving_tick() {
                     sender.clone(),
                     Uint128::from(100u128),
                     Decimal256::zero(),
+                    None,
                 )),
                 OrderOperation::RunMarket(MarketOrder::new(
                     valid_book_id,
@@ -2684,6 +2738,7 @@ fn test_claim_order_moving_tick() {
                     sender.clone(),
                     Uint128::from(50u128),
                     Decimal256::zero(),
+                    None,
                 )),
                 OrderOperation::RunMarket(MarketOrder::new(
                     valid_book_id,
@@ -2719,6 +2774,7 @@ fn test_claim_order_moving_tick() {
                     sender.clone(),
                     Uint128::from(100u128),
                     Decimal256::zero(),
+                    None,
                 )),
                 OrderOperation::RunMarket(MarketOrder::new(
                     valid_book_id,
@@ -2735,6 +2791,7 @@ fn test_claim_order_moving_tick() {
                     sender.clone(),
                     Uint128::from(50u128),
                     Decimal256::zero(),
+                    None,
                 )),
                 OrderOperation::RunMarket(MarketOrder::new(
                     valid_book_id,
@@ -2763,6 +2820,7 @@ fn test_claim_order_moving_tick() {
                 sender.clone(),
                 Uint128::from(25u128),
                 decimal256_from_u128(25u128),
+                None,
             )),
             expected_error: None,
         },
@@ -2778,6 +2836,7 @@ fn test_claim_order_moving_tick() {
                     sender.clone(),
                     Uint128::from(100u128),
                     Decimal256::zero(),
+                    None,
                 )),
                 OrderOperation::RunMarket(MarketOrder::new(
                     valid_book_id,
@@ -2794,6 +2853,7 @@ fn test_claim_order_moving_tick() {
                     sender.clone(),
                     Uint128::from(25u128),
                     Decimal256::zero(),
+                    None,
                 )),
                 // Place order to be claimed
                 OrderOperation::PlaceLimit(LimitOrder::new(
@@ -2804,6 +2864,7 @@ fn test_claim_order_moving_tick() {
                     sender.clone(),
                     Uint128::from(50u128),
                     Decimal256::zero(),
+                    None,
                 )),
                 // Cancel temporary order
                 OrderOperation::Cancel((valid_book_id, valid_tick_id, 1)),
@@ -2835,6 +2896,7 @@ fn test_claim_order_moving_tick() {
                 sender.clone(),
                 Uint128::from(25u128),
                 decimal256_from_u128(50u128),
+                None,
             )),
             expected_error: None,
         },
@@ -2851,6 +2913,7 @@ fn test_claim_order_moving_tick() {
                     sender.clone(),
                     Uint128::from(100u128),
                     Decimal256::zero(),
+                    None,
                 )),
                 // Immediately cancel it
                 OrderOperation::Cancel((valid_book_id, valid_tick_id, 0)),
@@ -2863,6 +2926,7 @@ fn test_claim_order_moving_tick() {
                     sender.clone(),
                     Uint128::from(50u128),
                     Decimal256::zero(),
+                    None,
                 )),
                 // Partially fill order to be claimed
                 OrderOperation::RunMarket(MarketOrder::new(
@@ -2890,6 +2954,7 @@ fn test_claim_order_moving_tick() {
                 sender.clone(),
                 Uint128::from(25u128),
                 decimal256_from_u128(25u128),
+                None,
             )),
             expected_error: None,
         },
@@ -2905,6 +2970,7 @@ fn test_claim_order_moving_tick() {
                     sender.clone(),
                     Uint128::from(100u128),
                     Decimal256::zero(),
+                    None,
                 )),
                 // Fill order to move tick
                 OrderOperation::RunMarket(MarketOrder::new(
@@ -2922,6 +2988,7 @@ fn test_claim_order_moving_tick() {
                     sender.clone(),
                     Uint128::from(50u128),
                     Decimal256::zero(),
+                    None,
                 )),
                 // Fill order to move tick
                 OrderOperation::RunMarket(MarketOrder::new(
@@ -2939,6 +3006,7 @@ fn test_claim_order_moving_tick() {
                     sender.clone(),
                     Uint128::from(100u128),
                     Decimal256::zero(),
+                    None,
                 )),
                 // Full fill new order
                 OrderOperation::RunMarket(MarketOrder::new(
@@ -2976,6 +3044,7 @@ fn test_claim_order_moving_tick() {
                     sender.clone(),
                     Uint128::from(100u128),
                     Decimal256::zero(),
+                    None,
                 )),
                 OrderOperation::RunMarket(MarketOrder::new(
                     valid_book_id,
@@ -2992,6 +3061,7 @@ fn test_claim_order_moving_tick() {
                     sender.clone(),
                     Uint128::from(50u128),
                     Decimal256::zero(),
+                    None,
                 )),
                 OrderOperation::RunMarket(MarketOrder::new(
                     valid_book_id,
@@ -3027,6 +3097,7 @@ fn test_claim_order_moving_tick() {
                     sender.clone(),
                     Uint128::from(100u128),
                     Decimal256::zero(),
+                    None,
                 )),
                 OrderOperation::RunMarket(MarketOrder::new(
                     valid_book_id,
@@ -3043,6 +3114,7 @@ fn test_claim_order_moving_tick() {
                     sender.clone(),
                     Uint128::from(50u128),
                     Decimal256::zero(),
+                    None,
                 )),
                 OrderOperation::RunMarket(MarketOrder::new(
                     valid_book_id,
@@ -3071,6 +3143,7 @@ fn test_claim_order_moving_tick() {
                 sender.clone(),
                 Uint128::from(25u128),
                 decimal256_from_u128(25u128),
+                None,
             )),
             expected_error: None,
         },
@@ -3086,6 +3159,7 @@ fn test_claim_order_moving_tick() {
                     sender.clone(),
                     Uint128::from(100u128),
                     Decimal256::zero(),
+                    None,
                 )),
                 OrderOperation::RunMarket(MarketOrder::new(
                     valid_book_id,
@@ -3102,6 +3176,7 @@ fn test_claim_order_moving_tick() {
                     sender.clone(),
                     Uint128::from(25u128),
                     Decimal256::zero(),
+                    None,
                 )),
                 // Place order to be claimed
                 OrderOperation::PlaceLimit(LimitOrder::new(
@@ -3112,6 +3187,7 @@ fn test_claim_order_moving_tick() {
                     sender.clone(),
                     Uint128::from(50u128),
                     Decimal256::zero(),
+                    None,
                 )),
                 // Cancel temporary order
                 OrderOperation::Cancel((valid_book_id, valid_tick_id, 1)),
@@ -3143,6 +3219,7 @@ fn test_claim_order_moving_tick() {
                 sender.clone(),
                 Uint128::from(25u128),
                 decimal256_from_u128(50u128),
+                None,
             )),
             expected_error: None,
         },
@@ -3159,6 +3236,7 @@ fn test_claim_order_moving_tick() {
                     sender.clone(),
                     Uint128::from(100u128),
                     Decimal256::zero(),
+                    None,
                 )),
                 // Immediately cancel the order
                 OrderOperation::Cancel((valid_book_id, valid_tick_id, 0)),
@@ -3171,6 +3249,7 @@ fn test_claim_order_moving_tick() {
                     sender.clone(),
                     Uint128::from(50u128),
                     Decimal256::zero(),
+                    None,
                 )),
                 // Partially fill the order
                 OrderOperation::RunMarket(MarketOrder::new(
@@ -3198,6 +3277,7 @@ fn test_claim_order_moving_tick() {
                 sender.clone(),
                 Uint128::from(25u128),
                 decimal256_from_u128(25u128),
+                None,
             )),
             expected_error: None,
         },
@@ -3213,6 +3293,7 @@ fn test_claim_order_moving_tick() {
                     sender.clone(),
                     Uint128::from(100u128),
                     Decimal256::zero(),
+                    None,
                 )),
                 OrderOperation::RunMarket(MarketOrder::new(
                     valid_book_id,
@@ -3229,6 +3310,7 @@ fn test_claim_order_moving_tick() {
                     sender.clone(),
                     Uint128::from(50u128),
                     Decimal256::zero(),
+                    None,
                 )),
                 OrderOperation::RunMarket(MarketOrder::new(
                     valid_book_id,
@@ -3245,6 +3327,7 @@ fn test_claim_order_moving_tick() {
                     sender.clone(),
                     Uint128::from(100u128),
                     Decimal256::zero(),
+                    None,
                 )),
                 OrderOperation::RunMarket(MarketOrder::new(
                     valid_book_id,

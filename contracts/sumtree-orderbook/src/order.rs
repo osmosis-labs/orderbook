@@ -9,8 +9,8 @@ use crate::types::{
     LimitOrder, MarketOrder, OrderDirection, TickState, REPLY_ID_CLAIM, REPLY_ID_REFUND,
 };
 use cosmwasm_std::{
-    coin, ensure, ensure_eq, BankMsg, Decimal256, DepsMut, Env, MessageInfo, Order, Response,
-    Storage, SubMsg, Uint128, Uint256,
+    coin, ensure, ensure_eq, BankMsg, Decimal, Decimal256, DepsMut, Env, MessageInfo, Order,
+    Response, Storage, SubMsg, Uint128, Uint256,
 };
 use cw_storage_plus::Bound;
 use cw_utils::{must_pay, nonpayable};
@@ -24,6 +24,7 @@ pub fn place_limit(
     tick_id: i64,
     order_direction: OrderDirection,
     quantity: Uint128,
+    auto_claim_bounty: Option<Decimal>,
 ) -> Result<Response, ContractError> {
     // Validate book_id exists
     let mut orderbook = ORDERBOOKS
@@ -82,6 +83,15 @@ pub fn place_limit(
         .unwrap_or_default();
     let mut tick_values = tick_state.get_values(order_direction);
 
+    ensure!(
+        auto_claim_bounty.is_none()
+            || (auto_claim_bounty.unwrap() >= Decimal::zero()
+                && auto_claim_bounty.unwrap() <= Decimal::one()),
+        ContractError::InvalidAutoClaimBounty {
+            auto_claim_bounty: auto_claim_bounty
+        }
+    );
+
     // Build limit order
     let mut limit_order = LimitOrder::new(
         book_id,
@@ -91,6 +101,7 @@ pub fn place_limit(
         info.sender.clone(),
         quantity,
         tick_values.cumulative_total_value,
+        auto_claim_bounty,
     );
 
     // Determine if the order needs to be filled

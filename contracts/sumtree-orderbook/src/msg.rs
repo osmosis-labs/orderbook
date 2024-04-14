@@ -1,6 +1,6 @@
 use crate::types::OrderDirection;
 use cosmwasm_schema::{cw_serde, QueryResponses};
-use cosmwasm_std::Uint128;
+use cosmwasm_std::{Decimal, Uint128};
 
 /// Message type for `instantiate` entry_point
 #[cw_serde]
@@ -18,6 +18,7 @@ pub enum ExecuteMsg {
         tick_id: i64,
         order_direction: OrderDirection,
         quantity: Uint128,
+        auto_claim_bounty: Option<Decimal>,
     },
     CancelLimit {
         book_id: u64,

@@ -12,7 +12,8 @@ pub fn sync_tick(
     storage: &mut dyn Storage,
     book_id: u64,
     tick_id: i64,
-    current_tick_etas: Decimal256,
+    current_tick_bid_etas: Decimal256,
+    current_tick_ask_etas: Decimal256,
 ) -> Result<(), ContractError> {
     let mut tick_state = TICK_STATE.load(storage, &(book_id, tick_id))?;
 
@@ -22,8 +23,8 @@ pub fn sync_tick(
     let mut ask_values = tick_state.get_values(OrderDirection::Ask);
 
     // If both sets of tick values are already up to date, skip the sync altogether.
-    if bid_values.last_tick_sync_etas == current_tick_etas
-        && ask_values.last_tick_sync_etas == current_tick_etas
+    if bid_values.last_tick_sync_etas == current_tick_bid_etas
+        && ask_values.last_tick_sync_etas == current_tick_ask_etas
     {
         return Ok(());
     }
@@ -35,15 +36,15 @@ pub fn sync_tick(
     // cleanly bubble up the changes to write to state after the loop without running duplicate
     // calls for each direction.
     for &direction in [OrderDirection::Bid, OrderDirection::Ask].iter() {
-        let mut tick_value = match direction {
-            OrderDirection::Bid => bid_values.clone(),
-            OrderDirection::Ask => ask_values.clone(),
+        let (mut tick_value, target_etas) = match direction {
+            OrderDirection::Bid => (bid_values.clone(), current_tick_bid_etas),
+            OrderDirection::Ask => (ask_values.clone(), current_tick_ask_etas),
         };
 
         // If tick state for current order direction is already up to date,
         // skip the check. This saves us from walking the tree for both order directions
         // even though in most cases we will likely only need to sync one.
-        if tick_value.last_tick_sync_etas == current_tick_etas {
+        if tick_value.last_tick_sync_etas == target_etas {
             continue;
         }
 
@@ -55,7 +56,7 @@ pub fn sync_tick(
 
         // Assuming `calculate_prefix_sum` is a function that calculates the prefix sum at the given ETAS.
         // This function needs to be implemented based on your sumtree structure and logic.
-        let new_cumulative_realized_cancels = get_prefix_sum(storage, tree, current_tick_etas)?;
+        let new_cumulative_realized_cancels = get_prefix_sum(storage, tree, target_etas)?;
 
         // Calculate the growth in realized cancels since previous sync.
         // This is equivalent to the amount we will need to add to the tick's ETAS.

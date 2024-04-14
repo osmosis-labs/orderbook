@@ -346,6 +346,15 @@ fn test_node_insert_cases() {
             expected: vec![1, 2, 5, 3, 4],
             print: true,
         },
+        TestNodeInsertCase {
+            name: "Insert adjacent nodes in decreasing order",
+            nodes: vec![
+                NodeType::leaf_uint256(35u128, 25u128),
+                NodeType::leaf_uint256(10u128, 25u128),
+            ],
+            expected: vec![1, 3, 2],
+            print: true,
+        },
     ];
 
     for test in test_cases {

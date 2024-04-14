@@ -223,40 +223,33 @@ impl TreeNode {
     }
 
     /// Determines if the node's minimum range is less than the maximum range of the given left node.
-    pub fn is_in_left_range(&self, left_node: TreeNode) -> bool {
-        self.get_min_range() < left_node.get_max_range()
+    pub fn in_or_below_range(&self, node: TreeNode) -> bool {
+        self.get_min_range() < node.get_max_range()
     }
 
     /// Determines if the node's minimum range is greater than or equal to the minimum range of the given right node.
-    pub fn is_in_right_range(&self, right_node: TreeNode) -> bool {
-        self.get_min_range() >= right_node.get_min_range()
-    }
-
-    /// Determines if the current node's max is less than or equal to the min of the provided node
-    pub fn is_less_than(&self, other_node: TreeNode) -> bool {
-        let other_node_min = other_node.get_min_range();
-
-        self.get_max_range() <= other_node_min
+    pub fn in_or_above_range(&self, node: TreeNode) -> bool {
+        self.get_min_range() >= node.get_min_range()
     }
 
     /// Determines if the current node's max is less than the min of the provided node
-    pub fn is_strictly_less_than(&self, other_node: TreeNode) -> bool {
-        let other_node_min = other_node.get_min_range();
-        self.get_max_range() < other_node_min
+    pub fn below_range(&self, node: TreeNode) -> bool {
+        // This comparison is inclusive because the left node in an adjacent pair is considered strictly below
+        // the right node.
+        //
+        // Since range bounds can overlap, this comparison is inclusive for both below and above range
+        // checks.
+        self.get_max_range() <= node.get_min_range()
     }
 
     /// Determines if the current node's min is greater than or equal to the max of the provided node
-    pub fn is_greater_than(&self, other_node: TreeNode) -> bool {
-        let other_node_max = other_node.get_max_range();
-
-        other_node_max <= self.get_min_range()
-    }
-
-    /// Determines if the current node's min is greater than the max of the provided node
-    pub fn is_strictly_greater_than(&self, other_node: TreeNode) -> bool {
-        let other_node_max = other_node.get_max_range();
-
-        other_node_max < self.get_min_range()
+    pub fn above_range(&self, node: TreeNode) -> bool {
+        // This comparison is inclusive because the right node in an adjacent pair is considered strictly above
+        // the left node.
+        //
+        // Since range bounds can overlap, this comparison is inclusive for both below and above range
+        // checks.
+        self.get_min_range() >= node.get_max_range()
     }
 
     pub fn set_value(&mut self, value: Decimal256) -> ContractResult<()> {
@@ -419,22 +412,22 @@ impl TreeNode {
         // Check if new node is lower than the left node's max, false if node does not exist
         let is_in_left_range = maybe_left
             .clone()
-            .map_or(false, |left| new_node.is_in_left_range(left));
+            .map_or(false, |left| new_node.in_or_below_range(left));
         // Check if new node is higher than the right node's min, false if node does not exist
         let is_in_right_range = maybe_right
             .clone()
-            .map_or(false, |right| new_node.is_in_right_range(right));
+            .map_or(false, |right| new_node.in_or_above_range(right));
 
         // Check if new node's max is strictly less than left node's min
         let is_less_than_left = maybe_left
             .clone()
             // As node ranges may overlap on equality comparisons (i.e. left_node.max == right_node.min) we check strictly here
-            .map_or(false, |left| new_node.is_strictly_less_than(left));
+            .map_or(false, |left| new_node.below_range(left));
         // Check if new node's min is greater than right node's max
         let is_greater_than_right = maybe_right
             .clone()
             // As node ranges may overlap on equality comparisons (i.e. left_node.max == right_node.min) we check non-strictly here
-            .map_or(false, |right| new_node.is_greater_than(right));
+            .map_or(false, |right| new_node.above_range(right));
 
         // Internal conditions
         // One node is internal and the new node fits in its range, or both are internal and the new node does not fit in either range

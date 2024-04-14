@@ -262,7 +262,7 @@ pub fn claim_limit(
 ) -> Result<Response, ContractError> {
     nonpayable(&info)?;
 
-    let (amount_claimed, refund_submsg) = claim_order(_deps.storage, book_id, tick_id, order_id)?;
+    let (amount_claimed, bank_msg) = claim_order(_deps.storage, book_id, tick_id, order_id)?;
 
     Ok(Response::new()
         .add_attribute("method", "claimMarket")
@@ -271,7 +271,7 @@ pub fn claim_limit(
         .add_attribute("tick_id", tick_id.to_string())
         .add_attribute("order_id", order_id.to_string())
         .add_attribute("amount_claimed", amount_claimed.to_string())
-        .add_submessage(refund_submsg))
+        .add_submessage(bank_msg))
 }
 
 pub fn place_market(
@@ -463,8 +463,6 @@ pub fn run_market_order(
     ))
 }
 
-// TODO: Remove #[allow] once execute messages are wired up
-#[allow(dead_code)]
 // Note: This can be called by anyone
 pub(crate) fn claim_order(
     storage: &mut dyn Storage,
@@ -513,13 +511,19 @@ pub(crate) fn claim_order(
         ContractError::ZeroClaim
     );
 
-    // Calculate amount of order that is currently filled (may be partial)
+    // Calculate amount of order that is currently filled (may be partial).
+    // We take the min between (tick_ETAS - order_ETAS) and the order quantity to ensure
+    // we don't claim more than the order has available.
     let amount_filled_dec = tick_values
         .effective_total_amount_swapped
         .checked_sub(order.etas)?
         .min(Decimal256::from_ratio(order.quantity, 1u128));
     let amount_filled = Uint128::try_from(amount_filled_dec.to_uint_floor())?;
 
+    // Update order state to reflect the claimed amount.
+    //
+    // By subtracting the order quantity and moving up the start ETAS,
+    // the order should effectively be left as a fresh order with the remaining quantity.
     order.quantity = order.quantity.checked_sub(amount_filled)?;
     order.etas = order.etas.checked_add(amount_filled_dec)?;
 
@@ -533,6 +537,9 @@ pub(crate) fn claim_order(
 
     // Calculate amount to be sent to order owner
     let tick_price = tick_to_price(tick_id)?;
+    println!("tick_id: {:?}", tick_id);
+    println!("tick_price: {:?}", tick_price);
+    println!("amount_filled: {:?}", amount_filled);
     let amount = amount_to_value(
         order.order_direction,
         amount_filled,

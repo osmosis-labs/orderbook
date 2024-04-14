@@ -1,3 +1,5 @@
+use std::i64::MIN;
+
 use crate::{
     constants::{MAX_TICK, MIN_TICK},
     error::ContractError,
@@ -1693,6 +1695,7 @@ fn test_claim_order() {
                 )),
                 OrderOperation::RunMarket(MarketOrder::new(
                     valid_book_id,
+                    // Tick price is 2, 2*2 = 4
                     Uint128::from(2u128),
                     OrderDirection::Bid,
                     Addr::unchecked("buyer"),
@@ -1704,7 +1707,7 @@ fn test_claim_order() {
             expected_output: SubMsg::reply_on_error(
                 BankMsg::Send {
                     to_address: Addr::unchecked("sender").to_string(),
-                    // Tick price = 2, floor(5/2) = 2
+                    // Tick price = 2, 4/2 = 2
                     amount: vec![coin(2u128, quote_denom)],
                 },
                 REPLY_ID_CLAIM,
@@ -1742,6 +1745,7 @@ fn test_claim_order() {
                 OrderOperation::Claim((valid_book_id, LARGE_POSITIVE_TICK, 0)),
                 OrderOperation::RunMarket(MarketOrder::new(
                     valid_book_id,
+                    // Tick price is 2, 2*3 = 6
                     Uint128::from(3u128),
                     OrderDirection::Bid,
                     Addr::unchecked("buyer"),
@@ -1753,7 +1757,7 @@ fn test_claim_order() {
             expected_output: SubMsg::reply_on_error(
                 BankMsg::Send {
                     to_address: Addr::unchecked("sender").to_string(),
-                    // Tick price = 2, floor(5/2) = 2
+                    // Tick price = 2, 6/2 = 3
                     amount: vec![coin(3u128, quote_denom)],
                 },
                 REPLY_ID_CLAIM,
@@ -1910,6 +1914,42 @@ fn test_claim_order() {
                 BankMsg::Send {
                     to_address: Addr::unchecked("sender").to_string(),
                     amount: vec![coin(100u128, quote_denom)],
+                },
+                REPLY_ID_CLAIM,
+            ),
+            expected_order_state: None,
+            expected_error: None,
+        },
+        ClaimOrderTestCase {
+            name: "ASK: valid basic full claim at MIN_TICK",
+            operations: vec![
+                OrderOperation::PlaceLimit(LimitOrder::new(
+                    valid_book_id,
+                    MIN_TICK,
+                    0,
+                    OrderDirection::Ask,
+                    Addr::unchecked("sender"),
+                    Uint128::from(10u128),
+                    Decimal256::zero(),
+                )),
+                OrderOperation::RunMarket(MarketOrder::new(
+                    valid_book_id,
+                    // Tick price is 0.000000000001, so 3_333_333_333_333 * 0.000000000001 = 3.33333333333
+                    // We expect this to get truncated to 3, as order outputs should always be rounding
+                    // in favor of the orderbook.
+                    Uint128::from(3_333_333_333_333u128),
+                    OrderDirection::Bid,
+                    Addr::unchecked("buyer"),
+                )),
+            ],
+            order_id: 0,
+            book_id: valid_book_id,
+            tick_id: MIN_TICK,
+            expected_output: SubMsg::reply_on_error(
+                BankMsg::Send {
+                    to_address: Addr::unchecked("sender").to_string(),
+                    // Tick price = 0.000000000001, 3 / 0.000000000001 = 3_000_000_000_000
+                    amount: vec![coin(3_000_000_000_000u128, quote_denom)],
                 },
                 REPLY_ID_CLAIM,
             ),
@@ -2088,7 +2128,7 @@ fn test_claim_order() {
             expected_output: SubMsg::reply_on_error(
                 BankMsg::Send {
                     to_address: Addr::unchecked("sender").to_string(),
-                    // Tick price = 2, floor(5/2) = 2
+                    // Tick price = 2, 5 * 2 = 10
                     amount: vec![coin(10u128, base_denom)],
                 },
                 REPLY_ID_CLAIM,
@@ -2137,7 +2177,7 @@ fn test_claim_order() {
             expected_output: SubMsg::reply_on_error(
                 BankMsg::Send {
                     to_address: Addr::unchecked("sender").to_string(),
-                    // Tick price = 2, floor(5/2) = 2
+                    // Tick price = 2, 5 * 2 = 10
                     amount: vec![coin(10u128, base_denom)],
                 },
                 REPLY_ID_CLAIM,
@@ -2529,6 +2569,9 @@ fn test_claim_order() {
     ];
 
     for test in test_cases {
+        println!("--------------------------------");
+        println!("Running test: {}", test.name);
+        println!("--------------------------------");
         // Test Setup
         let mut deps = mock_dependencies();
         let env = mock_env();

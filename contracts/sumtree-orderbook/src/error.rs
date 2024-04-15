@@ -92,13 +92,6 @@ pub enum ContractError {
 
     #[error("Node insertion error")]
     NodeInsertionError,
-
-    #[error("Invalid limit order tick: limit order is past the best available price. Order direction: {order_direction:?}, Tick ID: {tick_id:?}, Next Best Tick: {next_best_tick:?}")]
-    InvalidLimitOrderTick {
-        order_direction: String,
-        tick_id: i64,
-        next_best_tick: i64,
-    },
 }
 
 pub type ContractResult<T> = Result<T, ContractError>;

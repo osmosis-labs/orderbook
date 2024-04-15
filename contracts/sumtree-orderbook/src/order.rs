@@ -441,6 +441,11 @@ pub fn run_market_order(
         total_output = total_output.checked_add(fill_amount)?;
     }
 
+    ensure!(
+        !order.quantity.is_zero(),
+        ContractError::InsufficientOrderbookLiquidity
+    );
+
     // After the core tick iteration loop, write all tick updates to state.
     // We cannot do this during the loop due to the borrow checker.
     for (tick_id, tick_state) in tick_updates {

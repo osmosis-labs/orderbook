@@ -92,6 +92,9 @@ pub enum ContractError {
 
     #[error("Node insertion error")]
     NodeInsertionError,
+
+    #[error("Orderbook ran out of liquidity during market order")]
+    InsufficientOrderbookLiquidity,
 }
 
 pub type ContractResult<T> = Result<T, ContractError>;

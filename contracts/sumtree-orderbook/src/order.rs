@@ -442,7 +442,7 @@ pub fn run_market_order(
     }
 
     ensure!(
-        !order.quantity.is_zero(),
+        order.quantity.is_zero(),
         ContractError::InsufficientOrderbookLiquidity
     );
 

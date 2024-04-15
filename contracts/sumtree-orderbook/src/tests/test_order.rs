@@ -1,5 +1,3 @@
-use std::i64::MIN;
-
 use crate::{
     constants::{MAX_TICK, MIN_TICK},
     error::ContractError,

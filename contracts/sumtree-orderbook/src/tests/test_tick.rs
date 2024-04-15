@@ -371,7 +371,7 @@ fn test_sync_tick() {
 
         // --- System under test ---
 
-        for loop_number in 0..test.num_syncs {
+        for _ in 0..test.num_syncs {
             // Increment tick ETAS for each step
             let (updated_bid_etas, updated_ask_etas) = increment_tick_etas(
                 deps.as_mut().storage,

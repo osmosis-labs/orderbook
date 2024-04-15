@@ -83,7 +83,7 @@ pub fn place_limit(
     let mut tick_values = tick_state.get_values(order_direction);
 
     // Build limit order
-    let mut limit_order = LimitOrder::new(
+    let limit_order = LimitOrder::new(
         book_id,
         tick_id,
         order_id,
@@ -92,26 +92,6 @@ pub fn place_limit(
         quantity,
         tick_values.cumulative_total_value,
     );
-
-    // Determine if the order needs to be filled
-    let should_fill = match order_direction {
-        OrderDirection::Ask => tick_id <= orderbook.next_bid_tick,
-        OrderDirection::Bid => tick_id >= orderbook.next_ask_tick,
-    };
-
-    let mut response = Response::default();
-    // Run order fill if criteria met
-    if should_fill {
-        // let mut market_order = MarketOrder::from(limit_order.clone());
-        // let tick_bound = match market_order.order_direction {
-        //     OrderDirection::Bid => MAX_TICK,
-        //     OrderDirection::Ask => MIN_TICK,
-        // };
-        // let (_, fill_msg) = run_market_order(deps.storage, &mut market_order, tick_bound)?;
-        // response = response.add_submessage(SubMsg::reply_on_error(fill_msg, 1));
-
-        // limit_order.quantity = market_order.quantity;
-    }
 
     let quantity_fullfilled = quantity.checked_sub(limit_order.quantity)?;
 
@@ -136,7 +116,7 @@ pub fn place_limit(
     tick_state.set_values(order_direction, tick_values);
     TICK_STATE.save(deps.storage, &(book_id, tick_id), &tick_state)?;
 
-    Ok(response
+    Ok(Response::default()
         .add_attribute("method", "placeLimit")
         .add_attribute("owner", info.sender.to_string())
         .add_attribute("book_id", book_id.to_string())
@@ -170,8 +150,6 @@ pub fn cancel_limit(
     ensure_eq!(info.sender, order.owner, ContractError::Unauthorized {});
 
     // Ensure the order has not been filled.
-    // TODO: support cancelling partially filled orders by claiming above
-    // if a partial fill is detected. Tracked in issue https://github.com/osmosis-labs/orderbook/issues/75
     let tick_state = TICK_STATE
         .load(deps.storage, &(book_id, tick_id))
         .unwrap_or_default();

@@ -44,6 +44,16 @@ pub fn place_limit(
         ContractError::InvalidQuantity { quantity }
     );
 
+    // If applicable, ensure claim_bounty is between 0 and 1
+    if let Some(claim_bounty_value) = claim_bounty {
+        ensure!(
+            claim_bounty_value >= Decimal::zero() && claim_bounty_value <= Decimal::one(),
+            ContractError::InvalidClaimBounty {
+                claim_bounty: Some(claim_bounty_value)
+            }
+        );
+    }
+
     // Determine the correct denom based on order direction
     let expected_denom = orderbook.get_expected_denom(&order_direction);
 
@@ -83,15 +93,6 @@ pub fn place_limit(
         .load(deps.storage, &(book_id, tick_id))
         .unwrap_or_default();
     let mut tick_values = tick_state.get_values(order_direction);
-
-    ensure!(
-        claim_bounty.is_none()
-            || (claim_bounty.unwrap() >= Decimal::zero()
-                && claim_bounty.unwrap() <= Decimal::one()),
-        ContractError::InvalidAutoClaimBounty {
-            claim_bounty: claim_bounty
-        }
-    );
 
     // Build limit order
     let mut limit_order = LimitOrder::new(

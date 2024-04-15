@@ -93,8 +93,8 @@ pub enum ContractError {
     #[error("Node insertion error")]
     NodeInsertionError,
 
-    #[error("Auto claim bounty must be a value between 0 and 1. Received: {claim_bounty:?}")]
-    InvalidAutoClaimBounty { claim_bounty: Option<Decimal> },
+    #[error("Claim bounty must be a value between 0 and 1. Received: {claim_bounty:?}")]
+    InvalidClaimBounty { claim_bounty: Option<Decimal> },
 }
 
 pub type ContractResult<T> = Result<T, ContractError>;

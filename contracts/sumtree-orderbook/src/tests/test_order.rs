@@ -11,10 +11,12 @@ use crate::{
     tests::test_utils::{decimal256_from_u128, place_multiple_limit_orders},
     types::{
         FilterOwnerOrders, LimitOrder, MarketOrder, OrderDirection, TickValues, REPLY_ID_CLAIM,
-        REPLY_ID_REFUND,
+        REPLY_ID_CLAIM_BOUNTY, REPLY_ID_REFUND,
     },
 };
-use cosmwasm_std::{coin, testing::mock_dependencies, Addr, BankMsg, Coin, Empty, SubMsg, Uint128};
+use cosmwasm_std::{
+    coin, testing::mock_dependencies, Addr, BankMsg, Coin, Decimal, Empty, SubMsg, Uint128,
+};
 use cosmwasm_std::{
     testing::{mock_dependencies_with_balances, mock_env, mock_info},
     Decimal256,
@@ -33,6 +35,7 @@ struct PlaceLimitTestCase {
     quantity: Uint128,
     sent: Uint128,
     order_direction: OrderDirection,
+    claim_bounty: Option<Decimal>,
     expected_error: Option<ContractError>,
 }
 
@@ -48,6 +51,7 @@ fn test_place_limit() {
             quantity: Uint128::new(100),
             sent: Uint128::new(100),
             order_direction: OrderDirection::Ask,
+            claim_bounty: None,
             expected_error: None,
         },
         PlaceLimitTestCase {
@@ -57,6 +61,7 @@ fn test_place_limit() {
             quantity: Uint128::new(34321),
             sent: Uint128::new(34321),
             order_direction: OrderDirection::Bid,
+            claim_bounty: None,
             expected_error: None,
         },
         PlaceLimitTestCase {
@@ -66,6 +71,7 @@ fn test_place_limit() {
             quantity: Uint128::new(100),
             sent: Uint128::new(100),
             order_direction: OrderDirection::Bid,
+            claim_bounty: None,
             expected_error: None,
         },
         PlaceLimitTestCase {
@@ -75,7 +81,30 @@ fn test_place_limit() {
             quantity: Uint128::new(34321),
             sent: Uint128::new(34321),
             order_direction: OrderDirection::Ask,
+            claim_bounty: None,
             expected_error: None,
+        },
+        PlaceLimitTestCase {
+            name: "valid order with claim bounty",
+            book_id: valid_book_id,
+            tick_id: 10,
+            quantity: Uint128::new(100),
+            sent: Uint128::new(100),
+            order_direction: OrderDirection::Ask,
+            claim_bounty: Some(Decimal::percent(10)),
+            expected_error: None,
+        },
+        PlaceLimitTestCase {
+            name: "order with claim bounty > 1 (invalid)",
+            book_id: valid_book_id,
+            tick_id: 10,
+            quantity: Uint128::new(100),
+            sent: Uint128::new(100),
+            order_direction: OrderDirection::Ask,
+            claim_bounty: Some(Decimal::one() + Decimal::one()),
+            expected_error: Some(ContractError::InvalidClaimBounty {
+                claim_bounty: Some(Decimal::one() + Decimal::one()),
+            }),
         },
         PlaceLimitTestCase {
             name: "invalid book id",
@@ -84,6 +113,7 @@ fn test_place_limit() {
             quantity: Uint128::new(100),
             sent: Uint128::new(100),
             order_direction: OrderDirection::Ask,
+            claim_bounty: None,
             expected_error: Some(ContractError::InvalidBookId {
                 book_id: invalid_book_id,
             }),
@@ -95,6 +125,7 @@ fn test_place_limit() {
             quantity: Uint128::new(100),
             sent: Uint128::new(100),
             order_direction: OrderDirection::Ask,
+            claim_bounty: None,
             expected_error: Some(ContractError::InvalidTickId {
                 tick_id: MAX_TICK + 1,
             }),
@@ -106,6 +137,7 @@ fn test_place_limit() {
             quantity: Uint128::new(100),
             sent: Uint128::new(100),
             order_direction: OrderDirection::Ask,
+            claim_bounty: None,
             expected_error: Some(ContractError::InvalidTickId {
                 tick_id: MIN_TICK - 1,
             }),
@@ -117,6 +149,7 @@ fn test_place_limit() {
             quantity: Uint128::zero(),
             sent: Uint128::new(1000),
             order_direction: OrderDirection::Ask,
+            claim_bounty: None,
             expected_error: Some(ContractError::InvalidQuantity {
                 quantity: Uint128::zero(),
             }),
@@ -128,6 +161,7 @@ fn test_place_limit() {
             quantity: Uint128::new(1000),
             sent: Uint128::new(500),
             order_direction: OrderDirection::Ask,
+            claim_bounty: None,
             expected_error: Some(ContractError::InsufficientFunds {
                 sent: Uint128::new(500),
                 required: Uint128::new(1000),
@@ -140,6 +174,7 @@ fn test_place_limit() {
             quantity: Uint128::new(100),
             sent: Uint128::new(500),
             order_direction: OrderDirection::Ask,
+            claim_bounty: None,
             expected_error: Some(ContractError::InsufficientFunds {
                 sent: Uint128::new(500),
                 required: Uint128::new(100),
@@ -186,7 +221,7 @@ fn test_place_limit() {
             test.tick_id,
             test.order_direction,
             test.quantity,
-            None,
+            test.claim_bounty,
         );
 
         // --- Assertions ---
@@ -1537,7 +1572,10 @@ struct ClaimOrderTestCase {
     book_id: u64,
     tick_id: i64,
     order_id: u64,
-    expected_output: SubMsg,
+
+    expected_bank_msg: SubMsg,
+    expected_bounty_msg: SubMsg,
+
     expected_order_state: Option<LimitOrder>,
     expected_error: Option<ContractError>,
 }
@@ -1575,12 +1613,60 @@ fn test_claim_order() {
             order_id: 0,
             book_id: valid_book_id,
             tick_id: valid_tick_id,
-            expected_output: SubMsg::reply_on_error(
+            expected_bank_msg: SubMsg::reply_on_error(
                 BankMsg::Send {
                     to_address: sender.clone().to_string(),
                     amount: vec![coin(10u128, quote_denom)],
                 },
                 REPLY_ID_CLAIM,
+            ),
+            expected_bounty_msg: SubMsg::reply_on_error(
+                BankMsg::Send {
+                    to_address: sender.clone().to_string(),
+                    amount: vec![coin(0u128, quote_denom)],
+                },
+                REPLY_ID_CLAIM_BOUNTY,
+            ),
+            expected_order_state: None,
+            expected_error: None,
+        },
+        ClaimOrderTestCase {
+            name: "ASK: valid basic full claim",
+            sender: sender.clone(),
+            operations: vec![
+                OrderOperation::PlaceLimit(LimitOrder::new(
+                    valid_book_id,
+                    valid_tick_id,
+                    0,
+                    OrderDirection::Ask,
+                    sender.clone(),
+                    Uint128::from(10u128),
+                    Decimal256::zero(),
+                    None,
+                )),
+                OrderOperation::RunMarket(MarketOrder::new(
+                    valid_book_id,
+                    Uint128::from(10u128),
+                    OrderDirection::Bid,
+                    Addr::unchecked("buyer"),
+                )),
+            ],
+            order_id: 0,
+            book_id: valid_book_id,
+            tick_id: valid_tick_id,
+            expected_bank_msg: SubMsg::reply_on_error(
+                BankMsg::Send {
+                    to_address: sender.clone().to_string(),
+                    amount: vec![coin(10u128, quote_denom)],
+                },
+                REPLY_ID_CLAIM,
+            ),
+            expected_bounty_msg: SubMsg::reply_on_error(
+                BankMsg::Send {
+                    to_address: sender.clone().to_string(),
+                    amount: vec![coin(0u128, quote_denom)],
+                },
+                REPLY_ID_CLAIM_BOUNTY,
             ),
             expected_order_state: None,
             expected_error: None,
@@ -1609,12 +1695,19 @@ fn test_claim_order() {
             order_id: 0,
             book_id: valid_book_id,
             tick_id: valid_tick_id,
-            expected_output: SubMsg::reply_on_error(
+            expected_bank_msg: SubMsg::reply_on_error(
                 BankMsg::Send {
                     to_address: sender.clone().to_string(),
                     amount: vec![coin(5u128, quote_denom)],
                 },
                 REPLY_ID_CLAIM,
+            ),
+            expected_bounty_msg: SubMsg::reply_on_error(
+                BankMsg::Send {
+                    to_address: sender.clone().to_string(),
+                    amount: vec![coin(0u128, quote_denom)],
+                },
+                REPLY_ID_CLAIM_BOUNTY,
             ),
             expected_order_state: Some(LimitOrder::new(
                 valid_book_id,
@@ -1659,12 +1752,115 @@ fn test_claim_order() {
             order_id: 0,
             book_id: valid_book_id,
             tick_id: valid_tick_id,
-            expected_output: SubMsg::reply_on_error(
+            expected_bank_msg: SubMsg::reply_on_error(
                 BankMsg::Send {
                     to_address: sender.clone().to_string(),
                     amount: vec![coin(3u128, quote_denom)],
                 },
                 REPLY_ID_CLAIM,
+            ),
+            expected_bounty_msg: SubMsg::reply_on_error(
+                BankMsg::Send {
+                    to_address: sender.clone().to_string(),
+                    amount: vec![coin(0u128, quote_denom)],
+                },
+                REPLY_ID_CLAIM_BOUNTY,
+            ),
+            expected_order_state: None,
+            expected_error: None,
+        },
+        ClaimOrderTestCase {
+            name: "ASK: valid basic full claim with claim bounty",
+            sender: Addr::unchecked("claimer"),
+            operations: vec![
+                OrderOperation::PlaceLimit(LimitOrder::new(
+                    valid_book_id,
+                    valid_tick_id,
+                    0,
+                    OrderDirection::Ask,
+                    sender.clone(),
+                    Uint128::from(10u128),
+                    Decimal256::zero(),
+                    Some(Decimal::percent(10)),
+                )),
+                OrderOperation::RunMarket(MarketOrder::new(
+                    valid_book_id,
+                    Uint128::from(10u128),
+                    OrderDirection::Bid,
+                    Addr::unchecked("buyer"),
+                )),
+            ],
+            order_id: 0,
+            book_id: valid_book_id,
+            tick_id: valid_tick_id,
+            expected_bank_msg: SubMsg::reply_on_error(
+                BankMsg::Send {
+                    // Ensure the order placer receives the claimed amount
+                    to_address: sender.clone().to_string(),
+                    // 10% of the claimed amount goes to the bounty
+                    amount: vec![coin(10u128 - 1u128, quote_denom)],
+                },
+                REPLY_ID_CLAIM,
+            ),
+            expected_bounty_msg: SubMsg::reply_on_error(
+                BankMsg::Send {
+                    // Ensure the claimer receives the bounty
+                    to_address: Addr::unchecked("claimer").to_string(),
+                    // 10% of the claimed amount goes to the bounty
+                    amount: vec![coin(1u128, quote_denom)],
+                },
+                REPLY_ID_CLAIM_BOUNTY,
+            ),
+            expected_order_state: None,
+            expected_error: None,
+        },
+        ClaimOrderTestCase {
+            name: "ASK: valid two-step partial claim with claim bounty",
+            sender: Addr::unchecked("claimer"),
+            operations: vec![
+                OrderOperation::PlaceLimit(LimitOrder::new(
+                    valid_book_id,
+                    valid_tick_id,
+                    0,
+                    OrderDirection::Ask,
+                    sender.clone(),
+                    Uint128::from(10u128),
+                    Decimal256::zero(),
+                    // 35% claim bounty (0.35)
+                    Some(Decimal::percent(35)),
+                )),
+                OrderOperation::RunMarket(MarketOrder::new(
+                    valid_book_id,
+                    Uint128::from(7u128),
+                    OrderDirection::Bid,
+                    Addr::unchecked("buyer"),
+                )),
+                OrderOperation::Claim((valid_book_id, valid_tick_id, 0)),
+                OrderOperation::RunMarket(MarketOrder::new(
+                    valid_book_id,
+                    Uint128::from(3u128),
+                    OrderDirection::Bid,
+                    Addr::unchecked("buyer"),
+                )),
+            ],
+            order_id: 0,
+            book_id: valid_book_id,
+            tick_id: valid_tick_id,
+            expected_bank_msg: SubMsg::reply_on_error(
+                BankMsg::Send {
+                    to_address: sender.clone().to_string(),
+                    // 35% of most recent claim goes to bounty: 3*0.35 = 1.05 -> 1 unit
+                    amount: vec![coin(3u128 - 1u128, quote_denom)],
+                },
+                REPLY_ID_CLAIM,
+            ),
+            expected_bounty_msg: SubMsg::reply_on_error(
+                BankMsg::Send {
+                    to_address: Addr::unchecked("claimer").to_string().to_string(),
+                    // 1 unit goes to claimer for bounty
+                    amount: vec![coin(1u128, quote_denom)],
+                },
+                REPLY_ID_CLAIM_BOUNTY,
             ),
             expected_order_state: None,
             expected_error: None,
@@ -1695,13 +1891,20 @@ fn test_claim_order() {
             order_id: 0,
             book_id: valid_book_id,
             tick_id: LARGE_POSITIVE_TICK,
-            expected_output: SubMsg::reply_on_error(
+            expected_bank_msg: SubMsg::reply_on_error(
                 BankMsg::Send {
                     to_address: sender.clone().to_string(),
                     // Tick price = 2, 10/2 = 5
                     amount: vec![coin(5u128, quote_denom)],
                 },
                 REPLY_ID_CLAIM,
+            ),
+            expected_bounty_msg: SubMsg::reply_on_error(
+                BankMsg::Send {
+                    to_address: sender.clone().to_string(),
+                    amount: vec![coin(0u128, quote_denom)],
+                },
+                REPLY_ID_CLAIM_BOUNTY,
             ),
             expected_order_state: None,
             expected_error: None,
@@ -1731,13 +1934,20 @@ fn test_claim_order() {
             order_id: 0,
             book_id: valid_book_id,
             tick_id: LARGE_POSITIVE_TICK,
-            expected_output: SubMsg::reply_on_error(
+            expected_bank_msg: SubMsg::reply_on_error(
                 BankMsg::Send {
                     to_address: sender.clone().to_string(),
                     // Tick price = 2, 4/2 = 2
                     amount: vec![coin(2u128, quote_denom)],
                 },
                 REPLY_ID_CLAIM,
+            ),
+            expected_bounty_msg: SubMsg::reply_on_error(
+                BankMsg::Send {
+                    to_address: sender.clone().to_string(),
+                    amount: vec![coin(0u128, quote_denom)],
+                },
+                REPLY_ID_CLAIM_BOUNTY,
             ),
             expected_order_state: Some(LimitOrder::new(
                 valid_book_id,
@@ -1784,13 +1994,20 @@ fn test_claim_order() {
             order_id: 0,
             book_id: valid_book_id,
             tick_id: LARGE_POSITIVE_TICK,
-            expected_output: SubMsg::reply_on_error(
+            expected_bank_msg: SubMsg::reply_on_error(
                 BankMsg::Send {
                     to_address: sender.clone().to_string(),
                     // Tick price = 2, 6/2 = 3
                     amount: vec![coin(3u128, quote_denom)],
                 },
                 REPLY_ID_CLAIM,
+            ),
+            expected_bounty_msg: SubMsg::reply_on_error(
+                BankMsg::Send {
+                    to_address: sender.clone().to_string(),
+                    amount: vec![coin(0u128, quote_denom)],
+                },
+                REPLY_ID_CLAIM_BOUNTY,
             ),
             expected_order_state: None,
             expected_error: None,
@@ -1820,12 +2037,19 @@ fn test_claim_order() {
             order_id: 0,
             book_id: valid_book_id,
             tick_id: LARGE_NEGATIVE_TICK,
-            expected_output: SubMsg::reply_on_error(
+            expected_bank_msg: SubMsg::reply_on_error(
                 BankMsg::Send {
                     to_address: sender.clone().to_string(),
                     amount: vec![coin(200u128, quote_denom)],
                 },
                 REPLY_ID_CLAIM,
+            ),
+            expected_bounty_msg: SubMsg::reply_on_error(
+                BankMsg::Send {
+                    to_address: sender.clone().to_string(),
+                    amount: vec![coin(0u128, quote_denom)],
+                },
+                REPLY_ID_CLAIM_BOUNTY,
             ),
             expected_order_state: None,
             expected_error: None,
@@ -1854,12 +2078,19 @@ fn test_claim_order() {
             order_id: 0,
             book_id: valid_book_id,
             tick_id: LARGE_NEGATIVE_TICK,
-            expected_output: SubMsg::reply_on_error(
+            expected_bank_msg: SubMsg::reply_on_error(
                 BankMsg::Send {
                     to_address: sender.clone().to_string(),
                     amount: vec![coin(100u128, quote_denom)],
                 },
                 REPLY_ID_CLAIM,
+            ),
+            expected_bounty_msg: SubMsg::reply_on_error(
+                BankMsg::Send {
+                    to_address: sender.clone().to_string(),
+                    amount: vec![coin(0u128, quote_denom)],
+                },
+                REPLY_ID_CLAIM_BOUNTY,
             ),
             expected_order_state: Some(LimitOrder::new(
                 valid_book_id,
@@ -1905,12 +2136,19 @@ fn test_claim_order() {
             order_id: 0,
             book_id: valid_book_id,
             tick_id: LARGE_NEGATIVE_TICK,
-            expected_output: SubMsg::reply_on_error(
+            expected_bank_msg: SubMsg::reply_on_error(
                 BankMsg::Send {
                     to_address: sender.clone().to_string(),
                     amount: vec![coin(100u128, quote_denom)],
                 },
                 REPLY_ID_CLAIM,
+            ),
+            expected_bounty_msg: SubMsg::reply_on_error(
+                BankMsg::Send {
+                    to_address: sender.clone().to_string(),
+                    amount: vec![coin(0u128, quote_denom)],
+                },
+                REPLY_ID_CLAIM_BOUNTY,
             ),
             expected_order_state: None,
             expected_error: None,
@@ -1950,12 +2188,19 @@ fn test_claim_order() {
             order_id: 1,
             book_id: valid_book_id,
             tick_id: valid_tick_id,
-            expected_output: SubMsg::reply_on_error(
+            expected_bank_msg: SubMsg::reply_on_error(
                 BankMsg::Send {
                     to_address: sender.clone().to_string(),
                     amount: vec![coin(100u128, quote_denom)],
                 },
                 REPLY_ID_CLAIM,
+            ),
+            expected_bounty_msg: SubMsg::reply_on_error(
+                BankMsg::Send {
+                    to_address: sender.clone().to_string(),
+                    amount: vec![coin(0u128, quote_denom)],
+                },
+                REPLY_ID_CLAIM_BOUNTY,
             ),
             expected_order_state: None,
             expected_error: None,
@@ -1987,13 +2232,20 @@ fn test_claim_order() {
             order_id: 0,
             book_id: valid_book_id,
             tick_id: MIN_TICK,
-            expected_output: SubMsg::reply_on_error(
+            expected_bank_msg: SubMsg::reply_on_error(
                 BankMsg::Send {
                     to_address: sender.clone().to_string(),
                     // Tick price = 0.000000000001, 3 / 0.000000000001 = 3_000_000_000_000
                     amount: vec![coin(3_000_000_000_000u128, quote_denom)],
                 },
                 REPLY_ID_CLAIM,
+            ),
+            expected_bounty_msg: SubMsg::reply_on_error(
+                BankMsg::Send {
+                    to_address: sender.clone().to_string(),
+                    amount: vec![coin(0u128, quote_denom)],
+                },
+                REPLY_ID_CLAIM_BOUNTY,
             ),
             expected_order_state: Some(LimitOrder::new(
                 valid_book_id,
@@ -2032,12 +2284,19 @@ fn test_claim_order() {
             order_id: 0,
             book_id: valid_book_id,
             tick_id: valid_tick_id,
-            expected_output: SubMsg::reply_on_error(
+            expected_bank_msg: SubMsg::reply_on_error(
                 BankMsg::Send {
                     to_address: sender.clone().to_string(),
                     amount: vec![coin(10u128, base_denom)],
                 },
                 REPLY_ID_CLAIM,
+            ),
+            expected_bounty_msg: SubMsg::reply_on_error(
+                BankMsg::Send {
+                    to_address: sender.clone().to_string(),
+                    amount: vec![coin(0u128, base_denom)],
+                },
+                REPLY_ID_CLAIM_BOUNTY,
             ),
             expected_order_state: None,
             expected_error: None,
@@ -2066,12 +2325,19 @@ fn test_claim_order() {
             order_id: 0,
             book_id: valid_book_id,
             tick_id: valid_tick_id,
-            expected_output: SubMsg::reply_on_error(
+            expected_bank_msg: SubMsg::reply_on_error(
                 BankMsg::Send {
                     to_address: sender.clone().to_string(),
                     amount: vec![coin(5u128, base_denom)],
                 },
                 REPLY_ID_CLAIM,
+            ),
+            expected_bounty_msg: SubMsg::reply_on_error(
+                BankMsg::Send {
+                    to_address: sender.clone().to_string(),
+                    amount: vec![coin(0u128, base_denom)],
+                },
+                REPLY_ID_CLAIM_BOUNTY,
             ),
             expected_order_state: Some(LimitOrder::new(
                 valid_book_id,
@@ -2116,12 +2382,19 @@ fn test_claim_order() {
             order_id: 0,
             book_id: valid_book_id,
             tick_id: valid_tick_id,
-            expected_output: SubMsg::reply_on_error(
+            expected_bank_msg: SubMsg::reply_on_error(
                 BankMsg::Send {
                     to_address: sender.clone().to_string(),
                     amount: vec![coin(3u128, base_denom)],
                 },
                 REPLY_ID_CLAIM,
+            ),
+            expected_bounty_msg: SubMsg::reply_on_error(
+                BankMsg::Send {
+                    to_address: sender.clone().to_string(),
+                    amount: vec![coin(0u128, base_denom)],
+                },
+                REPLY_ID_CLAIM_BOUNTY,
             ),
             expected_order_state: None,
             expected_error: None,
@@ -2152,13 +2425,20 @@ fn test_claim_order() {
             order_id: 0,
             book_id: valid_book_id,
             tick_id: LARGE_POSITIVE_TICK,
-            expected_output: SubMsg::reply_on_error(
+            expected_bank_msg: SubMsg::reply_on_error(
                 BankMsg::Send {
                     to_address: sender.clone().to_string(),
                     // Tick price = 2, 10/2 = 5
                     amount: vec![coin(20u128, base_denom)],
                 },
                 REPLY_ID_CLAIM,
+            ),
+            expected_bounty_msg: SubMsg::reply_on_error(
+                BankMsg::Send {
+                    to_address: sender.clone().to_string(),
+                    amount: vec![coin(0u128, base_denom)],
+                },
+                REPLY_ID_CLAIM_BOUNTY,
             ),
             expected_order_state: None,
             expected_error: None,
@@ -2187,13 +2467,20 @@ fn test_claim_order() {
             order_id: 0,
             book_id: valid_book_id,
             tick_id: LARGE_POSITIVE_TICK,
-            expected_output: SubMsg::reply_on_error(
+            expected_bank_msg: SubMsg::reply_on_error(
                 BankMsg::Send {
                     to_address: sender.clone().to_string(),
                     // Tick price = 2, 5 * 2 = 10
                     amount: vec![coin(10u128, base_denom)],
                 },
                 REPLY_ID_CLAIM,
+            ),
+            expected_bounty_msg: SubMsg::reply_on_error(
+                BankMsg::Send {
+                    to_address: sender.clone().to_string(),
+                    amount: vec![coin(0u128, base_denom)],
+                },
+                REPLY_ID_CLAIM_BOUNTY,
             ),
             expected_order_state: Some(LimitOrder::new(
                 valid_book_id,
@@ -2239,13 +2526,20 @@ fn test_claim_order() {
             order_id: 0,
             book_id: valid_book_id,
             tick_id: LARGE_POSITIVE_TICK,
-            expected_output: SubMsg::reply_on_error(
+            expected_bank_msg: SubMsg::reply_on_error(
                 BankMsg::Send {
                     to_address: sender.clone().to_string(),
                     // Tick price = 2, 5 * 2 = 10
                     amount: vec![coin(10u128, base_denom)],
                 },
                 REPLY_ID_CLAIM,
+            ),
+            expected_bounty_msg: SubMsg::reply_on_error(
+                BankMsg::Send {
+                    to_address: sender.clone().to_string(),
+                    amount: vec![coin(0u128, base_denom)],
+                },
+                REPLY_ID_CLAIM_BOUNTY,
             ),
             expected_order_state: None,
             expected_error: None,
@@ -2275,12 +2569,19 @@ fn test_claim_order() {
             order_id: 0,
             book_id: valid_book_id,
             tick_id: LARGE_NEGATIVE_TICK,
-            expected_output: SubMsg::reply_on_error(
+            expected_bank_msg: SubMsg::reply_on_error(
                 BankMsg::Send {
                     to_address: sender.clone().to_string(),
                     amount: vec![coin(50u128, base_denom)],
                 },
                 REPLY_ID_CLAIM,
+            ),
+            expected_bounty_msg: SubMsg::reply_on_error(
+                BankMsg::Send {
+                    to_address: sender.clone().to_string(),
+                    amount: vec![coin(0u128, base_denom)],
+                },
+                REPLY_ID_CLAIM_BOUNTY,
             ),
             expected_order_state: None,
             expected_error: None,
@@ -2309,12 +2610,19 @@ fn test_claim_order() {
             order_id: 0,
             book_id: valid_book_id,
             tick_id: LARGE_NEGATIVE_TICK,
-            expected_output: SubMsg::reply_on_error(
+            expected_bank_msg: SubMsg::reply_on_error(
                 BankMsg::Send {
                     to_address: sender.clone().to_string(),
                     amount: vec![coin(25u128, base_denom)],
                 },
                 REPLY_ID_CLAIM,
+            ),
+            expected_bounty_msg: SubMsg::reply_on_error(
+                BankMsg::Send {
+                    to_address: sender.clone().to_string(),
+                    amount: vec![coin(0u128, base_denom)],
+                },
+                REPLY_ID_CLAIM_BOUNTY,
             ),
             expected_order_state: Some(LimitOrder::new(
                 valid_book_id,
@@ -2360,12 +2668,19 @@ fn test_claim_order() {
             order_id: 0,
             book_id: valid_book_id,
             tick_id: LARGE_NEGATIVE_TICK,
-            expected_output: SubMsg::reply_on_error(
+            expected_bank_msg: SubMsg::reply_on_error(
                 BankMsg::Send {
                     to_address: sender.clone().to_string(),
                     amount: vec![coin(25u128, base_denom)],
                 },
                 REPLY_ID_CLAIM,
+            ),
+            expected_bounty_msg: SubMsg::reply_on_error(
+                BankMsg::Send {
+                    to_address: sender.clone().to_string(),
+                    amount: vec![coin(0u128, base_denom)],
+                },
+                REPLY_ID_CLAIM_BOUNTY,
             ),
             expected_order_state: None,
             expected_error: None,
@@ -2405,12 +2720,19 @@ fn test_claim_order() {
             order_id: 1,
             book_id: valid_book_id,
             tick_id: valid_tick_id,
-            expected_output: SubMsg::reply_on_error(
+            expected_bank_msg: SubMsg::reply_on_error(
                 BankMsg::Send {
                     to_address: sender.clone().to_string(),
                     amount: vec![coin(100u128, base_denom)],
                 },
                 REPLY_ID_CLAIM,
+            ),
+            expected_bounty_msg: SubMsg::reply_on_error(
+                BankMsg::Send {
+                    to_address: sender.clone().to_string(),
+                    amount: vec![coin(0u128, base_denom)],
+                },
+                REPLY_ID_CLAIM_BOUNTY,
             ),
             expected_order_state: None,
             expected_error: None,
@@ -2439,12 +2761,19 @@ fn test_claim_order() {
             order_id: 0,
             book_id: 1,
             tick_id: valid_tick_id,
-            expected_output: SubMsg::reply_on_error(
+            expected_bank_msg: SubMsg::reply_on_error(
                 BankMsg::Send {
                     to_address: sender.clone().to_string(),
                     amount: vec![coin(5u128, quote_denom)],
                 },
                 REPLY_ID_CLAIM,
+            ),
+            expected_bounty_msg: SubMsg::reply_on_error(
+                BankMsg::Send {
+                    to_address: sender.clone().to_string(),
+                    amount: vec![coin(0u128, quote_denom)],
+                },
+                REPLY_ID_CLAIM_BOUNTY,
             ),
             expected_order_state: None,
             expected_error: Some(ContractError::InvalidBookId { book_id: 1 }),
@@ -2473,12 +2802,19 @@ fn test_claim_order() {
             order_id: 0,
             book_id: valid_book_id,
             tick_id: 1,
-            expected_output: SubMsg::reply_on_error(
+            expected_bank_msg: SubMsg::reply_on_error(
                 BankMsg::Send {
                     to_address: sender.clone().to_string(),
                     amount: vec![coin(5u128, quote_denom)],
                 },
                 REPLY_ID_CLAIM,
+            ),
+            expected_bounty_msg: SubMsg::reply_on_error(
+                BankMsg::Send {
+                    to_address: sender.clone().to_string(),
+                    amount: vec![coin(0u128, quote_denom)],
+                },
+                REPLY_ID_CLAIM_BOUNTY,
             ),
             expected_order_state: None,
             expected_error: Some(ContractError::InvalidTickId { tick_id: 1 }),
@@ -2507,12 +2843,19 @@ fn test_claim_order() {
             order_id: 1,
             book_id: valid_book_id,
             tick_id: valid_tick_id,
-            expected_output: SubMsg::reply_on_error(
+            expected_bank_msg: SubMsg::reply_on_error(
                 BankMsg::Send {
                     to_address: sender.clone().to_string(),
                     amount: vec![coin(5u128, quote_denom)],
                 },
                 REPLY_ID_CLAIM,
+            ),
+            expected_bounty_msg: SubMsg::reply_on_error(
+                BankMsg::Send {
+                    to_address: sender.clone().to_string(),
+                    amount: vec![coin(0u128, quote_denom)],
+                },
+                REPLY_ID_CLAIM_BOUNTY,
             ),
             expected_order_state: None,
             expected_error: Some(ContractError::OrderNotFound {
@@ -2540,12 +2883,19 @@ fn test_claim_order() {
             order_id: 0,
             book_id: valid_book_id,
             tick_id: valid_tick_id,
-            expected_output: SubMsg::reply_on_error(
+            expected_bank_msg: SubMsg::reply_on_error(
                 BankMsg::Send {
                     to_address: sender.clone().to_string(),
                     amount: vec![coin(5u128, quote_denom)],
                 },
                 REPLY_ID_CLAIM,
+            ),
+            expected_bounty_msg: SubMsg::reply_on_error(
+                BankMsg::Send {
+                    to_address: sender.clone().to_string(),
+                    amount: vec![coin(0u128, quote_denom)],
+                },
+                REPLY_ID_CLAIM_BOUNTY,
             ),
             expected_order_state: None,
             expected_error: Some(ContractError::OrderNotFound {
@@ -2570,12 +2920,19 @@ fn test_claim_order() {
             order_id: 0,
             book_id: valid_book_id,
             tick_id: valid_tick_id,
-            expected_output: SubMsg::reply_on_error(
+            expected_bank_msg: SubMsg::reply_on_error(
                 BankMsg::Send {
                     to_address: sender.clone().to_string(),
                     amount: vec![coin(5u128, quote_denom)],
                 },
                 REPLY_ID_CLAIM,
+            ),
+            expected_bounty_msg: SubMsg::reply_on_error(
+                BankMsg::Send {
+                    to_address: sender.clone().to_string(),
+                    amount: vec![coin(0u128, quote_denom)],
+                },
+                REPLY_ID_CLAIM_BOUNTY,
             ),
             expected_order_state: None,
             expected_error: Some(ContractError::ZeroClaim),
@@ -2608,12 +2965,19 @@ fn test_claim_order() {
             order_id: 1,
             book_id: valid_book_id,
             tick_id: valid_tick_id,
-            expected_output: SubMsg::reply_on_error(
+            expected_bank_msg: SubMsg::reply_on_error(
                 BankMsg::Send {
                     to_address: sender.clone().to_string(),
                     amount: vec![coin(5u128, quote_denom)],
                 },
                 REPLY_ID_CLAIM,
+            ),
+            expected_bounty_msg: SubMsg::reply_on_error(
+                BankMsg::Send {
+                    to_address: sender.clone().to_string(),
+                    amount: vec![coin(0u128, quote_denom)],
+                },
+                REPLY_ID_CLAIM_BOUNTY,
             ),
             expected_order_state: None,
             expected_error: Some(ContractError::ZeroClaim),
@@ -2647,12 +3011,19 @@ fn test_claim_order() {
             order_id: 0,
             book_id: valid_book_id,
             tick_id: valid_tick_id,
-            expected_output: SubMsg::reply_on_error(
+            expected_bank_msg: SubMsg::reply_on_error(
                 BankMsg::Send {
                     to_address: sender.clone().to_string(),
                     amount: vec![coin(5u128, quote_denom)],
                 },
                 REPLY_ID_CLAIM,
+            ),
+            expected_bounty_msg: SubMsg::reply_on_error(
+                BankMsg::Send {
+                    to_address: sender.clone().to_string(),
+                    amount: vec![coin(0u128, quote_denom)],
+                },
+                REPLY_ID_CLAIM_BOUNTY,
             ),
             expected_order_state: None,
             expected_error: Some(ContractError::ZeroClaim),
@@ -2696,10 +3067,16 @@ fn test_claim_order() {
 
         let res = res.unwrap();
 
-        // Assert that the generated bank message is as expected
+        // Assert that the generated bank and bounty messages are as expected
         assert_eq!(
             res.1,
-            test.expected_output,
+            test.expected_bank_msg,
+            "{}",
+            format_test_name(test.name)
+        );
+        assert_eq!(
+            res.2,
+            test.expected_bounty_msg,
             "{}",
             format_test_name(test.name)
         );

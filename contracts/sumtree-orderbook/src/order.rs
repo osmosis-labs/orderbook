@@ -102,15 +102,15 @@ pub fn place_limit(
     let mut response = Response::default();
     // Run order fill if criteria met
     if should_fill {
-        let mut market_order = MarketOrder::from(limit_order.clone());
-        let tick_bound = match market_order.order_direction {
-            OrderDirection::Bid => MAX_TICK,
-            OrderDirection::Ask => MIN_TICK,
-        };
-        let (_, fill_msg) = run_market_order(deps.storage, &mut market_order, tick_bound)?;
-        response = response.add_submessage(SubMsg::reply_on_error(fill_msg, 1));
+        // let mut market_order = MarketOrder::from(limit_order.clone());
+        // let tick_bound = match market_order.order_direction {
+        //     OrderDirection::Bid => MAX_TICK,
+        //     OrderDirection::Ask => MIN_TICK,
+        // };
+        // let (_, fill_msg) = run_market_order(deps.storage, &mut market_order, tick_bound)?;
+        // response = response.add_submessage(SubMsg::reply_on_error(fill_msg, 1));
 
-        limit_order.quantity = market_order.quantity;
+        // limit_order.quantity = market_order.quantity;
     }
 
     let quantity_fullfilled = quantity.checked_sub(limit_order.quantity)?;
@@ -441,6 +441,7 @@ pub fn run_market_order(
         total_output = total_output.checked_add(fill_amount)?;
     }
 
+    println!("{:?}", order.quantity);
     ensure!(
         order.quantity.is_zero(),
         ContractError::InsufficientOrderbookLiquidity

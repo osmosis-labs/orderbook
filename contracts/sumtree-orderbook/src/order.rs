@@ -170,8 +170,6 @@ pub fn cancel_limit(
     ensure_eq!(info.sender, order.owner, ContractError::Unauthorized {});
 
     // Ensure the order has not been filled.
-    // TODO: support cancelling partially filled orders by claiming above
-    // if a partial fill is detected. Tracked in issue https://github.com/osmosis-labs/orderbook/issues/75
     let tick_state = TICK_STATE
         .load(deps.storage, &(book_id, tick_id))
         .unwrap_or_default();

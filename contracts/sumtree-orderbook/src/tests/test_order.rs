@@ -1533,6 +1533,7 @@ fn test_run_market_order_moving_tick() {
 struct ClaimOrderTestCase {
     name: &'static str,
     operations: Vec<OrderOperation>,
+    sender: Addr,
     book_id: u64,
     tick_id: i64,
     order_id: u64,
@@ -1547,17 +1548,19 @@ fn test_claim_order() {
     let valid_tick_id = 0;
     let quote_denom = "quote";
     let base_denom = "base";
+    let sender = Addr::unchecked("sender");
     let test_cases: Vec<ClaimOrderTestCase> = vec![
         // A tick id of 0 operates on a tick price of 1
         ClaimOrderTestCase {
             name: "ASK: valid basic full claim",
+            sender: sender.clone(),
             operations: vec![
                 OrderOperation::PlaceLimit(LimitOrder::new(
                     valid_book_id,
                     valid_tick_id,
                     0,
                     OrderDirection::Ask,
-                    Addr::unchecked("sender"),
+                    sender.clone(),
                     Uint128::from(10u128),
                     Decimal256::zero(),
                     None,
@@ -1574,7 +1577,7 @@ fn test_claim_order() {
             tick_id: valid_tick_id,
             expected_output: SubMsg::reply_on_error(
                 BankMsg::Send {
-                    to_address: Addr::unchecked("sender").to_string(),
+                    to_address: sender.clone().to_string(),
                     amount: vec![coin(10u128, quote_denom)],
                 },
                 REPLY_ID_CLAIM,
@@ -1584,13 +1587,14 @@ fn test_claim_order() {
         },
         ClaimOrderTestCase {
             name: "ASK: valid basic partial claim",
+            sender: sender.clone(),
             operations: vec![
                 OrderOperation::PlaceLimit(LimitOrder::new(
                     valid_book_id,
                     valid_tick_id,
                     0,
                     OrderDirection::Ask,
-                    Addr::unchecked("sender"),
+                    sender.clone(),
                     Uint128::from(10u128),
                     Decimal256::zero(),
                     None,
@@ -1607,7 +1611,7 @@ fn test_claim_order() {
             tick_id: valid_tick_id,
             expected_output: SubMsg::reply_on_error(
                 BankMsg::Send {
-                    to_address: Addr::unchecked("sender").to_string(),
+                    to_address: sender.clone().to_string(),
                     amount: vec![coin(5u128, quote_denom)],
                 },
                 REPLY_ID_CLAIM,
@@ -1617,7 +1621,7 @@ fn test_claim_order() {
                 valid_tick_id,
                 0,
                 OrderDirection::Ask,
-                Addr::unchecked("sender"),
+                sender.clone(),
                 Uint128::from(5u128),
                 decimal256_from_u128(5u128),
                 None,
@@ -1626,13 +1630,14 @@ fn test_claim_order() {
         },
         ClaimOrderTestCase {
             name: "ASK: valid two-step partial claim",
+            sender: sender.clone(),
             operations: vec![
                 OrderOperation::PlaceLimit(LimitOrder::new(
                     valid_book_id,
                     valid_tick_id,
                     0,
                     OrderDirection::Ask,
-                    Addr::unchecked("sender"),
+                    sender.clone(),
                     Uint128::from(10u128),
                     Decimal256::zero(),
                     None,
@@ -1656,7 +1661,7 @@ fn test_claim_order() {
             tick_id: valid_tick_id,
             expected_output: SubMsg::reply_on_error(
                 BankMsg::Send {
-                    to_address: Addr::unchecked("sender").to_string(),
+                    to_address: sender.clone().to_string(),
                     amount: vec![coin(3u128, quote_denom)],
                 },
                 REPLY_ID_CLAIM,
@@ -1667,13 +1672,14 @@ fn test_claim_order() {
         // All large positive tick orders operate on a tick price of 2
         ClaimOrderTestCase {
             name: "ASK: valid basic full claim (large positive tick)",
+            sender: sender.clone(),
             operations: vec![
                 OrderOperation::PlaceLimit(LimitOrder::new(
                     valid_book_id,
                     LARGE_POSITIVE_TICK,
                     0,
                     OrderDirection::Ask,
-                    Addr::unchecked("sender"),
+                    sender.clone(),
                     Uint128::from(10u128),
                     Decimal256::zero(),
                     None,
@@ -1691,7 +1697,7 @@ fn test_claim_order() {
             tick_id: LARGE_POSITIVE_TICK,
             expected_output: SubMsg::reply_on_error(
                 BankMsg::Send {
-                    to_address: Addr::unchecked("sender").to_string(),
+                    to_address: sender.clone().to_string(),
                     // Tick price = 2, 10/2 = 5
                     amount: vec![coin(5u128, quote_denom)],
                 },
@@ -1702,13 +1708,14 @@ fn test_claim_order() {
         },
         ClaimOrderTestCase {
             name: "ASK: valid basic partial claim (large positive tick)",
+            sender: sender.clone(),
             operations: vec![
                 OrderOperation::PlaceLimit(LimitOrder::new(
                     valid_book_id,
                     LARGE_POSITIVE_TICK,
                     0,
                     OrderDirection::Ask,
-                    Addr::unchecked("sender"),
+                    sender.clone(),
                     Uint128::from(10u128),
                     Decimal256::zero(),
                     None,
@@ -1726,7 +1733,7 @@ fn test_claim_order() {
             tick_id: LARGE_POSITIVE_TICK,
             expected_output: SubMsg::reply_on_error(
                 BankMsg::Send {
-                    to_address: Addr::unchecked("sender").to_string(),
+                    to_address: sender.clone().to_string(),
                     // Tick price = 2, 4/2 = 2
                     amount: vec![coin(2u128, quote_denom)],
                 },
@@ -1737,7 +1744,7 @@ fn test_claim_order() {
                 LARGE_POSITIVE_TICK,
                 0,
                 OrderDirection::Ask,
-                Addr::unchecked("sender"),
+                sender.clone(),
                 Uint128::from(6u128),
                 decimal256_from_u128(4u128),
                 None,
@@ -1746,13 +1753,14 @@ fn test_claim_order() {
         },
         ClaimOrderTestCase {
             name: "ASK: valid two-step partial claim (large positive tick)",
+            sender: sender.clone(),
             operations: vec![
                 OrderOperation::PlaceLimit(LimitOrder::new(
                     valid_book_id,
                     LARGE_POSITIVE_TICK,
                     0,
                     OrderDirection::Ask,
-                    Addr::unchecked("sender"),
+                    sender.clone(),
                     Uint128::from(10u128),
                     Decimal256::zero(),
                     None,
@@ -1778,7 +1786,7 @@ fn test_claim_order() {
             tick_id: LARGE_POSITIVE_TICK,
             expected_output: SubMsg::reply_on_error(
                 BankMsg::Send {
-                    to_address: Addr::unchecked("sender").to_string(),
+                    to_address: sender.clone().to_string(),
                     // Tick price = 2, 6/2 = 3
                     amount: vec![coin(3u128, quote_denom)],
                 },
@@ -1790,13 +1798,14 @@ fn test_claim_order() {
         // All Large Negative Tick orders operate on a tick price of 0.5
         ClaimOrderTestCase {
             name: "ASK: valid basic full claim (large negative tick)",
+            sender: sender.clone(),
             operations: vec![
                 OrderOperation::PlaceLimit(LimitOrder::new(
                     valid_book_id,
                     LARGE_NEGATIVE_TICK,
                     0,
                     OrderDirection::Ask,
-                    Addr::unchecked("sender"),
+                    sender.clone(),
                     Uint128::from(100u128),
                     Decimal256::zero(),
                     None,
@@ -1813,7 +1822,7 @@ fn test_claim_order() {
             tick_id: LARGE_NEGATIVE_TICK,
             expected_output: SubMsg::reply_on_error(
                 BankMsg::Send {
-                    to_address: Addr::unchecked("sender").to_string(),
+                    to_address: sender.clone().to_string(),
                     amount: vec![coin(200u128, quote_denom)],
                 },
                 REPLY_ID_CLAIM,
@@ -1823,13 +1832,14 @@ fn test_claim_order() {
         },
         ClaimOrderTestCase {
             name: "ASK: valid basic partial claim (large negative tick)",
+            sender: sender.clone(),
             operations: vec![
                 OrderOperation::PlaceLimit(LimitOrder::new(
                     valid_book_id,
                     LARGE_NEGATIVE_TICK,
                     0,
                     OrderDirection::Ask,
-                    Addr::unchecked("sender"),
+                    sender.clone(),
                     Uint128::from(100u128),
                     Decimal256::zero(),
                     None,
@@ -1846,7 +1856,7 @@ fn test_claim_order() {
             tick_id: LARGE_NEGATIVE_TICK,
             expected_output: SubMsg::reply_on_error(
                 BankMsg::Send {
-                    to_address: Addr::unchecked("sender").to_string(),
+                    to_address: sender.clone().to_string(),
                     amount: vec![coin(100u128, quote_denom)],
                 },
                 REPLY_ID_CLAIM,
@@ -1856,7 +1866,7 @@ fn test_claim_order() {
                 LARGE_NEGATIVE_TICK,
                 0,
                 OrderDirection::Ask,
-                Addr::unchecked("sender"),
+                sender.clone(),
                 Uint128::from(50u128),
                 decimal256_from_u128(50u128),
                 None,
@@ -1865,13 +1875,14 @@ fn test_claim_order() {
         },
         ClaimOrderTestCase {
             name: "ASK: valid two-step partial claim (large negative tick)",
+            sender: sender.clone(),
             operations: vec![
                 OrderOperation::PlaceLimit(LimitOrder::new(
                     valid_book_id,
                     LARGE_NEGATIVE_TICK,
                     0,
                     OrderDirection::Ask,
-                    Addr::unchecked("sender"),
+                    sender.clone(),
                     Uint128::from(100u128),
                     Decimal256::zero(),
                     None,
@@ -1896,7 +1907,7 @@ fn test_claim_order() {
             tick_id: LARGE_NEGATIVE_TICK,
             expected_output: SubMsg::reply_on_error(
                 BankMsg::Send {
-                    to_address: Addr::unchecked("sender").to_string(),
+                    to_address: sender.clone().to_string(),
                     amount: vec![coin(100u128, quote_denom)],
                 },
                 REPLY_ID_CLAIM,
@@ -1906,13 +1917,14 @@ fn test_claim_order() {
         },
         ClaimOrderTestCase {
             name: "ASK: full claim with a previous cancellation",
+            sender: sender.clone(),
             operations: vec![
                 OrderOperation::PlaceLimit(LimitOrder::new(
                     valid_book_id,
                     valid_tick_id,
                     0,
                     OrderDirection::Ask,
-                    Addr::unchecked("sender"),
+                    sender.clone(),
                     Uint128::from(50u128),
                     Decimal256::zero(),
                     None,
@@ -1922,7 +1934,7 @@ fn test_claim_order() {
                     valid_tick_id,
                     1,
                     OrderDirection::Ask,
-                    Addr::unchecked("sender"),
+                    sender.clone(),
                     Uint128::from(100u128),
                     Decimal256::zero(),
                     None,
@@ -1940,7 +1952,7 @@ fn test_claim_order() {
             tick_id: valid_tick_id,
             expected_output: SubMsg::reply_on_error(
                 BankMsg::Send {
-                    to_address: Addr::unchecked("sender").to_string(),
+                    to_address: sender.clone().to_string(),
                     amount: vec![coin(100u128, quote_denom)],
                 },
                 REPLY_ID_CLAIM,
@@ -1950,13 +1962,14 @@ fn test_claim_order() {
         },
         ClaimOrderTestCase {
             name: "ASK: valid basic full claim at MIN_TICK",
+            sender: sender.clone(),
             operations: vec![
                 OrderOperation::PlaceLimit(LimitOrder::new(
                     valid_book_id,
                     MIN_TICK,
                     0,
                     OrderDirection::Ask,
-                    Addr::unchecked("sender"),
+                    sender.clone(),
                     Uint128::from(10u128),
                     Decimal256::zero(),
                     None,
@@ -1976,7 +1989,7 @@ fn test_claim_order() {
             tick_id: MIN_TICK,
             expected_output: SubMsg::reply_on_error(
                 BankMsg::Send {
-                    to_address: Addr::unchecked("sender").to_string(),
+                    to_address: sender.clone().to_string(),
                     // Tick price = 0.000000000001, 3 / 0.000000000001 = 3_000_000_000_000
                     amount: vec![coin(3_000_000_000_000u128, quote_denom)],
                 },
@@ -1987,7 +2000,7 @@ fn test_claim_order() {
                 MIN_TICK,
                 0,
                 OrderDirection::Ask,
-                Addr::unchecked("sender"),
+                sender.clone(),
                 Uint128::from(7u128),
                 decimal256_from_u128(3u128),
                 None,
@@ -1997,13 +2010,14 @@ fn test_claim_order() {
         // A tick id of 0 operates on a tick price of 1
         ClaimOrderTestCase {
             name: "BID: valid basic full claim",
+            sender: sender.clone(),
             operations: vec![
                 OrderOperation::PlaceLimit(LimitOrder::new(
                     valid_book_id,
                     valid_tick_id,
                     0,
                     OrderDirection::Bid,
-                    Addr::unchecked("sender"),
+                    sender.clone(),
                     Uint128::from(10u128),
                     Decimal256::zero(),
                     None,
@@ -2020,7 +2034,7 @@ fn test_claim_order() {
             tick_id: valid_tick_id,
             expected_output: SubMsg::reply_on_error(
                 BankMsg::Send {
-                    to_address: Addr::unchecked("sender").to_string(),
+                    to_address: sender.clone().to_string(),
                     amount: vec![coin(10u128, base_denom)],
                 },
                 REPLY_ID_CLAIM,
@@ -2030,13 +2044,14 @@ fn test_claim_order() {
         },
         ClaimOrderTestCase {
             name: "BID: valid basic partial claim",
+            sender: sender.clone(),
             operations: vec![
                 OrderOperation::PlaceLimit(LimitOrder::new(
                     valid_book_id,
                     valid_tick_id,
                     0,
                     OrderDirection::Bid,
-                    Addr::unchecked("sender"),
+                    sender.clone(),
                     Uint128::from(10u128),
                     Decimal256::zero(),
                     None,
@@ -2053,7 +2068,7 @@ fn test_claim_order() {
             tick_id: valid_tick_id,
             expected_output: SubMsg::reply_on_error(
                 BankMsg::Send {
-                    to_address: Addr::unchecked("sender").to_string(),
+                    to_address: sender.clone().to_string(),
                     amount: vec![coin(5u128, base_denom)],
                 },
                 REPLY_ID_CLAIM,
@@ -2063,7 +2078,7 @@ fn test_claim_order() {
                 valid_tick_id,
                 0,
                 OrderDirection::Bid,
-                Addr::unchecked("sender"),
+                sender.clone(),
                 Uint128::from(5u128),
                 decimal256_from_u128(5u128),
                 None,
@@ -2072,13 +2087,14 @@ fn test_claim_order() {
         },
         ClaimOrderTestCase {
             name: "BID: valid two-step partial claim",
+            sender: sender.clone(),
             operations: vec![
                 OrderOperation::PlaceLimit(LimitOrder::new(
                     valid_book_id,
                     valid_tick_id,
                     0,
                     OrderDirection::Bid,
-                    Addr::unchecked("sender"),
+                    sender.clone(),
                     Uint128::from(10u128),
                     Decimal256::zero(),
                     None,
@@ -2102,7 +2118,7 @@ fn test_claim_order() {
             tick_id: valid_tick_id,
             expected_output: SubMsg::reply_on_error(
                 BankMsg::Send {
-                    to_address: Addr::unchecked("sender").to_string(),
+                    to_address: sender.clone().to_string(),
                     amount: vec![coin(3u128, base_denom)],
                 },
                 REPLY_ID_CLAIM,
@@ -2113,13 +2129,14 @@ fn test_claim_order() {
         // All large positive tick orders operate on a tick price of 2
         ClaimOrderTestCase {
             name: "BID: valid basic full claim (large positive tick)",
+            sender: sender.clone(),
             operations: vec![
                 OrderOperation::PlaceLimit(LimitOrder::new(
                     valid_book_id,
                     LARGE_POSITIVE_TICK,
                     0,
                     OrderDirection::Bid,
-                    Addr::unchecked("sender"),
+                    sender.clone(),
                     Uint128::from(10u128),
                     Decimal256::zero(),
                     None,
@@ -2137,7 +2154,7 @@ fn test_claim_order() {
             tick_id: LARGE_POSITIVE_TICK,
             expected_output: SubMsg::reply_on_error(
                 BankMsg::Send {
-                    to_address: Addr::unchecked("sender").to_string(),
+                    to_address: sender.clone().to_string(),
                     // Tick price = 2, 10/2 = 5
                     amount: vec![coin(20u128, base_denom)],
                 },
@@ -2148,13 +2165,14 @@ fn test_claim_order() {
         },
         ClaimOrderTestCase {
             name: "BID: valid basic partial claim (large positive tick)",
+            sender: sender.clone(),
             operations: vec![
                 OrderOperation::PlaceLimit(LimitOrder::new(
                     valid_book_id,
                     LARGE_POSITIVE_TICK,
                     0,
                     OrderDirection::Bid,
-                    Addr::unchecked("sender"),
+                    sender.clone(),
                     Uint128::from(10u128),
                     Decimal256::zero(),
                     None,
@@ -2171,7 +2189,7 @@ fn test_claim_order() {
             tick_id: LARGE_POSITIVE_TICK,
             expected_output: SubMsg::reply_on_error(
                 BankMsg::Send {
-                    to_address: Addr::unchecked("sender").to_string(),
+                    to_address: sender.clone().to_string(),
                     // Tick price = 2, 5 * 2 = 10
                     amount: vec![coin(10u128, base_denom)],
                 },
@@ -2182,7 +2200,7 @@ fn test_claim_order() {
                 LARGE_POSITIVE_TICK,
                 0,
                 OrderDirection::Bid,
-                Addr::unchecked("sender"),
+                sender.clone(),
                 Uint128::from(5u128),
                 decimal256_from_u128(5u128),
                 None,
@@ -2191,13 +2209,14 @@ fn test_claim_order() {
         },
         ClaimOrderTestCase {
             name: "BID: valid two-step partial claim (large positive tick)",
+            sender: sender.clone(),
             operations: vec![
                 OrderOperation::PlaceLimit(LimitOrder::new(
                     valid_book_id,
                     LARGE_POSITIVE_TICK,
                     0,
                     OrderDirection::Bid,
-                    Addr::unchecked("sender"),
+                    sender.clone(),
                     Uint128::from(10u128),
                     Decimal256::zero(),
                     None,
@@ -2222,7 +2241,7 @@ fn test_claim_order() {
             tick_id: LARGE_POSITIVE_TICK,
             expected_output: SubMsg::reply_on_error(
                 BankMsg::Send {
-                    to_address: Addr::unchecked("sender").to_string(),
+                    to_address: sender.clone().to_string(),
                     // Tick price = 2, 5 * 2 = 10
                     amount: vec![coin(10u128, base_denom)],
                 },
@@ -2234,13 +2253,14 @@ fn test_claim_order() {
         // All Large Negative Tick orders operate on a tick price of 0.5
         ClaimOrderTestCase {
             name: "BID: valid basic full claim (large negative tick)",
+            sender: sender.clone(),
             operations: vec![
                 OrderOperation::PlaceLimit(LimitOrder::new(
                     valid_book_id,
                     LARGE_NEGATIVE_TICK,
                     0,
                     OrderDirection::Bid,
-                    Addr::unchecked("sender"),
+                    sender.clone(),
                     Uint128::from(100u128),
                     Decimal256::zero(),
                     None,
@@ -2257,7 +2277,7 @@ fn test_claim_order() {
             tick_id: LARGE_NEGATIVE_TICK,
             expected_output: SubMsg::reply_on_error(
                 BankMsg::Send {
-                    to_address: Addr::unchecked("sender").to_string(),
+                    to_address: sender.clone().to_string(),
                     amount: vec![coin(50u128, base_denom)],
                 },
                 REPLY_ID_CLAIM,
@@ -2267,13 +2287,14 @@ fn test_claim_order() {
         },
         ClaimOrderTestCase {
             name: "BID: valid basic partial claim (large negative tick)",
+            sender: sender.clone(),
             operations: vec![
                 OrderOperation::PlaceLimit(LimitOrder::new(
                     valid_book_id,
                     LARGE_NEGATIVE_TICK,
                     0,
                     OrderDirection::Bid,
-                    Addr::unchecked("sender"),
+                    sender.clone(),
                     Uint128::from(100u128),
                     Decimal256::zero(),
                     None,
@@ -2290,7 +2311,7 @@ fn test_claim_order() {
             tick_id: LARGE_NEGATIVE_TICK,
             expected_output: SubMsg::reply_on_error(
                 BankMsg::Send {
-                    to_address: Addr::unchecked("sender").to_string(),
+                    to_address: sender.clone().to_string(),
                     amount: vec![coin(25u128, base_denom)],
                 },
                 REPLY_ID_CLAIM,
@@ -2300,7 +2321,7 @@ fn test_claim_order() {
                 LARGE_NEGATIVE_TICK,
                 0,
                 OrderDirection::Bid,
-                Addr::unchecked("sender"),
+                sender.clone(),
                 Uint128::from(50u128),
                 decimal256_from_u128(50u128),
                 None,
@@ -2309,13 +2330,14 @@ fn test_claim_order() {
         },
         ClaimOrderTestCase {
             name: "BID: valid two-step partial claim (large negative tick)",
+            sender: sender.clone(),
             operations: vec![
                 OrderOperation::PlaceLimit(LimitOrder::new(
                     valid_book_id,
                     LARGE_NEGATIVE_TICK,
                     0,
                     OrderDirection::Bid,
-                    Addr::unchecked("sender"),
+                    sender.clone(),
                     Uint128::from(100u128),
                     Decimal256::zero(),
                     None,
@@ -2340,7 +2362,7 @@ fn test_claim_order() {
             tick_id: LARGE_NEGATIVE_TICK,
             expected_output: SubMsg::reply_on_error(
                 BankMsg::Send {
-                    to_address: Addr::unchecked("sender").to_string(),
+                    to_address: sender.clone().to_string(),
                     amount: vec![coin(25u128, base_denom)],
                 },
                 REPLY_ID_CLAIM,
@@ -2350,13 +2372,14 @@ fn test_claim_order() {
         },
         ClaimOrderTestCase {
             name: "BID: full claim with a previous cancellation",
+            sender: sender.clone(),
             operations: vec![
                 OrderOperation::PlaceLimit(LimitOrder::new(
                     valid_book_id,
                     valid_tick_id,
                     0,
                     OrderDirection::Bid,
-                    Addr::unchecked("sender"),
+                    sender.clone(),
                     Uint128::from(50u128),
                     Decimal256::zero(),
                     None,
@@ -2366,7 +2389,7 @@ fn test_claim_order() {
                     valid_tick_id,
                     1,
                     OrderDirection::Bid,
-                    Addr::unchecked("sender"),
+                    sender.clone(),
                     Uint128::from(100u128),
                     Decimal256::zero(),
                     None,
@@ -2384,7 +2407,7 @@ fn test_claim_order() {
             tick_id: valid_tick_id,
             expected_output: SubMsg::reply_on_error(
                 BankMsg::Send {
-                    to_address: Addr::unchecked("sender").to_string(),
+                    to_address: sender.clone().to_string(),
                     amount: vec![coin(100u128, base_denom)],
                 },
                 REPLY_ID_CLAIM,
@@ -2394,13 +2417,14 @@ fn test_claim_order() {
         },
         ClaimOrderTestCase {
             name: "invalid book id",
+            sender: sender.clone(),
             operations: vec![
                 OrderOperation::PlaceLimit(LimitOrder::new(
                     valid_book_id,
                     valid_tick_id,
                     0,
                     OrderDirection::Ask,
-                    Addr::unchecked("sender"),
+                    sender.clone(),
                     Uint128::from(10u128),
                     Decimal256::zero(),
                     None,
@@ -2417,7 +2441,7 @@ fn test_claim_order() {
             tick_id: valid_tick_id,
             expected_output: SubMsg::reply_on_error(
                 BankMsg::Send {
-                    to_address: Addr::unchecked("sender").to_string(),
+                    to_address: sender.clone().to_string(),
                     amount: vec![coin(5u128, quote_denom)],
                 },
                 REPLY_ID_CLAIM,
@@ -2427,13 +2451,14 @@ fn test_claim_order() {
         },
         ClaimOrderTestCase {
             name: "invalid tick id",
+            sender: sender.clone(),
             operations: vec![
                 OrderOperation::PlaceLimit(LimitOrder::new(
                     valid_book_id,
                     valid_tick_id,
                     0,
                     OrderDirection::Ask,
-                    Addr::unchecked("sender"),
+                    sender.clone(),
                     Uint128::from(10u128),
                     Decimal256::zero(),
                     None,
@@ -2450,7 +2475,7 @@ fn test_claim_order() {
             tick_id: 1,
             expected_output: SubMsg::reply_on_error(
                 BankMsg::Send {
-                    to_address: Addr::unchecked("sender").to_string(),
+                    to_address: sender.clone().to_string(),
                     amount: vec![coin(5u128, quote_denom)],
                 },
                 REPLY_ID_CLAIM,
@@ -2460,13 +2485,14 @@ fn test_claim_order() {
         },
         ClaimOrderTestCase {
             name: "invalid order id",
+            sender: sender.clone(),
             operations: vec![
                 OrderOperation::PlaceLimit(LimitOrder::new(
                     valid_book_id,
                     valid_tick_id,
                     0,
                     OrderDirection::Ask,
-                    Addr::unchecked("sender"),
+                    sender.clone(),
                     Uint128::from(10u128),
                     Decimal256::zero(),
                     None,
@@ -2483,7 +2509,7 @@ fn test_claim_order() {
             tick_id: valid_tick_id,
             expected_output: SubMsg::reply_on_error(
                 BankMsg::Send {
-                    to_address: Addr::unchecked("sender").to_string(),
+                    to_address: sender.clone().to_string(),
                     amount: vec![coin(5u128, quote_denom)],
                 },
                 REPLY_ID_CLAIM,
@@ -2497,13 +2523,14 @@ fn test_claim_order() {
         },
         ClaimOrderTestCase {
             name: "invalid order id (cancelled order)",
+            sender: sender.clone(),
             operations: vec![
                 OrderOperation::PlaceLimit(LimitOrder::new(
                     valid_book_id,
                     valid_tick_id,
                     0,
                     OrderDirection::Ask,
-                    Addr::unchecked("sender"),
+                    sender.clone(),
                     Uint128::from(10u128),
                     Decimal256::zero(),
                     None,
@@ -2515,7 +2542,7 @@ fn test_claim_order() {
             tick_id: valid_tick_id,
             expected_output: SubMsg::reply_on_error(
                 BankMsg::Send {
-                    to_address: Addr::unchecked("sender").to_string(),
+                    to_address: sender.clone().to_string(),
                     amount: vec![coin(5u128, quote_denom)],
                 },
                 REPLY_ID_CLAIM,
@@ -2529,12 +2556,13 @@ fn test_claim_order() {
         },
         ClaimOrderTestCase {
             name: "zero claim amount",
+            sender: sender.clone(),
             operations: vec![OrderOperation::PlaceLimit(LimitOrder::new(
                 valid_book_id,
                 valid_tick_id,
                 0,
                 OrderDirection::Ask,
-                Addr::unchecked("sender"),
+                sender.clone(),
                 Uint128::from(10u128),
                 Decimal256::zero(),
                 None,
@@ -2544,7 +2572,7 @@ fn test_claim_order() {
             tick_id: valid_tick_id,
             expected_output: SubMsg::reply_on_error(
                 BankMsg::Send {
-                    to_address: Addr::unchecked("sender").to_string(),
+                    to_address: sender.clone().to_string(),
                     amount: vec![coin(5u128, quote_denom)],
                 },
                 REPLY_ID_CLAIM,
@@ -2554,13 +2582,14 @@ fn test_claim_order() {
         },
         ClaimOrderTestCase {
             name: "zero claim amount (tick etas < order etas)",
+            sender: sender.clone(),
             operations: vec![
                 OrderOperation::PlaceLimit(LimitOrder::new(
                     valid_book_id,
                     valid_tick_id,
                     0,
                     OrderDirection::Ask,
-                    Addr::unchecked("sender"),
+                    sender.clone(),
                     Uint128::from(10u128),
                     Decimal256::zero(),
                     None,
@@ -2570,7 +2599,7 @@ fn test_claim_order() {
                     valid_tick_id,
                     0,
                     OrderDirection::Ask,
-                    Addr::unchecked("sender"),
+                    sender.clone(),
                     Uint128::from(10u128),
                     Decimal256::zero(),
                     None,
@@ -2581,7 +2610,7 @@ fn test_claim_order() {
             tick_id: valid_tick_id,
             expected_output: SubMsg::reply_on_error(
                 BankMsg::Send {
-                    to_address: Addr::unchecked("sender").to_string(),
+                    to_address: sender.clone().to_string(),
                     amount: vec![coin(5u128, quote_denom)],
                 },
                 REPLY_ID_CLAIM,
@@ -2591,13 +2620,14 @@ fn test_claim_order() {
         },
         ClaimOrderTestCase {
             name: "zero claim amount (cancelled order larger etas than order)",
+            sender: sender.clone(),
             operations: vec![
                 OrderOperation::PlaceLimit(LimitOrder::new(
                     valid_book_id,
                     valid_tick_id,
                     0,
                     OrderDirection::Ask,
-                    Addr::unchecked("sender"),
+                    sender.clone(),
                     Uint128::from(10u128),
                     Decimal256::zero(),
                     None,
@@ -2607,7 +2637,7 @@ fn test_claim_order() {
                     valid_tick_id,
                     0,
                     OrderDirection::Ask,
-                    Addr::unchecked("sender"),
+                    sender.clone(),
                     Uint128::from(100u128),
                     Decimal256::zero(),
                     None,
@@ -2619,7 +2649,7 @@ fn test_claim_order() {
             tick_id: valid_tick_id,
             expected_output: SubMsg::reply_on_error(
                 BankMsg::Send {
-                    to_address: Addr::unchecked("sender").to_string(),
+                    to_address: sender.clone().to_string(),
                     amount: vec![coin(5u128, quote_denom)],
                 },
                 REPLY_ID_CLAIM,
@@ -2653,6 +2683,7 @@ fn test_claim_order() {
         // Claim designated order
         let res = claim_order(
             deps.as_mut().storage,
+            test.sender,
             test.book_id,
             test.tick_id,
             test.order_id,
@@ -2693,6 +2724,7 @@ fn test_claim_order() {
 struct MovingClaimOrderTestCase {
     name: &'static str,
     operations: Vec<OrderOperation>,
+    sender: Addr,
     book_id: u64,
     tick_id: i64,
     order_id: u64,
@@ -2711,6 +2743,7 @@ fn test_claim_order_moving_tick() {
     let test_cases: Vec<MovingClaimOrderTestCase> = vec![
         MovingClaimOrderTestCase {
             name: "ASK: single tick movement full claim",
+            sender: sender.clone(),
             operations: vec![
                 // Place order and immediately fully fill
                 OrderOperation::PlaceLimit(LimitOrder::new(
@@ -2764,6 +2797,7 @@ fn test_claim_order_moving_tick() {
         },
         MovingClaimOrderTestCase {
             name: "ASK: single tick movement partial claim",
+            sender: sender.clone(),
             operations: vec![
                 // Place order and immediately fully fill
                 OrderOperation::PlaceLimit(LimitOrder::new(
@@ -2826,6 +2860,7 @@ fn test_claim_order_moving_tick() {
         },
         MovingClaimOrderTestCase {
             name: "ASK: single tick movement partial claim with cancellation",
+            sender: sender.clone(),
             operations: vec![
                 // Place order and immediately fully fill
                 OrderOperation::PlaceLimit(LimitOrder::new(
@@ -2903,6 +2938,7 @@ fn test_claim_order_moving_tick() {
         MovingClaimOrderTestCase {
             name:
                 "ASK: single tick movement partial claim with cancellation from previous direction",
+            sender: sender.clone(),
             operations: vec![
                 // Place order in opposite direction from claimed order
                 OrderOperation::PlaceLimit(LimitOrder::new(
@@ -2960,6 +2996,7 @@ fn test_claim_order_moving_tick() {
         },
         MovingClaimOrderTestCase {
             name: "ASK: returning tick movement full claim",
+            sender: sender.clone(),
             operations: vec![
                 // Place order in opposite direction of order to be claimed
                 OrderOperation::PlaceLimit(LimitOrder::new(
@@ -3034,6 +3071,7 @@ fn test_claim_order_moving_tick() {
         },
         MovingClaimOrderTestCase {
             name: "BID: single tick movement full claim",
+            sender: sender.clone(),
             operations: vec![
                 // Place order and immediately fully fill to move tick
                 OrderOperation::PlaceLimit(LimitOrder::new(
@@ -3087,6 +3125,7 @@ fn test_claim_order_moving_tick() {
         },
         MovingClaimOrderTestCase {
             name: "BID: single tick movement partial claim",
+            sender: sender.clone(),
             operations: vec![
                 // Place order and immediately fully fill
                 OrderOperation::PlaceLimit(LimitOrder::new(
@@ -3149,6 +3188,7 @@ fn test_claim_order_moving_tick() {
         },
         MovingClaimOrderTestCase {
             name: "BID: single tick movement partial claim with cancellation",
+            sender: sender.clone(),
             operations: vec![
                 // Place order and immediately fully fill to move tick
                 OrderOperation::PlaceLimit(LimitOrder::new(
@@ -3226,6 +3266,7 @@ fn test_claim_order_moving_tick() {
         MovingClaimOrderTestCase {
             name:
                 "BID: single tick movement partial claim with cancellation from previous direction",
+            sender: sender.clone(),
             operations: vec![
                 // Place order in opposite direction of order to be claimed
                 OrderOperation::PlaceLimit(LimitOrder::new(
@@ -3283,6 +3324,7 @@ fn test_claim_order_moving_tick() {
         },
         MovingClaimOrderTestCase {
             name: "BID: returning tick movement full claim",
+            sender: sender.clone(),
             operations: vec![
                 // Place order and immediatelly fully fill to move tick
                 OrderOperation::PlaceLimit(LimitOrder::new(
@@ -3378,6 +3420,7 @@ fn test_claim_order_moving_tick() {
         // Claim designated order
         let res = claim_order(
             deps.as_mut().storage,
+            test.sender,
             test.book_id,
             test.tick_id,
             test.order_id,

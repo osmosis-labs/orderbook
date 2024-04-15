@@ -84,7 +84,14 @@ impl OrderOperation {
                 Ok(())
             }
             OrderOperation::Claim((book_id, tick_id, order_id)) => {
-                claim_order(deps.storage, book_id, tick_id, order_id).unwrap();
+                claim_order(
+                    deps.storage,
+                    info.sender.clone(),
+                    book_id,
+                    tick_id,
+                    order_id,
+                )
+                .unwrap();
                 Ok(())
             }
             OrderOperation::Cancel((book_id, tick_id, order_id)) => {

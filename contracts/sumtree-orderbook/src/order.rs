@@ -93,26 +93,6 @@ pub fn place_limit(
         tick_values.cumulative_total_value,
     );
 
-    // Ensure the order is not past the best available price given its order direction.
-    // This is intended to prevent situations where e.g. a user attempts to place a bid to buy
-    // at a price higher than the current best ask price.
-    let (invalid_tick, next_best_tick) = match order_direction {
-        OrderDirection::Ask => (tick_id <= orderbook.next_bid_tick, orderbook.next_bid_tick),
-        OrderDirection::Bid => (tick_id >= orderbook.next_ask_tick, orderbook.next_ask_tick),
-    };
-    println!("invalid_tick: {}", invalid_tick);
-    println!("next_best_tick: {}", next_best_tick);
-    println!("tick_id: {}", tick_id);
-    println!("order_direction: {:?}", order_direction);
-    ensure!(
-        !invalid_tick,
-        ContractError::InvalidLimitOrderTick {
-            order_direction: order_direction.to_string(),
-            tick_id: tick_id,
-            next_best_tick: next_best_tick,
-        }
-    );
-
     let quantity_fullfilled = quantity.checked_sub(limit_order.quantity)?;
 
     // Only save the order if not fully filled

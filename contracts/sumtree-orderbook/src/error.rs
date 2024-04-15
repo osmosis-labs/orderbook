@@ -1,5 +1,5 @@
 use cosmwasm_std::{
-    CheckedFromRatioError, CheckedMultiplyRatioError, CoinsError, ConversionOverflowError,
+    CheckedFromRatioError, CheckedMultiplyRatioError, CoinsError, ConversionOverflowError, Decimal,
     DecimalRangeExceeded, DivideByZeroError, OverflowError, StdError, Uint128,
 };
 use cw_utils::PaymentError;
@@ -92,6 +92,9 @@ pub enum ContractError {
 
     #[error("Node insertion error")]
     NodeInsertionError,
+
+    #[error("Claim bounty must be a value between 0 and 1. Received: {claim_bounty:?}")]
+    InvalidClaimBounty { claim_bounty: Option<Decimal> },
 }
 
 pub type ContractResult<T> = Result<T, ContractError>;

@@ -6,11 +6,12 @@ use crate::sumtree::tree::get_or_init_root_node;
 use crate::tick::sync_tick;
 use crate::tick_math::{amount_to_value, tick_to_price, RoundingDirection};
 use crate::types::{
-    LimitOrder, MarketOrder, OrderDirection, TickState, REPLY_ID_CLAIM, REPLY_ID_REFUND,
+    LimitOrder, MarketOrder, OrderDirection, TickState, REPLY_ID_CLAIM, REPLY_ID_CLAIM_BOUNTY,
+    REPLY_ID_REFUND,
 };
 use cosmwasm_std::{
-    coin, ensure, ensure_eq, BankMsg, Decimal256, DepsMut, Env, MessageInfo, Order, Response,
-    Storage, SubMsg, Uint128, Uint256,
+    coin, ensure, ensure_eq, Addr, BankMsg, Decimal, Decimal256, DepsMut, Env, MessageInfo, Order,
+    Response, Storage, SubMsg, Uint128, Uint256,
 };
 use cw_storage_plus::Bound;
 use cw_utils::{must_pay, nonpayable};
@@ -24,6 +25,7 @@ pub fn place_limit(
     tick_id: i64,
     order_direction: OrderDirection,
     quantity: Uint128,
+    claim_bounty: Option<Decimal>,
 ) -> Result<Response, ContractError> {
     // Validate book_id exists
     let mut orderbook = ORDERBOOKS
@@ -41,6 +43,16 @@ pub fn place_limit(
         quantity > Uint128::zero(),
         ContractError::InvalidQuantity { quantity }
     );
+
+    // If applicable, ensure claim_bounty is between 0 and 1
+    if let Some(claim_bounty_value) = claim_bounty {
+        ensure!(
+            claim_bounty_value >= Decimal::zero() && claim_bounty_value <= Decimal::one(),
+            ContractError::InvalidClaimBounty {
+                claim_bounty: Some(claim_bounty_value)
+            }
+        );
+    }
 
     // Determine the correct denom based on order direction
     let expected_denom = orderbook.get_expected_denom(&order_direction);
@@ -91,6 +103,7 @@ pub fn place_limit(
         info.sender.clone(),
         quantity,
         tick_values.cumulative_total_value,
+        claim_bounty,
     );
 
     let quantity_fullfilled = quantity.checked_sub(limit_order.quantity)?;
@@ -240,16 +253,22 @@ pub fn claim_limit(
 ) -> Result<Response, ContractError> {
     nonpayable(&info)?;
 
-    let (amount_claimed, bank_msg) = claim_order(_deps.storage, book_id, tick_id, order_id)?;
+    let (amount_claimed, bank_msgs) = claim_order(
+        _deps.storage,
+        info.sender.clone(),
+        book_id,
+        tick_id,
+        order_id,
+    )?;
 
     Ok(Response::new()
         .add_attribute("method", "claimMarket")
-        .add_attribute("owner", info.sender)
+        .add_attribute("sender", info.sender)
         .add_attribute("book_id", book_id.to_string())
         .add_attribute("tick_id", tick_id.to_string())
         .add_attribute("order_id", order_id.to_string())
         .add_attribute("amount_claimed", amount_claimed.to_string())
-        .add_submessage(bank_msg))
+        .add_submessages(bank_msgs))
 }
 
 pub fn place_market(
@@ -444,10 +463,11 @@ pub fn run_market_order(
 // Note: This can be called by anyone
 pub(crate) fn claim_order(
     storage: &mut dyn Storage,
+    sender: Addr,
     book_id: u64,
     tick_id: i64,
     order_id: u64,
-) -> ContractResult<(Uint128, SubMsg)> {
+) -> ContractResult<(Uint128, Vec<SubMsg>)> {
     let orderbook = ORDERBOOKS
         .may_load(storage, &book_id)?
         .ok_or(ContractError::InvalidBookId { book_id })?;
@@ -515,7 +535,7 @@ pub(crate) fn claim_order(
 
     // Calculate amount to be sent to order owner
     let tick_price = tick_to_price(tick_id)?;
-    let amount = amount_to_value(
+    let mut amount = amount_to_value(
         order.order_direction,
         amount_filled,
         tick_price,
@@ -526,10 +546,33 @@ pub(crate) fn claim_order(
     ensure!(!amount.is_zero(), ContractError::ZeroClaim);
 
     let denom = orderbook.get_opposite_denom(&order.order_direction);
+
+    // Send claim bounty to sender if applicable
+    let mut bounty = Uint128::zero();
+    if let Some(claim_bounty) = order.claim_bounty {
+        // Multiply by the claim bounty ratio and convert to Uint128.
+        // Ensure claimed amount is updated to reflect the bounty.
+        let bounty_amount =
+            Decimal::from_ratio(amount, Uint128::one()).checked_mul(claim_bounty)?;
+        bounty = bounty_amount.to_uint_floor();
+        amount = amount.checked_sub(bounty)?;
+    }
+
+    // Claimed amount always goes to the order owner
     let bank_msg = BankMsg::Send {
         to_address: order.owner.to_string(),
-        amount: vec![coin(amount.u128(), denom)],
+        amount: vec![coin(amount.u128(), denom.clone())],
     };
+    let mut bank_msg_vec = vec![SubMsg::reply_on_error(bank_msg, REPLY_ID_CLAIM)];
 
-    Ok((amount, SubMsg::reply_on_error(bank_msg, REPLY_ID_CLAIM)))
+    if !bounty.is_zero() {
+        // Bounty always goes to the sender
+        let bounty_msg = BankMsg::Send {
+            to_address: sender.to_string(),
+            amount: vec![coin(bounty.u128(), denom.clone())],
+        };
+        bank_msg_vec.push(SubMsg::reply_on_error(bounty_msg, REPLY_ID_CLAIM_BOUNTY));
+    }
+
+    Ok((amount, bank_msg_vec))
 }

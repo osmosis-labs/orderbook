@@ -83,7 +83,7 @@ pub fn place_limit(
     let mut tick_values = tick_state.get_values(order_direction);
 
     // Build limit order
-    let mut limit_order = LimitOrder::new(
+    let limit_order = LimitOrder::new(
         book_id,
         tick_id,
         order_id,
@@ -93,25 +93,25 @@ pub fn place_limit(
         tick_values.cumulative_total_value,
     );
 
-    // Determine if the order needs to be filled
-    let should_fill = match order_direction {
-        OrderDirection::Ask => tick_id <= orderbook.next_bid_tick,
-        OrderDirection::Bid => tick_id >= orderbook.next_ask_tick,
+    // Ensure the order is not past the best available price given its order direction.
+    // This is intended to prevent situations where e.g. a user attempts to place a bid to buy
+    // at a price higher than the current best ask price.
+    let (invalid_tick, next_best_tick) = match order_direction {
+        OrderDirection::Ask => (tick_id <= orderbook.next_bid_tick, orderbook.next_bid_tick),
+        OrderDirection::Bid => (tick_id >= orderbook.next_ask_tick, orderbook.next_ask_tick),
     };
-
-    let mut response = Response::default();
-    // Run order fill if criteria met
-    if should_fill {
-        let mut market_order = MarketOrder::from(limit_order.clone());
-        let tick_bound = match market_order.order_direction {
-            OrderDirection::Bid => MAX_TICK,
-            OrderDirection::Ask => MIN_TICK,
-        };
-        let (_, fill_msg) = run_market_order(deps.storage, &mut market_order, tick_bound)?;
-        response = response.add_submessage(SubMsg::reply_on_error(fill_msg, 1));
-
-        limit_order.quantity = market_order.quantity;
-    }
+    println!("invalid_tick: {}", invalid_tick);
+    println!("next_best_tick: {}", next_best_tick);
+    println!("tick_id: {}", tick_id);
+    println!("order_direction: {:?}", order_direction);
+    ensure!(
+        !invalid_tick,
+        ContractError::InvalidLimitOrderTick {
+            order_direction: order_direction.to_string(),
+            tick_id: tick_id,
+            next_best_tick: next_best_tick,
+        }
+    );
 
     let quantity_fullfilled = quantity.checked_sub(limit_order.quantity)?;
 
@@ -136,7 +136,7 @@ pub fn place_limit(
     tick_state.set_values(order_direction, tick_values);
     TICK_STATE.save(deps.storage, &(book_id, tick_id), &tick_state)?;
 
-    Ok(response
+    Ok(Response::default()
         .add_attribute("method", "placeLimit")
         .add_attribute("owner", info.sender.to_string())
         .add_attribute("book_id", book_id.to_string())

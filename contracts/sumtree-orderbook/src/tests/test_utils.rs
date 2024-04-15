@@ -1,13 +1,14 @@
 use cosmwasm_std::{
-    coin, testing::mock_info, Addr, Decimal256, DepsMut, Env, MessageInfo, Uint128,
+    coin, testing::mock_info, Addr, Decimal256, DepsMut, Env, MessageInfo, Response, Uint128,
 };
 
 use crate::{
     constants::{MAX_TICK, MIN_TICK},
     error::ContractResult,
     order::{cancel_limit, claim_order, place_limit, run_market_order},
-    state::orders,
-    types::{LimitOrder, MarketOrder, OrderDirection},
+    state::{new_orderbook_id, orders, ORDERBOOKS},
+    types::{LimitOrder, MarketOrder, OrderDirection, Orderbook},
+    ContractError,
 };
 
 // Tick Price = 2
@@ -38,11 +39,19 @@ impl OrderOperation {
     ) -> ContractResult<()> {
         match self.clone() {
             OrderOperation::RunMarket(mut order) => {
+                println!("Running market order...");
                 let tick_bound = match order.order_direction {
-                    OrderDirection::Bid => MAX_TICK,
-                    OrderDirection::Ask => MIN_TICK,
+                    OrderDirection::Bid => {
+                        println!("Order direction: Bid");
+                        MAX_TICK
+                    },
+                    OrderDirection::Ask => {
+                        println!("Order direction: Ask");
+                        MIN_TICK
+                    },
                 };
                 run_market_order(deps.storage, &mut order, tick_bound).unwrap();
+                println!("Market order run successfully.");
                 Ok(())
             }
             OrderOperation::_PlaceLimitMulti((
@@ -51,6 +60,7 @@ impl OrderOperation {
                 quantity_per_order,
                 current_tick,
             )) => {
+                println!("Placing multiple limit orders...");
                 let orders = generate_limit_orders(
                     book_id,
                     tick_ids,
@@ -60,14 +70,22 @@ impl OrderOperation {
                 );
                 place_multiple_limit_orders(&mut deps, env, info.sender.as_str(), book_id, orders)
                     .unwrap();
+                println!("Multiple limit orders placed successfully.");
                 Ok(())
             }
             OrderOperation::PlaceLimit(limit_order) => {
+                println!("Placing limit order...");
                 let coin_vec = vec![coin(
                     limit_order.quantity.u128(),
                     match limit_order.order_direction {
-                        OrderDirection::Ask => "base",
-                        OrderDirection::Bid => "quote",
+                        OrderDirection::Ask => {
+                            println!("Order direction: Ask");
+                            "base"
+                        },
+                        OrderDirection::Bid => {
+                            println!("Order direction: Bid");
+                            "quote"
+                        },
                     },
                 )];
                 let info = mock_info(info.sender.as_str(), &coin_vec);
@@ -80,18 +98,23 @@ impl OrderOperation {
                     limit_order.order_direction,
                     limit_order.quantity,
                 )?;
+                println!("Limit order placed successfully.");
                 Ok(())
             }
             OrderOperation::Claim((book_id, tick_id, order_id)) => {
+                println!("Claiming order...");
                 claim_order(deps.storage, book_id, tick_id, order_id).unwrap();
+                println!("Order claimed successfully.");
                 Ok(())
             }
             OrderOperation::Cancel((book_id, tick_id, order_id)) => {
+                println!("Cancelling order...");
                 let order = orders()
                     .load(deps.as_ref().storage, &(book_id, tick_id, order_id))
                     .unwrap();
                 let info = mock_info(order.owner.as_str(), &[]);
                 cancel_limit(deps, env, info, book_id, tick_id, order_id).unwrap();
+                println!("Order cancelled successfully.");
                 Ok(())
             }
         }
@@ -170,4 +193,32 @@ pub(crate) fn place_multiple_limit_orders(
 #[allow(clippy::uninlined_format_args)]
 pub(crate) fn format_test_name(name: &str) -> String {
     format!("\n\nTest case failed: {}\n", name)
+}
+
+// create_custom_orderbook is a helper function to create an orderbook with custom parameters for next bid and ask ticks.
+pub(crate) fn create_custom_orderbook(
+    deps: DepsMut,
+    quote_denom: String,
+    base_denom: String,
+    next_bid_tick: i64,
+    next_ask_tick: i64,
+) -> Result<Response, ContractError> {
+    // TODO: add necessary validation logic
+    // https://github.com/osmosis-labs/orderbook/issues/26
+
+    let book_id = new_orderbook_id(deps.storage)?;
+    let book = Orderbook::new(
+        book_id,
+        quote_denom,
+        base_denom,
+        0,
+        next_bid_tick,
+        next_ask_tick,
+    );
+
+    ORDERBOOKS.save(deps.storage, &book_id, &book)?;
+
+    Ok(Response::new()
+        .add_attribute("method", "createOrderbook")
+        .add_attribute("book_id", book_id.to_string()))
 }

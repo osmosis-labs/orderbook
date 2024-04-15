@@ -275,7 +275,7 @@ pub fn claim_limit(
 ) -> Result<Response, ContractError> {
     nonpayable(&info)?;
 
-    let (amount_claimed, bank_msg, bounty_msg) = claim_order(
+    let (amount_claimed, bank_msgs) = claim_order(
         _deps.storage,
         info.sender.clone(),
         book_id,
@@ -290,8 +290,7 @@ pub fn claim_limit(
         .add_attribute("tick_id", tick_id.to_string())
         .add_attribute("order_id", order_id.to_string())
         .add_attribute("amount_claimed", amount_claimed.to_string())
-        .add_submessage(bank_msg)
-        .add_submessage(bounty_msg))
+        .add_submessages(bank_msgs))
 }
 
 pub fn place_market(
@@ -490,7 +489,7 @@ pub(crate) fn claim_order(
     book_id: u64,
     tick_id: i64,
     order_id: u64,
-) -> ContractResult<(Uint128, SubMsg, SubMsg)> {
+) -> ContractResult<(Uint128, Vec<SubMsg>)> {
     let orderbook = ORDERBOOKS
         .may_load(storage, &book_id)?
         .ok_or(ContractError::InvalidBookId { book_id })?;
@@ -586,16 +585,16 @@ pub(crate) fn claim_order(
         to_address: order.owner.to_string(),
         amount: vec![coin(amount.u128(), denom.clone())],
     };
+    let mut bank_msg_vec = vec![SubMsg::reply_on_error(bank_msg, REPLY_ID_CLAIM)];
 
-    // Bounty always goes to the sender
-    let bounty_msg = BankMsg::Send {
-        to_address: sender.to_string(),
-        amount: vec![coin(bounty.u128(), denom.clone())],
-    };
+    if !bounty.is_zero() {
+        // Bounty always goes to the sender
+        let bounty_msg = BankMsg::Send {
+            to_address: sender.to_string(),
+            amount: vec![coin(bounty.u128(), denom.clone())],
+        };
+        bank_msg_vec.push(SubMsg::reply_on_error(bounty_msg, REPLY_ID_CLAIM_BOUNTY));
+    }
 
-    Ok((
-        amount,
-        SubMsg::reply_on_error(bank_msg, REPLY_ID_CLAIM),
-        SubMsg::reply_on_error(bounty_msg, REPLY_ID_CLAIM_BOUNTY),
-    ))
+    Ok((amount, bank_msg_vec))
 }

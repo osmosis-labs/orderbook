@@ -5,6 +5,7 @@ pub mod msg;
 mod order;
 mod orderbook;
 pub mod state;
+pub mod sudo;
 mod sumtree;
 pub mod tick;
 pub mod tick_math;

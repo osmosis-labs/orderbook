@@ -28,6 +28,9 @@ pub enum ContractError {
     #[error("Invalid book ID: {book_id:?}")]
     InvalidBookId { book_id: u64 },
 
+    #[error("Orderbook not found for pair: in: {in_denom} out: {out_denom}")]
+    OrderbookNotFound { in_denom: String, out_denom: String },
+
     #[error(transparent)]
     Coins(#[from] CoinsError),
 

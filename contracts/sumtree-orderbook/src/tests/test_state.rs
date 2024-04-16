@@ -62,6 +62,7 @@ fn test_order_iteration() {
             quantity: Uint128::new(i as u128),
             order_direction: OrderDirection::Ask,
             etas: Decimal256::zero(),
+            claim_bounty: None,
         };
         orders()
             .save(&mut storage, &(book_id, tick, i), &order)
@@ -105,6 +106,7 @@ fn test_get_orders_by_owner_all() {
             current_owner,
             Uint128::new(i as u128),
             Decimal256::zero(),
+            None,
         );
         orders()
             .save(&mut storage, &(order.book_id, 0, i as u64), &order)
@@ -150,6 +152,7 @@ fn test_get_orders_by_owner_by_book() {
             current_owner,
             Uint128::new(i as u128),
             Decimal256::zero(),
+            None,
         );
         orders()
             .save(&mut storage, &(order.book_id, 0, i as u64), &order)
@@ -196,6 +199,7 @@ fn test_get_orders_by_owner_by_tick() {
             current_owner,
             Uint128::new(i as u128),
             Decimal256::zero(),
+            None,
         );
         orders()
             .save(&mut storage, &(book_id, tick, i as u64), &order)
@@ -239,6 +243,7 @@ fn test_get_orders_by_owner_with_pagination() {
             Addr::unchecked(owner),
             Uint128::new(i as u128),
             Decimal256::zero(),
+            None,
         );
         orders()
             .save(&mut storage, &(book_id, tick, i as u64), &order)

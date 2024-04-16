@@ -2,7 +2,7 @@ use core::fmt;
 use std::fmt::Display;
 
 use cosmwasm_schema::cw_serde;
-use cosmwasm_std::{Addr, Decimal256, Uint128};
+use cosmwasm_std::{Addr, Decimal, Decimal256, Uint128};
 
 #[cw_serde]
 #[derive(Copy)]
@@ -45,6 +45,7 @@ pub struct LimitOrder {
     pub owner: Addr,
     pub quantity: Uint128,
     pub etas: Decimal256,
+    pub claim_bounty: Option<Decimal>,
 }
 
 impl LimitOrder {
@@ -56,6 +57,7 @@ impl LimitOrder {
         owner: Addr,
         quantity: Uint128,
         etas: Decimal256,
+        claim_bounty: Option<Decimal>,
     ) -> Self {
         LimitOrder {
             book_id,
@@ -65,6 +67,7 @@ impl LimitOrder {
             owner,
             quantity,
             etas,
+            claim_bounty,
         }
     }
 }

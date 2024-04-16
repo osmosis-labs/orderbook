@@ -79,11 +79,19 @@ impl OrderOperation {
                     limit_order.tick_id,
                     limit_order.order_direction,
                     limit_order.quantity,
+                    limit_order.claim_bounty,
                 )?;
                 Ok(())
             }
             OrderOperation::Claim((book_id, tick_id, order_id)) => {
-                claim_order(deps.storage, book_id, tick_id, order_id).unwrap();
+                claim_order(
+                    deps.storage,
+                    info.sender.clone(),
+                    book_id,
+                    tick_id,
+                    order_id,
+                )
+                .unwrap();
                 Ok(())
             }
             OrderOperation::Cancel((book_id, tick_id, order_id)) => {
@@ -128,6 +136,7 @@ pub(crate) fn generate_limit_orders(
                 // We set these values to zero since they will be unused anyway
                 order_id: 0,
                 etas: Decimal256::zero(),
+                claim_bounty: None,
             };
             orders.push(order);
         }
@@ -162,6 +171,7 @@ pub(crate) fn place_multiple_limit_orders(
             order.tick_id,
             order.order_direction,
             order.quantity,
+            order.claim_bounty,
         )?;
     }
     Ok(())

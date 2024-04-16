@@ -16,7 +16,7 @@ use cosmwasm_std::{
 use cw_storage_plus::Bound;
 use cw_utils::{must_pay, nonpayable};
 
-#[allow(clippy::manual_range_contains)]
+#[allow(clippy::manual_range_contains, clippy::too_many_arguments)]
 pub fn place_limit(
     deps: &mut DepsMut,
     _env: Env,
@@ -569,7 +569,7 @@ pub(crate) fn claim_order(
         // Bounty always goes to the sender
         let bounty_msg = BankMsg::Send {
             to_address: sender.to_string(),
-            amount: vec![coin(bounty.u128(), denom.clone())],
+            amount: vec![coin(bounty.u128(), denom)],
         };
         bank_msg_vec.push(SubMsg::reply_on_error(bounty_msg, REPLY_ID_CLAIM_BOUNTY));
     }

@@ -49,6 +49,7 @@ pub struct LimitOrder {
 }
 
 impl LimitOrder {
+    #[allow(clippy::too_many_arguments)]
     pub fn new(
         book_id: u64,
         tick_id: i64,

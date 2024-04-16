@@ -36,6 +36,7 @@ pub fn sudo(deps: DepsMut, _env: Env, msg: SudoMsg) -> ContractResult<Response> 
             token_out,
             swap_fee,
         } => dispatch_swap_exact_amount_out(
+            deps,
             sender,
             token_in_denom,
             token_in_max_amount,
@@ -123,14 +124,82 @@ pub(crate) fn dispatch_swap_exact_amount_in(
         ]))
 }
 
+/// Swaps the provided token out for the desired token in while restricting the possible maximum output.
+/// The swap is performed by first determining the orderbook to be used before generating a market order against that orderbook.
+/// Order direction is automatically determined by the token in/token out pairing.
+///
+/// Errors if the amount provided by the swap exceeds the `token_in_max_amount` or if there is no orderbook for the provided pair.
 pub(crate) fn dispatch_swap_exact_amount_out(
-    _sender: String,
-    _token_in_denom: String,
-    _token_in_max_amount: Uint128,
-    _token_out: Coin,
-    _swap_fee: Decimal,
+    deps: DepsMut,
+    sender: String,
+    token_in_denom: String,
+    token_in_max_amount: Uint128,
+    token_out: Coin,
+    swap_fee: Decimal,
 ) -> ContractResult<Response> {
-    todo!();
+    // Ensure the provided swap fee matches what is expected
+    ensure_swap_fee(swap_fee)?;
+
+    let token_out_denom = token_out.denom.clone();
+
+    // Load the book ID for the provided pair
+    let book_id = DENOM_PAIR_BOOK_ID
+        .may_load(deps.storage, (&token_in_denom, &token_out_denom))?
+        .ok_or(ContractError::InvalidPair {
+            token_in_denom: token_in_denom.clone(),
+            token_out_denom: token_out_denom.clone(),
+        })?;
+    // Load the orderbook for the provided pair
+    let orderbook = ORDERBOOKS
+        .may_load(deps.storage, &book_id)?
+        .ok_or(ContractError::InvalidBookId { book_id })?;
+
+    // Determine order direction based on token in/out denoms
+    let order_direction = orderbook.direction_from_pair(token_out_denom, token_in_denom.clone())?;
+
+    // Generate market order to be run
+    let mut order = MarketOrder::new(
+        book_id,
+        token_out.amount,
+        order_direction,
+        deps.api.addr_validate(&sender)?,
+    );
+
+    // Market orders always run until either the input is filled or the orderbook is exhausted.
+    let tick_bound = match order_direction {
+        OrderDirection::Bid => MAX_TICK,
+        OrderDirection::Ask => MIN_TICK,
+    };
+
+    // Run market order against orderbook
+    let (output, bank_msg) = run_market_order(deps.storage, &mut order, tick_bound)?;
+
+    // Validate the fullfillment message against the order
+    if let BankMsg::Send { amount, .. } = bank_msg.clone() {
+        let fullfillment_amt = amount.first().ok_or(ContractError::InvalidSwap {
+            error: "Order did not generate a fulfillment message".to_string(),
+        })?;
+        ensure_fullfilment_amount(
+            Some(token_in_max_amount),
+            None,
+            token_in_denom.clone(),
+            fullfillment_amt,
+        )?;
+    }
+
+    Ok(Response::default()
+        .add_submessage(SubMsg::reply_on_error(
+            bank_msg,
+            REPLY_ID_SUDO_SWAP_EX_AMT_IN,
+        ))
+        .add_attributes(vec![
+            ("method", "swapExactAmountOut"),
+            ("sender", &sender),
+            ("token_out", &token_out.to_string()),
+            ("token_in_denom", &token_in_denom),
+            ("token_in_max_amount", &token_in_max_amount.to_string()),
+            ("output_quantity", &output.to_string()),
+        ]))
 }
 
 /// Ensures that the generated fullfillment meets the criteria set by the CW Pool interface. Ensures the following:

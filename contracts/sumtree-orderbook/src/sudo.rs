@@ -1,5 +1,6 @@
 use cosmwasm_std::{
-    ensure, entry_point, BankMsg, Coin, Decimal, DepsMut, Env, Response, StdError, SubMsg, Uint128,
+    coin, ensure, entry_point, BankMsg, Coin, Decimal, DepsMut, Env, Response, StdError, SubMsg,
+    Uint128,
 };
 
 use crate::{
@@ -72,19 +73,8 @@ pub(crate) fn dispatch_swap_exact_amount_in(
         .may_load(deps.storage, &book_id)?
         .ok_or(ContractError::InvalidBookId { book_id })?;
 
-    // A tuple representing the expected in and out token denominations
-    // Of the form (in token, out token)
-    let in_out_tuple = (token_in_denom, token_out_denom.clone());
-
     // Determine order direction based on token in/out denoms
-    let order_direction =
-        if (orderbook.base_denom.clone(), orderbook.quote_denom.clone()) == in_out_tuple {
-            OrderDirection::Ask
-        } else if (orderbook.quote_denom, orderbook.base_denom) == in_out_tuple {
-            OrderDirection::Bid
-        } else {
-            return Err(ContractError::InvalidBookId { book_id });
-        };
+    let order_direction = orderbook.direction_from_pair(token_in_denom, token_out_denom.clone())?;
 
     // Generate market order to be run
     let mut order = MarketOrder::new(
@@ -110,7 +100,14 @@ pub(crate) fn dispatch_swap_exact_amount_in(
             .ok_or(ContractError::Std(StdError::generic_err(
                 "No fullfillment message generated from market order",
             )))?;
-        ensure!(to_address == sender, ContractError::InvalidMarketOrder);
+        ensure!(
+            to_address == sender,
+            ContractError::InvalidSwap {
+                token_in,
+                token_out: coin(token_out_min_amount.u128(), token_out_denom),
+                error: "Generated fullfillment recipient did not match sender"
+            }
+        );
         ensure_fullfilment_amt(
             None,
             Some(token_out_min_amount),
@@ -118,7 +115,11 @@ pub(crate) fn dispatch_swap_exact_amount_in(
             fullfillment_amt,
         )?;
     } else {
-        return Err(ContractError::InvalidMarketOrder);
+        return Err(ContractError::InvalidSwap {
+            token_in,
+            token_out: coin(token_out_min_amount.u128(), token_out_denom),
+            error: "Fullfillment did not generate the correct message type",
+        });
     }
 
     // Ensure the provided swap fee matches what is expected
@@ -153,7 +154,7 @@ pub(crate) fn dispatch_swap_exact_amount_out(
 /// 1. An optional provided maximum amount (swap exact amount out)
 /// 2. An optional provided minimum amount (swap exact amount in)
 /// 3. An expected denom
-pub(crate) fn ensure_fullfilment_amt(
+pub(crate) fn ensure_fullfilment_amount(
     max_amount: Option<Uint128>,
     min_amount: Option<Uint128>,
     expected_denom: String,

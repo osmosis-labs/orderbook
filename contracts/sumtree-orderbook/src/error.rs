@@ -1,6 +1,6 @@
 use cosmwasm_std::{
-    CheckedFromRatioError, CheckedMultiplyRatioError, CoinsError, ConversionOverflowError, Decimal,
-    DecimalRangeExceeded, DivideByZeroError, OverflowError, StdError, Uint128,
+    CheckedFromRatioError, CheckedMultiplyRatioError, Coin, CoinsError, ConversionOverflowError,
+    Decimal, DecimalRangeExceeded, DivideByZeroError, OverflowError, StdError, Uint128,
 };
 use cw_utils::PaymentError;
 use thiserror::Error;
@@ -33,6 +33,19 @@ pub enum ContractError {
 
     #[error("Invalid Market Order")]
     InvalidMarketOrder,
+
+    #[error("Invalid pair: ({token_in_denom}, {token_out_denom})")]
+    InvalidPair {
+        token_in_denom: String,
+        token_out_denom: String,
+    },
+
+    #[error("Invalid swap: in: {token_in} out: {token_out}; {error}")]
+    InvalidSwap {
+        token_in: Coin,
+        token_out: Coin,
+        error: &'static str,
+    },
 
     #[error(transparent)]
     Coins(#[from] CoinsError),

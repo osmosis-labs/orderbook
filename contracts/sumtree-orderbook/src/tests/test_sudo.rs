@@ -6,12 +6,99 @@ use cosmwasm_std::{
 
 use crate::{
     orderbook::create_orderbook,
-    sudo::{dispatch_swap_exact_amount_in, EXPECTED_SWAP_FEE},
+    sudo::{dispatch_swap_exact_amount_in, ensure_fullfilment_amount, EXPECTED_SWAP_FEE},
     types::{LimitOrder, OrderDirection, REPLY_ID_SUDO_SWAP_EX_AMT_IN},
     ContractError,
 };
 
 use super::test_utils::{format_test_name, OrderOperation};
+
+struct EnsureFulfillmentAmountTestCase {
+    name: &'static str,
+    max_amount: Option<Uint128>,
+    min_amount: Option<Uint128>,
+    expected_denom: String,
+    fulfilled: Coin,
+    expected_error: Option<ContractError>,
+}
+
+#[test]
+fn test_ensure_fulfillment_amount() {
+    let valid_denom = "denoma";
+    let test_cases: Vec<EnsureFulfillmentAmountTestCase> = vec![
+        EnsureFulfillmentAmountTestCase {
+            name: "valid fulfillment",
+            max_amount: Some(Uint128::from(100u128)),
+            min_amount: Some(Uint128::zero()),
+            expected_denom: valid_denom.to_string(),
+            fulfilled: coin(50u128, valid_denom),
+            expected_error: None,
+        },
+        EnsureFulfillmentAmountTestCase {
+            name: "exceed max",
+            max_amount: Some(Uint128::from(100u128)),
+            min_amount: Some(Uint128::zero()),
+            expected_denom: valid_denom.to_string(),
+            fulfilled: coin(101u128, valid_denom),
+            expected_error: Some(ContractError::InvalidSwap {
+                error: format!(
+                    "Exceeded max swap amount: expected {} received {}",
+                    Uint128::from(100u128),
+                    Uint128::from(101u128)
+                ),
+            }),
+        },
+        EnsureFulfillmentAmountTestCase {
+            name: "do not meet min",
+            max_amount: Some(Uint128::from(100u128)),
+            min_amount: Some(Uint128::from(50u128)),
+            expected_denom: valid_denom.to_string(),
+            fulfilled: coin(41u128, valid_denom),
+            expected_error: Some(ContractError::InvalidSwap {
+                error: format!(
+                    "Did not meet minimum swap amount: expected {} received {}",
+                    Uint128::from(50u128),
+                    Uint128::from(41u128)
+                ),
+            }),
+        },
+        EnsureFulfillmentAmountTestCase {
+            name: "invalid denom",
+            max_amount: Some(Uint128::from(100u128)),
+            min_amount: Some(Uint128::zero()),
+            expected_denom: valid_denom.to_string(),
+            fulfilled: coin(41u128, "some other denom"),
+            expected_error: Some(ContractError::InvalidSwap {
+                error: format!(
+                    "Incorrect denom: expected {} received {}",
+                    valid_denom, "some other denom"
+                ),
+            }),
+        },
+    ];
+
+    for test in test_cases {
+        // -- System under test --
+        let resp = ensure_fullfilment_amount(
+            test.max_amount,
+            test.min_amount,
+            test.expected_denom,
+            &test.fulfilled,
+        );
+
+        if let Some(expected_err) = test.expected_error {
+            assert_eq!(
+                resp.unwrap_err(),
+                expected_err,
+                "{}: did not receive expected error",
+                format_test_name(test.name)
+            );
+            continue;
+        }
+
+        // No assertions as error was not produced
+    }
+}
 
 struct SwapExactAmountInTestCase {
     name: &'static str,

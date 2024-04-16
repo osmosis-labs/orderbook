@@ -1,10 +1,11 @@
 use cosmwasm_std::{
     coin,
     testing::{mock_dependencies, mock_env, mock_info},
-    Addr, BankMsg, Coin, Decimal, Decimal256, SubMsg, Uint128,
+    to_json_binary, Addr, BankMsg, Coin, Decimal, Decimal256, SubMsg, Uint128,
 };
 
 use crate::{
+    msg::SwapExactAmountInResponseData,
     orderbook::create_orderbook,
     sudo::{
         dispatch_swap_exact_amount_in, dispatch_swap_exact_amount_out, ensure_fullfilment_amount,
@@ -18,31 +19,32 @@ use super::test_utils::{format_test_name, OrderOperation};
 
 struct EnsureFulfillmentAmountTestCase {
     name: &'static str,
-    max_amount: Option<Uint128>,
-    min_amount: Option<Uint128>,
-    expected_denom: String,
-    fulfilled: Coin,
+    max_in_amount: Option<Uint128>,
+    min_out_amount: Option<Uint128>,
+    input: Coin,
+    output: Coin,
     expected_error: Option<ContractError>,
 }
 
 #[test]
 fn test_ensure_fulfillment_amount() {
-    let valid_denom = "denoma";
+    let in_denom = "denoma";
+    let out_denom = "denomb";
     let test_cases: Vec<EnsureFulfillmentAmountTestCase> = vec![
         EnsureFulfillmentAmountTestCase {
             name: "valid fulfillment",
-            max_amount: Some(Uint128::from(100u128)),
-            min_amount: Some(Uint128::zero()),
-            expected_denom: valid_denom.to_string(),
-            fulfilled: coin(50u128, valid_denom),
+            max_in_amount: Some(Uint128::from(100u128)),
+            min_out_amount: Some(Uint128::zero()),
+            input: coin(50u128, in_denom),
+            output: coin(50u128, out_denom),
             expected_error: None,
         },
         EnsureFulfillmentAmountTestCase {
             name: "exceed max",
-            max_amount: Some(Uint128::from(100u128)),
-            min_amount: Some(Uint128::zero()),
-            expected_denom: valid_denom.to_string(),
-            fulfilled: coin(101u128, valid_denom),
+            max_in_amount: Some(Uint128::from(100u128)),
+            min_out_amount: Some(Uint128::zero()),
+            output: coin(50u128, in_denom),
+            input: coin(101u128, out_denom),
             expected_error: Some(ContractError::InvalidSwap {
                 error: format!(
                     "Exceeded max swap amount: expected {} received {}",
@@ -53,10 +55,10 @@ fn test_ensure_fulfillment_amount() {
         },
         EnsureFulfillmentAmountTestCase {
             name: "do not meet min",
-            max_amount: Some(Uint128::from(100u128)),
-            min_amount: Some(Uint128::from(50u128)),
-            expected_denom: valid_denom.to_string(),
-            fulfilled: coin(41u128, valid_denom),
+            max_in_amount: Some(Uint128::from(100u128)),
+            min_out_amount: Some(Uint128::from(50u128)),
+            input: coin(50u128, in_denom),
+            output: coin(41u128, out_denom),
             expected_error: Some(ContractError::InvalidSwap {
                 error: format!(
                     "Did not meet minimum swap amount: expected {} received {}",
@@ -66,16 +68,13 @@ fn test_ensure_fulfillment_amount() {
             }),
         },
         EnsureFulfillmentAmountTestCase {
-            name: "invalid denom",
-            max_amount: Some(Uint128::from(100u128)),
-            min_amount: Some(Uint128::zero()),
-            expected_denom: valid_denom.to_string(),
-            fulfilled: coin(41u128, "some other denom"),
+            name: "duplicate denom",
+            max_in_amount: Some(Uint128::from(100u128)),
+            min_out_amount: Some(Uint128::zero()),
+            input: coin(50u128, in_denom),
+            output: coin(41u128, in_denom),
             expected_error: Some(ContractError::InvalidSwap {
-                error: format!(
-                    "Incorrect denom: expected {} received {}",
-                    valid_denom, "some other denom"
-                ),
+                error: "Input and output denoms cannot be the same".to_string(),
             }),
         },
     ];
@@ -83,10 +82,10 @@ fn test_ensure_fulfillment_amount() {
     for test in test_cases {
         // -- System under test --
         let resp = ensure_fullfilment_amount(
-            test.max_amount,
-            test.min_amount,
-            test.expected_denom,
-            &test.fulfilled,
+            test.max_in_amount,
+            test.min_out_amount,
+            &test.input,
+            &test.output,
         );
 
         if let Some(expected_err) = test.expected_error {
@@ -342,7 +341,7 @@ fn test_swap_exact_amount_in() {
         let expected_msg = SubMsg::reply_on_error(
             BankMsg::Send {
                 to_address: sender.to_string(),
-                amount: vec![test.expected_output],
+                amount: vec![test.expected_output.clone()],
             },
             REPLY_ID_SUDO_SWAP_EX_AMT_IN,
         );
@@ -352,6 +351,13 @@ fn test_swap_exact_amount_in() {
             "{}: did not receive expected fulfillment message",
             format_test_name(test.name)
         );
+
+        let expected_data = to_json_binary(&SwapExactAmountInResponseData {
+            token_out_amount: test.expected_output.amount,
+        })
+        .unwrap();
+
+        assert_eq!(response.data, Some(expected_data))
     }
 }
 
@@ -369,7 +375,7 @@ struct SwapExactAmountOutTestCase {
 #[test]
 fn test_swap_exact_amount_out() {
     let valid_book_id = 0;
-    let valid_tick_id = 0;
+    let _valid_tick_id = 0;
     let quote_denom = "quote";
     let base_denom = "base";
     let sender = Addr::unchecked("sender");

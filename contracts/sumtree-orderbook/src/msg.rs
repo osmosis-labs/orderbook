@@ -83,3 +83,15 @@ pub enum SudoMsg {
         swap_fee: Decimal,
     },
 }
+
+#[cw_serde]
+/// Fixing token in amount makes token amount out varies
+pub struct SwapExactAmountInResponseData {
+    pub token_out_amount: Uint128,
+}
+
+#[cw_serde]
+/// Fixing token out amount makes token amount in varies
+pub struct SwapExactAmountOutResponseData {
+    pub token_in_amount: Uint128,
+}

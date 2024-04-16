@@ -124,7 +124,7 @@ pub(crate) fn dispatch_swap_exact_amount_in(
         ]))
 }
 
-/// Swaps the provided token out for the desired token in while restricting the possible maximum output.
+/// Swaps the provided token in for the desired token out while restricting the possible maximum input.
 /// The swap is performed by first determining the orderbook to be used before generating a market order against that orderbook.
 /// Order direction is automatically determined by the token in/token out pairing.
 ///
@@ -155,7 +155,8 @@ pub(crate) fn dispatch_swap_exact_amount_out(
         .ok_or(ContractError::InvalidBookId { book_id })?;
 
     // Determine order direction based on token in/out denoms
-    let order_direction = orderbook.direction_from_pair(token_out_denom, token_in_denom.clone())?;
+    let order_direction =
+        orderbook.direction_from_pair(token_in_denom.clone(), token_out_denom.clone())?;
 
     // Generate market order to be run
     let mut order = MarketOrder::new(
@@ -182,7 +183,7 @@ pub(crate) fn dispatch_swap_exact_amount_out(
         ensure_fullfilment_amount(
             Some(token_in_max_amount),
             None,
-            token_in_denom.clone(),
+            token_out_denom,
             fullfillment_amt,
         )?;
     }

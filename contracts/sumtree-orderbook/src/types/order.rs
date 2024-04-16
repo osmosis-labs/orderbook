@@ -48,7 +48,6 @@ pub struct LimitOrder {
     pub claim_bounty: Option<Decimal>,
 }
 
-#[allow(clippy::too_many_arguments)]
 impl LimitOrder {
     pub fn new(
         book_id: u64,

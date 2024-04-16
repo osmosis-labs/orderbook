@@ -94,7 +94,7 @@ pub enum ContractError {
     NodeInsertionError,
 
     #[error("Orderbook ran out of liquidity during market order")]
-    InsufficientOrderbookLiquidity,
+    InsufficientLiquidity,
 
     #[error("Claim bounty must be a value between 0 and 1. Received: {claim_bounty:?}")]
     InvalidClaimBounty { claim_bounty: Option<Decimal> },

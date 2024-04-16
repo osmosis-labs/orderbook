@@ -987,40 +987,35 @@ fn test_run_market_order() {
             expected_tick_pointers: vec![(OrderDirection::Ask, -1500000)],
             expected_error: Some(ContractError::InvalidTickId { tick_id: MIN_TICK }),
         },
-        // RunMarketOrderTestCase {
-        //     name: "bid at positive tick that can only partially be filled",
-        //     sent: Uint128::new(1000),
-        //     placed_order: MarketOrder::new(
-        //         valid_book_id,
-        //         Uint128::new(1000),
-        //         OrderDirection::Bid,
-        //         Addr::unchecked(default_sender),
-        //     ),
-        //     tick_bound: MAX_TICK,
+        RunMarketOrderTestCase {
+            name: "insufficient liquidity on orderbook",
+            sent: Uint128::new(1000),
+            placed_order: MarketOrder::new(
+                valid_book_id,
+                // Only 973 can be filled
+                Uint128::new(1000),
+                OrderDirection::Bid,
+                Addr::unchecked(default_sender),
+            ),
+            tick_bound: MAX_TICK,
 
-        //     // Orders to fill against
-        //     orders: generate_limit_orders(
-        //         valid_book_id,
-        //         &[40000000],
-        //         // Current tick is below the active limit orders
-        //         default_current_tick,
-        //         // Only half the required liquidity to process the full input.
-        //         1,
-        //         Uint128::new(25_000_000),
-        //     ),
+            // Orders to fill against
+            orders: generate_limit_orders(
+                valid_book_id,
+                &[-17765433],
+                // Current tick is below the active limit orders
+                -20000000,
+                // Four limit orders with sufficient total liquidity to process the
+                // full market order
+                4,
+                Uint128::new(3),
+            ),
 
-        //     // Bidding 1000 units of input into tick 40,000,000, which corresponds to a
-        //     // price of $50000 (from tick math test cases).
-        //     //
-        //     // This implies 1000*50000 = 50,000,000 units of output.
-        //     //
-        //     // However, since the book only has 25,000,000 units of liquidity, that is how much
-        //     // is filled.
-        //     expected_output: Uint128::new(25_000_000),
-        //     expected_tick_etas: vec![(40000000, decimal256_from_u128(Uint128::new(25_000_000)))],
-        //     expected_tick_pointers: vec![(OrderDirection::Ask, 40000000)],
-        //     expected_error: None,
-        // },
+            expected_output: Uint128::zero(),
+            expected_tick_etas: vec![],
+            expected_tick_pointers: vec![],
+            expected_error: Some(ContractError::InsufficientLiquidity {}),
+        },
     ];
 
     for test in test_cases {

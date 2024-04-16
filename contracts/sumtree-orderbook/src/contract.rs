@@ -132,7 +132,6 @@ pub fn reply(_deps: DepsMut, _env: Env, msg: Reply) -> Result<Response, Contract
     todo!()
 }
 
-#[allow(clippy::too_many_arguments)]
 pub fn dispatch_place_limit(
     mut deps: DepsMut,
     env: Env,

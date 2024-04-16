@@ -58,6 +58,9 @@ pub(crate) fn dispatch_swap_exact_amount_in(
     token_out_min_amount: Uint128,
     swap_fee: Decimal,
 ) -> ContractResult<Response> {
+    // Ensure the provided swap fee matches what is expected
+    ensure_swap_fee(swap_fee)?;
+
     let token_in_denom = token_in.denom.clone();
 
     // Load the book ID for the provided pair
@@ -104,9 +107,6 @@ pub(crate) fn dispatch_swap_exact_amount_in(
             fullfillment_amt,
         )?;
     }
-
-    // Ensure the provided swap fee matches what is expected
-    ensure_swap_fee(swap_fee)?;
 
     Ok(Response::default()
         .add_submessage(SubMsg::reply_on_error(

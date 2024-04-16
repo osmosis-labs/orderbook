@@ -744,10 +744,10 @@ fn test_run_market_order() {
         },
         RunMarketOrderTestCase {
             name: "bid at very small negative tick",
-            sent: Uint128::new(1000),
+            sent: Uint128::new(973),
             placed_order: MarketOrder::new(
                 valid_book_id,
-                Uint128::new(1000),
+                Uint128::new(973),
                 OrderDirection::Bid,
                 Addr::unchecked(default_sender),
             ),
@@ -988,10 +988,11 @@ fn test_run_market_order() {
             expected_error: Some(ContractError::InvalidTickId { tick_id: MIN_TICK }),
         },
         RunMarketOrderTestCase {
-            name: "bid at positive tick that can only partially be filled",
+            name: "insufficient liquidity on orderbook",
             sent: Uint128::new(1000),
             placed_order: MarketOrder::new(
                 valid_book_id,
+                // Only 973 can be filled
                 Uint128::new(1000),
                 OrderDirection::Bid,
                 Addr::unchecked(default_sender),
@@ -1001,29 +1002,24 @@ fn test_run_market_order() {
             // Orders to fill against
             orders: generate_limit_orders(
                 valid_book_id,
-                &[40000000],
+                &[-17765433],
                 // Current tick is below the active limit orders
-                default_current_tick,
-                // Only half the required liquidity to process the full input.
-                1,
-                Uint128::new(25_000_000),
+                -20000000,
+                // Four limit orders with sufficient total liquidity to process the
+                // full market order
+                4,
+                Uint128::new(3),
             ),
 
-            // Bidding 1000 units of input into tick 40,000,000, which corresponds to a
-            // price of $50000 (from tick math test cases).
-            //
-            // This implies 1000*50000 = 50,000,000 units of output.
-            //
-            // However, since the book only has 25,000,000 units of liquidity, that is how much
-            // is filled.
-            expected_output: Uint128::new(25_000_000),
-            expected_tick_etas: vec![(40000000, decimal256_from_u128(Uint128::new(25_000_000)))],
-            expected_tick_pointers: vec![(OrderDirection::Ask, 40000000)],
-            expected_error: None,
+            expected_output: Uint128::zero(),
+            expected_tick_etas: vec![],
+            expected_tick_pointers: vec![],
+            expected_error: Some(ContractError::InsufficientLiquidity {}),
         },
     ];
 
     for test in test_cases {
+        println!("{:?}", test.name);
         // --- Setup ---
 
         // Create a mock environment and info
@@ -1077,6 +1073,21 @@ fn test_run_market_order() {
 
         // --- Assertions ---
 
+        // Error case assertions if applicable
+        if let Some(expected_error) = &test.expected_error {
+            assert_eq!(
+                *expected_error,
+                response.unwrap_err(),
+                "{}",
+                format_test_name(test.name)
+            );
+
+            continue;
+        }
+
+        // Assert no error
+        let response = response.unwrap();
+
         // Assert expected tick ETAS values are correct.
         // This should run regardless of whether we error or not.
         for (tick_id, expected_etas) in test.expected_tick_etas {
@@ -1119,21 +1130,6 @@ fn test_run_market_order() {
             "{}",
             format_test_name(test.name)
         );
-
-        // Error case assertions if applicable
-        if let Some(expected_error) = &test.expected_error {
-            assert_eq!(
-                *expected_error,
-                response.unwrap_err(),
-                "{}",
-                format_test_name(test.name)
-            );
-
-            continue;
-        }
-
-        // Assert no error
-        let response = response.unwrap();
 
         // We expect the output denom to be the opposite of the input denom,
         // although we derive it directly from the order direction to ensure correctness.
@@ -1615,7 +1611,7 @@ fn test_claim_order() {
             tick_id: valid_tick_id,
             expected_bank_msg: SubMsg::reply_on_error(
                 BankMsg::Send {
-                    to_address: sender.clone().to_string(),
+                    to_address: sender.to_string(),
                     amount: vec![coin(10u128, quote_denom)],
                 },
                 REPLY_ID_CLAIM,
@@ -1650,7 +1646,7 @@ fn test_claim_order() {
             tick_id: valid_tick_id,
             expected_bank_msg: SubMsg::reply_on_error(
                 BankMsg::Send {
-                    to_address: sender.clone().to_string(),
+                    to_address: sender.to_string(),
                     amount: vec![coin(10u128, quote_denom)],
                 },
                 REPLY_ID_CLAIM,
@@ -1685,7 +1681,7 @@ fn test_claim_order() {
             tick_id: valid_tick_id,
             expected_bank_msg: SubMsg::reply_on_error(
                 BankMsg::Send {
-                    to_address: sender.clone().to_string(),
+                    to_address: sender.to_string(),
                     amount: vec![coin(5u128, quote_denom)],
                 },
                 REPLY_ID_CLAIM,
@@ -1736,7 +1732,7 @@ fn test_claim_order() {
             tick_id: valid_tick_id,
             expected_bank_msg: SubMsg::reply_on_error(
                 BankMsg::Send {
-                    to_address: sender.clone().to_string(),
+                    to_address: sender.to_string(),
                     amount: vec![coin(3u128, quote_denom)],
                 },
                 REPLY_ID_CLAIM,
@@ -1772,7 +1768,7 @@ fn test_claim_order() {
             expected_bank_msg: SubMsg::reply_on_error(
                 BankMsg::Send {
                     // Ensure the order placer receives the claimed amount
-                    to_address: sender.clone().to_string(),
+                    to_address: sender.to_string(),
                     // 10% of the claimed amount goes to the bounty
                     amount: vec![coin(10u128 - 1u128, quote_denom)],
                 },
@@ -1824,7 +1820,7 @@ fn test_claim_order() {
             tick_id: valid_tick_id,
             expected_bank_msg: SubMsg::reply_on_error(
                 BankMsg::Send {
-                    to_address: sender.clone().to_string(),
+                    to_address: sender.to_string(),
                     // 35% of most recent claim goes to bounty: 3*0.35 = 1.05 -> 1 unit
                     amount: vec![coin(3u128 - 1u128, quote_denom)],
                 },
@@ -1832,7 +1828,7 @@ fn test_claim_order() {
             ),
             expected_bounty_msg: Some(SubMsg::reply_on_error(
                 BankMsg::Send {
-                    to_address: Addr::unchecked("claimer").to_string().to_string(),
+                    to_address: Addr::unchecked("claimer").to_string(),
                     // 1 unit goes to claimer for bounty
                     amount: vec![coin(1u128, quote_denom)],
                 },
@@ -1869,7 +1865,7 @@ fn test_claim_order() {
             tick_id: LARGE_POSITIVE_TICK,
             expected_bank_msg: SubMsg::reply_on_error(
                 BankMsg::Send {
-                    to_address: sender.clone().to_string(),
+                    to_address: sender.to_string(),
                     // Tick price = 2, 10/2 = 5
                     amount: vec![coin(5u128, quote_denom)],
                 },
@@ -1906,7 +1902,7 @@ fn test_claim_order() {
             tick_id: LARGE_POSITIVE_TICK,
             expected_bank_msg: SubMsg::reply_on_error(
                 BankMsg::Send {
-                    to_address: sender.clone().to_string(),
+                    to_address: sender.to_string(),
                     // Tick price = 2, 4/2 = 2
                     amount: vec![coin(2u128, quote_denom)],
                 },
@@ -1960,7 +1956,7 @@ fn test_claim_order() {
             tick_id: LARGE_POSITIVE_TICK,
             expected_bank_msg: SubMsg::reply_on_error(
                 BankMsg::Send {
-                    to_address: sender.clone().to_string(),
+                    to_address: sender.to_string(),
                     // Tick price = 2, 6/2 = 3
                     amount: vec![coin(3u128, quote_denom)],
                 },
@@ -1997,7 +1993,7 @@ fn test_claim_order() {
             tick_id: LARGE_NEGATIVE_TICK,
             expected_bank_msg: SubMsg::reply_on_error(
                 BankMsg::Send {
-                    to_address: sender.clone().to_string(),
+                    to_address: sender.to_string(),
                     amount: vec![coin(200u128, quote_denom)],
                 },
                 REPLY_ID_CLAIM,
@@ -2032,7 +2028,7 @@ fn test_claim_order() {
             tick_id: LARGE_NEGATIVE_TICK,
             expected_bank_msg: SubMsg::reply_on_error(
                 BankMsg::Send {
-                    to_address: sender.clone().to_string(),
+                    to_address: sender.to_string(),
                     amount: vec![coin(100u128, quote_denom)],
                 },
                 REPLY_ID_CLAIM,
@@ -2084,7 +2080,7 @@ fn test_claim_order() {
             tick_id: LARGE_NEGATIVE_TICK,
             expected_bank_msg: SubMsg::reply_on_error(
                 BankMsg::Send {
-                    to_address: sender.clone().to_string(),
+                    to_address: sender.to_string(),
                     amount: vec![coin(100u128, quote_denom)],
                 },
                 REPLY_ID_CLAIM,
@@ -2130,7 +2126,7 @@ fn test_claim_order() {
             tick_id: valid_tick_id,
             expected_bank_msg: SubMsg::reply_on_error(
                 BankMsg::Send {
-                    to_address: sender.clone().to_string(),
+                    to_address: sender.to_string(),
                     amount: vec![coin(100u128, quote_denom)],
                 },
                 REPLY_ID_CLAIM,
@@ -2158,7 +2154,7 @@ fn test_claim_order() {
                     // Tick price is 0.000000000001, so 3_333_333_333_333 * 0.000000000001 = 3.33333333333
                     // We expect this to get truncated to 3, as order outputs should always be rounding
                     // in favor of the orderbook.
-                    Uint128::from(3_333_333_333_333u128),
+                    Uint128::from(3_000_000_000_000u128),
                     OrderDirection::Bid,
                     Addr::unchecked("buyer"),
                 )),
@@ -2168,7 +2164,7 @@ fn test_claim_order() {
             tick_id: MIN_TICK,
             expected_bank_msg: SubMsg::reply_on_error(
                 BankMsg::Send {
-                    to_address: sender.clone().to_string(),
+                    to_address: sender.to_string(),
                     // Tick price = 0.000000000001, 3 / 0.000000000001 = 3_000_000_000_000
                     amount: vec![coin(3_000_000_000_000u128, quote_denom)],
                 },
@@ -2214,7 +2210,7 @@ fn test_claim_order() {
             tick_id: valid_tick_id,
             expected_bank_msg: SubMsg::reply_on_error(
                 BankMsg::Send {
-                    to_address: sender.clone().to_string(),
+                    to_address: sender.to_string(),
                     amount: vec![coin(10u128, base_denom)],
                 },
                 REPLY_ID_CLAIM,
@@ -2249,7 +2245,7 @@ fn test_claim_order() {
             tick_id: valid_tick_id,
             expected_bank_msg: SubMsg::reply_on_error(
                 BankMsg::Send {
-                    to_address: sender.clone().to_string(),
+                    to_address: sender.to_string(),
                     amount: vec![coin(5u128, base_denom)],
                 },
                 REPLY_ID_CLAIM,
@@ -2300,7 +2296,7 @@ fn test_claim_order() {
             tick_id: valid_tick_id,
             expected_bank_msg: SubMsg::reply_on_error(
                 BankMsg::Send {
-                    to_address: sender.clone().to_string(),
+                    to_address: sender.to_string(),
                     amount: vec![coin(3u128, base_denom)],
                 },
                 REPLY_ID_CLAIM,
@@ -2337,7 +2333,7 @@ fn test_claim_order() {
             tick_id: LARGE_POSITIVE_TICK,
             expected_bank_msg: SubMsg::reply_on_error(
                 BankMsg::Send {
-                    to_address: sender.clone().to_string(),
+                    to_address: sender.to_string(),
                     // Tick price = 2, 10/2 = 5
                     amount: vec![coin(20u128, base_denom)],
                 },
@@ -2373,7 +2369,7 @@ fn test_claim_order() {
             tick_id: LARGE_POSITIVE_TICK,
             expected_bank_msg: SubMsg::reply_on_error(
                 BankMsg::Send {
-                    to_address: sender.clone().to_string(),
+                    to_address: sender.to_string(),
                     // Tick price = 2, 5 * 2 = 10
                     amount: vec![coin(10u128, base_denom)],
                 },
@@ -2426,7 +2422,7 @@ fn test_claim_order() {
             tick_id: LARGE_POSITIVE_TICK,
             expected_bank_msg: SubMsg::reply_on_error(
                 BankMsg::Send {
-                    to_address: sender.clone().to_string(),
+                    to_address: sender.to_string(),
                     // Tick price = 2, 5 * 2 = 10
                     amount: vec![coin(10u128, base_denom)],
                 },
@@ -2463,7 +2459,7 @@ fn test_claim_order() {
             tick_id: LARGE_NEGATIVE_TICK,
             expected_bank_msg: SubMsg::reply_on_error(
                 BankMsg::Send {
-                    to_address: sender.clone().to_string(),
+                    to_address: sender.to_string(),
                     amount: vec![coin(50u128, base_denom)],
                 },
                 REPLY_ID_CLAIM,
@@ -2498,7 +2494,7 @@ fn test_claim_order() {
             tick_id: LARGE_NEGATIVE_TICK,
             expected_bank_msg: SubMsg::reply_on_error(
                 BankMsg::Send {
-                    to_address: sender.clone().to_string(),
+                    to_address: sender.to_string(),
                     amount: vec![coin(25u128, base_denom)],
                 },
                 REPLY_ID_CLAIM,
@@ -2550,7 +2546,7 @@ fn test_claim_order() {
             tick_id: LARGE_NEGATIVE_TICK,
             expected_bank_msg: SubMsg::reply_on_error(
                 BankMsg::Send {
-                    to_address: sender.clone().to_string(),
+                    to_address: sender.to_string(),
                     amount: vec![coin(25u128, base_denom)],
                 },
                 REPLY_ID_CLAIM,
@@ -2596,7 +2592,7 @@ fn test_claim_order() {
             tick_id: valid_tick_id,
             expected_bank_msg: SubMsg::reply_on_error(
                 BankMsg::Send {
-                    to_address: sender.clone().to_string(),
+                    to_address: sender.to_string(),
                     amount: vec![coin(100u128, base_denom)],
                 },
                 REPLY_ID_CLAIM,
@@ -2631,7 +2627,7 @@ fn test_claim_order() {
             tick_id: valid_tick_id,
             expected_bank_msg: SubMsg::reply_on_error(
                 BankMsg::Send {
-                    to_address: sender.clone().to_string(),
+                    to_address: sender.to_string(),
                     amount: vec![coin(5u128, quote_denom)],
                 },
                 REPLY_ID_CLAIM,
@@ -2666,7 +2662,7 @@ fn test_claim_order() {
             tick_id: 1,
             expected_bank_msg: SubMsg::reply_on_error(
                 BankMsg::Send {
-                    to_address: sender.clone().to_string(),
+                    to_address: sender.to_string(),
                     amount: vec![coin(5u128, quote_denom)],
                 },
                 REPLY_ID_CLAIM,
@@ -2701,7 +2697,7 @@ fn test_claim_order() {
             tick_id: valid_tick_id,
             expected_bank_msg: SubMsg::reply_on_error(
                 BankMsg::Send {
-                    to_address: sender.clone().to_string(),
+                    to_address: sender.to_string(),
                     amount: vec![coin(5u128, quote_denom)],
                 },
                 REPLY_ID_CLAIM,
@@ -2735,7 +2731,7 @@ fn test_claim_order() {
             tick_id: valid_tick_id,
             expected_bank_msg: SubMsg::reply_on_error(
                 BankMsg::Send {
-                    to_address: sender.clone().to_string(),
+                    to_address: sender.to_string(),
                     amount: vec![coin(5u128, quote_denom)],
                 },
                 REPLY_ID_CLAIM,
@@ -2766,7 +2762,7 @@ fn test_claim_order() {
             tick_id: valid_tick_id,
             expected_bank_msg: SubMsg::reply_on_error(
                 BankMsg::Send {
-                    to_address: sender.clone().to_string(),
+                    to_address: sender.to_string(),
                     amount: vec![coin(5u128, quote_denom)],
                 },
                 REPLY_ID_CLAIM,
@@ -2805,7 +2801,7 @@ fn test_claim_order() {
             tick_id: valid_tick_id,
             expected_bank_msg: SubMsg::reply_on_error(
                 BankMsg::Send {
-                    to_address: sender.clone().to_string(),
+                    to_address: sender.to_string(),
                     amount: vec![coin(5u128, quote_denom)],
                 },
                 REPLY_ID_CLAIM,
@@ -2845,7 +2841,7 @@ fn test_claim_order() {
             tick_id: valid_tick_id,
             expected_bank_msg: SubMsg::reply_on_error(
                 BankMsg::Send {
-                    to_address: sender.clone().to_string(),
+                    to_address: sender.to_string(),
                     amount: vec![coin(5u128, quote_denom)],
                 },
                 REPLY_ID_CLAIM,

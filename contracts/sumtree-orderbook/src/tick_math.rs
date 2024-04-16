@@ -150,6 +150,9 @@ pub fn amount_to_value(
     price: Decimal256,
     rounding_direction: RoundingDirection,
 ) -> ContractResult<Uint128> {
+    if amount.is_zero() {
+        return Ok(Uint128::zero());
+    }
     match order {
         OrderDirection::Bid => multiply_by_price(amount, price, rounding_direction),
         OrderDirection::Ask => divide_by_price(amount, price, rounding_direction),

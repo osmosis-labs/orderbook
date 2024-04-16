@@ -398,6 +398,11 @@ pub fn run_market_order(
             RoundingDirection::Down,
         )?;
 
+        if output_quantity.is_zero() {
+            order.quantity = Uint128::zero();
+            break;
+        }
+
         let output_quantity_dec =
             Decimal256::from_ratio(Uint256::from_uint128(output_quantity), Uint256::one());
 

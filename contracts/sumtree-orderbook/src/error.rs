@@ -1,6 +1,6 @@
 use cosmwasm_std::{
-    CheckedFromRatioError, CheckedMultiplyRatioError, Coin, CoinsError, ConversionOverflowError,
-    Decimal, DecimalRangeExceeded, DivideByZeroError, OverflowError, StdError, Uint128,
+    CheckedFromRatioError, CheckedMultiplyRatioError, CoinsError, ConversionOverflowError, Decimal,
+    DecimalRangeExceeded, DivideByZeroError, OverflowError, StdError, Uint128,
 };
 use cw_utils::PaymentError;
 use thiserror::Error;
@@ -13,55 +13,11 @@ pub enum ContractError {
     #[error("{0}")]
     Overflow(#[from] OverflowError),
 
-    #[error("Unauthorized")]
-    Unauthorized {},
-
-    #[error("Invalid tick ID: {tick_id:?}")]
-    InvalidTickId { tick_id: i64 },
-
-    #[error("Invalid quantity: {quantity:?}")]
-    InvalidQuantity { quantity: Uint128 },
-
-    #[error("Insufficient funds. Sent: {sent:?}, Required: {required:?}")]
-    InsufficientFunds { sent: Uint128, required: Uint128 },
-
-    #[error("Invalid book ID: {book_id:?}")]
-    InvalidBookId { book_id: u64 },
-
-    #[error("Orderbook not found for pair: in: {in_denom} out: {out_denom}")]
-    OrderbookNotFound { in_denom: String, out_denom: String },
-
-    #[error("Invalid Market Order")]
-    InvalidMarketOrder,
-
-    #[error("Invalid pair: ({token_in_denom}, {token_out_denom})")]
-    InvalidPair {
-        token_in_denom: String,
-        token_out_denom: String,
-    },
-
-    #[error("Invalid swap: in: {token_in} out: {token_out}; {error}")]
-    InvalidSwap {
-        token_in: Coin,
-        token_out: Coin,
-        error: &'static str,
-    },
-
     #[error(transparent)]
     Coins(#[from] CoinsError),
 
     #[error(transparent)]
     PaymentError(#[from] PaymentError),
-
-    #[error("Order not found: {book_id:?}, {tick_id:?}, {order_id:?}")]
-    OrderNotFound {
-        book_id: u64,
-        tick_id: i64,
-        order_id: u64,
-    },
-
-    #[error("Reply error: {id:?}, {error:?}")]
-    ReplyError { id: u64, error: String },
 
     // Decimal-related errors
     #[error("{0}")]
@@ -78,6 +34,40 @@ pub enum ContractError {
 
     #[error("{0}")]
     DecimalRangeExceeded(#[from] DecimalRangeExceeded),
+
+    #[error("Unauthorized")]
+    Unauthorized {},
+
+    #[error("Invalid tick ID: {tick_id:?}")]
+    InvalidTickId { tick_id: i64 },
+
+    #[error("Invalid quantity: {quantity:?}")]
+    InvalidQuantity { quantity: Uint128 },
+
+    #[error("Insufficient funds. Sent: {sent:?}, Required: {required:?}")]
+    InsufficientFunds { sent: Uint128, required: Uint128 },
+
+    #[error("Invalid book ID: {book_id:?}")]
+    InvalidBookId { book_id: u64 },
+
+    #[error("Invalid pair: ({token_in_denom}, {token_out_denom})")]
+    InvalidPair {
+        token_in_denom: String,
+        token_out_denom: String,
+    },
+
+    #[error("Invalid swap: {error}")]
+    InvalidSwap { error: String },
+
+    #[error("Order not found: {book_id:?}, {tick_id:?}, {order_id:?}")]
+    OrderNotFound {
+        book_id: u64,
+        tick_id: i64,
+        order_id: u64,
+    },
+
+    #[error("Reply error: {id:?}, {error:?}")]
+    ReplyError { id: u64, error: String },
 
     // Tick out of bounds error
     #[error("Tick out of bounds: {tick_id:?}")]

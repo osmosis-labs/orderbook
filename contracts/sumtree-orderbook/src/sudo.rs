@@ -1,6 +1,5 @@
 use cosmwasm_std::{
-    coin, ensure, entry_point, BankMsg, Coin, Decimal, DepsMut, Env, Response, StdError, SubMsg,
-    Uint128,
+    ensure, entry_point, BankMsg, Coin, Decimal, DepsMut, Env, Response, SubMsg, Uint128,
 };
 
 use crate::{
@@ -64,9 +63,9 @@ pub(crate) fn dispatch_swap_exact_amount_in(
     // Load the book ID for the provided pair
     let book_id = DENOM_PAIR_BOOK_ID
         .may_load(deps.storage, (&token_in_denom, &token_out_denom))?
-        .ok_or(ContractError::OrderbookNotFound {
-            in_denom: token_in_denom.clone(),
-            out_denom: token_out_denom.clone(),
+        .ok_or(ContractError::InvalidPair {
+            token_in_denom: token_in_denom.clone(),
+            token_out_denom: token_out_denom.clone(),
         })?;
     // Load the orderbook for the provided pair
     let orderbook = ORDERBOOKS
@@ -94,32 +93,16 @@ pub(crate) fn dispatch_swap_exact_amount_in(
     let (output, bank_msg) = run_market_order(deps.storage, &mut order, tick_bound)?;
 
     // Validate the fullfillment message against the order
-    if let BankMsg::Send { amount, to_address } = bank_msg.clone() {
-        let fullfillment_amt = amount
-            .first()
-            .ok_or(ContractError::Std(StdError::generic_err(
-                "No fullfillment message generated from market order",
-            )))?;
-        ensure!(
-            to_address == sender,
-            ContractError::InvalidSwap {
-                token_in,
-                token_out: coin(token_out_min_amount.u128(), token_out_denom),
-                error: "Generated fullfillment recipient did not match sender"
-            }
-        );
-        ensure_fullfilment_amt(
+    if let BankMsg::Send { amount, .. } = bank_msg.clone() {
+        let fullfillment_amt = amount.first().ok_or(ContractError::InvalidSwap {
+            error: "Order did not generate a fulfillment message".to_string(),
+        })?;
+        ensure_fullfilment_amount(
             None,
             Some(token_out_min_amount),
             token_out_denom.clone(),
             fullfillment_amt,
         )?;
-    } else {
-        return Err(ContractError::InvalidSwap {
-            token_in,
-            token_out: coin(token_out_min_amount.u128(), token_out_denom),
-            error: "Fullfillment did not generate the correct message type",
-        });
     }
 
     // Ensure the provided swap fee matches what is expected
@@ -158,27 +141,42 @@ pub(crate) fn ensure_fullfilment_amount(
     max_amount: Option<Uint128>,
     min_amount: Option<Uint128>,
     expected_denom: String,
-    fullfilled: &Coin,
+    fulfilled: &Coin,
 ) -> ContractResult<()> {
     // Generated amount must be less than or equal to the maximum allowed amount
     if let Some(max_amount) = max_amount {
         ensure!(
-            fullfilled.amount <= max_amount,
-            ContractError::InvalidMarketOrder
+            fulfilled.amount <= max_amount,
+            ContractError::InvalidSwap {
+                error: format!(
+                    "Exceeded max swap amount: expected {max_amount} received {}",
+                    fulfilled.amount
+                )
+            }
         );
     }
     // Generated amount must be more than or equal to the minimum allowed amount
     if let Some(min_amount) = min_amount {
         ensure!(
-            fullfilled.amount >= min_amount,
-            ContractError::InvalidMarketOrder
+            fulfilled.amount >= min_amount,
+            ContractError::InvalidSwap {
+                error: format!(
+                    "Did not meet minimum swap amount: expected {min_amount} received {}",
+                    fulfilled.amount
+                )
+            }
         );
     }
 
     // The denom of the fullfillment must match the expected denom
     ensure!(
-        fullfilled.denom == expected_denom,
-        ContractError::InvalidMarketOrder
+        fulfilled.denom == expected_denom,
+        ContractError::InvalidSwap {
+            error: format!(
+                "Incorrect denom: expected {expected_denom} received {}",
+                fulfilled.denom
+            )
+        }
     );
 
     Ok(())
@@ -189,6 +187,13 @@ pub const EXPECTED_SWAP_FEE: Decimal = Decimal::zero();
 
 /// Ensures that the provided swap fee matches what is expected by this contract
 pub(crate) fn ensure_swap_fee(fee: Decimal) -> ContractResult<()> {
-    ensure!(fee == EXPECTED_SWAP_FEE, ContractError::InvalidMarketOrder);
+    ensure!(
+        fee == EXPECTED_SWAP_FEE,
+        ContractError::InvalidSwap {
+            error: format!(
+                "Provided swap fee does not match: expected {EXPECTED_SWAP_FEE} received {fee}"
+            )
+        }
+    );
     Ok(())
 }

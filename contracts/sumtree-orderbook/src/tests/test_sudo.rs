@@ -125,6 +125,66 @@ fn test_swap_exact_amount_in() {
                 valid_book_id,
                 valid_tick_id,
                 0,
+                OrderDirection::Ask,
+                sender.clone(),
+                Uint128::from(100u128),
+                Decimal256::zero(),
+                None,
+            ))],
+            token_in: coin(100u128, quote_denom),
+            token_out_denom: base_denom,
+            token_out_min_amount: Uint128::from(100u128),
+            swap_fee: EXPECTED_SWAP_FEE,
+            expected_output: coin(100u128, base_denom),
+            expected_error: None,
+        },
+        SwapExactAmountInTestCase {
+            name: "BID: min amount not met",
+            pre_operations: vec![OrderOperation::PlaceLimit(LimitOrder::new(
+                valid_book_id,
+                valid_tick_id,
+                0,
+                OrderDirection::Ask,
+                sender.clone(),
+                Uint128::from(10u128),
+                Decimal256::zero(),
+                None,
+            ))],
+            token_in: coin(100u128, quote_denom),
+            token_out_denom: base_denom,
+            token_out_min_amount: Uint128::from(100u128),
+            swap_fee: EXPECTED_SWAP_FEE,
+            expected_output: coin(100u128, base_denom),
+            expected_error: Some(ContractError::InvalidSwap {
+                error: format!(
+                    "Did not meet minimum swap amount: expected {} received {}",
+                    Uint128::from(100u128),
+                    Uint128::from(10u128)
+                ),
+            }),
+        },
+        SwapExactAmountInTestCase {
+            name: "BID: zero liquidity in orderbook",
+            pre_operations: vec![],
+            token_in: coin(100u128, quote_denom),
+            token_out_denom: base_denom,
+            token_out_min_amount: Uint128::from(100u128),
+            swap_fee: EXPECTED_SWAP_FEE,
+            expected_output: coin(100u128, base_denom),
+            expected_error: Some(ContractError::InvalidSwap {
+                error: format!(
+                    "Did not meet minimum swap amount: expected {} received {}",
+                    Uint128::from(100u128),
+                    Uint128::zero()
+                ),
+            }),
+        },
+        SwapExactAmountInTestCase {
+            name: "ASK: valid basic swap",
+            pre_operations: vec![OrderOperation::PlaceLimit(LimitOrder::new(
+                valid_book_id,
+                valid_tick_id,
+                0,
                 OrderDirection::Bid,
                 sender.clone(),
                 Uint128::from(100u128),
@@ -139,7 +199,32 @@ fn test_swap_exact_amount_in() {
             expected_error: None,
         },
         SwapExactAmountInTestCase {
-            name: "min amount not met",
+            name: "ASK: min amount not met",
+            pre_operations: vec![OrderOperation::PlaceLimit(LimitOrder::new(
+                valid_book_id,
+                valid_tick_id,
+                0,
+                OrderDirection::Bid,
+                sender.clone(),
+                Uint128::from(10u128),
+                Decimal256::zero(),
+                None,
+            ))],
+            token_in: coin(100u128, base_denom),
+            token_out_denom: quote_denom,
+            token_out_min_amount: Uint128::from(100u128),
+            swap_fee: EXPECTED_SWAP_FEE,
+            expected_output: coin(100u128, quote_denom),
+            expected_error: Some(ContractError::InvalidSwap {
+                error: format!(
+                    "Did not meet minimum swap amount: expected {} received {}",
+                    Uint128::from(100u128),
+                    Uint128::from(10u128)
+                ),
+            }),
+        },
+        SwapExactAmountInTestCase {
+            name: "ASK: zero liquidity in orderbook",
             pre_operations: vec![],
             token_in: coin(100u128, base_denom),
             token_out_denom: quote_denom,
@@ -151,6 +236,47 @@ fn test_swap_exact_amount_in() {
                     "Did not meet minimum swap amount: expected {} received {}",
                     Uint128::from(100u128),
                     Uint128::zero()
+                ),
+            }),
+        },
+        SwapExactAmountInTestCase {
+            name: "invalid in denom",
+            pre_operations: vec![],
+            token_in: coin(100u128, "notadenom"),
+            token_out_denom: quote_denom,
+            token_out_min_amount: Uint128::from(100u128),
+            swap_fee: EXPECTED_SWAP_FEE,
+            expected_output: coin(100u128, quote_denom),
+            expected_error: Some(ContractError::InvalidPair {
+                token_in_denom: "notadenom".to_string(),
+                token_out_denom: quote_denom.to_string(),
+            }),
+        },
+        SwapExactAmountInTestCase {
+            name: "invalid out denom",
+            pre_operations: vec![],
+            token_in: coin(100u128, base_denom),
+            token_out_denom: "notadenom",
+            token_out_min_amount: Uint128::from(100u128),
+            swap_fee: EXPECTED_SWAP_FEE,
+            expected_output: coin(100u128, quote_denom),
+            expected_error: Some(ContractError::InvalidPair {
+                token_in_denom: base_denom.to_string(),
+                token_out_denom: "notadenom".to_string(),
+            }),
+        },
+        SwapExactAmountInTestCase {
+            name: "invalid swap fee",
+            pre_operations: vec![],
+            token_in: coin(100u128, base_denom),
+            token_out_denom: "notadenom",
+            token_out_min_amount: Uint128::from(100u128),
+            swap_fee: Decimal::one(),
+            expected_output: coin(100u128, quote_denom),
+            expected_error: Some(ContractError::InvalidSwap {
+                error: format!(
+                    "Provided swap fee does not match: expected {EXPECTED_SWAP_FEE} received {}",
+                    Decimal::one()
                 ),
             }),
         },

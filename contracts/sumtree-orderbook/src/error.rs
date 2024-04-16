@@ -31,6 +31,9 @@ pub enum ContractError {
     #[error("Orderbook not found for pair: in: {in_denom} out: {out_denom}")]
     OrderbookNotFound { in_denom: String, out_denom: String },
 
+    #[error("Invalid Market Order")]
+    InvalidMarketOrder,
+
     #[error(transparent)]
     Coins(#[from] CoinsError),
 

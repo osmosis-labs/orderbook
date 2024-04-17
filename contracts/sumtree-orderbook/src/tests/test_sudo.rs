@@ -154,13 +154,7 @@ fn test_swap_exact_amount_in() {
             token_out_min_amount: Uint128::from(100u128),
             swap_fee: EXPECTED_SWAP_FEE,
             expected_output: coin(100u128, base_denom),
-            expected_error: Some(ContractError::InvalidSwap {
-                error: format!(
-                    "Did not meet minimum swap amount: expected {} received {}",
-                    Uint128::from(100u128),
-                    Uint128::from(10u128)
-                ),
-            }),
+            expected_error: Some(ContractError::InsufficientLiquidity),
         },
         SwapExactAmountInTestCase {
             name: "BID: zero liquidity in orderbook",
@@ -170,13 +164,7 @@ fn test_swap_exact_amount_in() {
             token_out_min_amount: Uint128::from(100u128),
             swap_fee: EXPECTED_SWAP_FEE,
             expected_output: coin(100u128, base_denom),
-            expected_error: Some(ContractError::InvalidSwap {
-                error: format!(
-                    "Did not meet minimum swap amount: expected {} received {}",
-                    Uint128::from(100u128),
-                    Uint128::zero()
-                ),
-            }),
+            expected_error: Some(ContractError::InsufficientLiquidity),
         },
         SwapExactAmountInTestCase {
             name: "ASK: valid basic swap",
@@ -214,13 +202,7 @@ fn test_swap_exact_amount_in() {
             token_out_min_amount: Uint128::from(100u128),
             swap_fee: EXPECTED_SWAP_FEE,
             expected_output: coin(100u128, quote_denom),
-            expected_error: Some(ContractError::InvalidSwap {
-                error: format!(
-                    "Did not meet minimum swap amount: expected {} received {}",
-                    Uint128::from(100u128),
-                    Uint128::from(10u128)
-                ),
-            }),
+            expected_error: Some(ContractError::InsufficientLiquidity),
         },
         SwapExactAmountInTestCase {
             name: "ASK: zero liquidity in orderbook",
@@ -230,13 +212,7 @@ fn test_swap_exact_amount_in() {
             token_out_min_amount: Uint128::from(100u128),
             swap_fee: EXPECTED_SWAP_FEE,
             expected_output: coin(100u128, quote_denom),
-            expected_error: Some(ContractError::InvalidSwap {
-                error: format!(
-                    "Did not meet minimum swap amount: expected {} received {}",
-                    Uint128::from(100u128),
-                    Uint128::zero()
-                ),
-            }),
+            expected_error: Some(ContractError::InsufficientLiquidity),
         },
         SwapExactAmountInTestCase {
             name: "invalid in denom",

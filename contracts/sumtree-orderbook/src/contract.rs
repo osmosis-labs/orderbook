@@ -21,7 +21,7 @@ const CONTRACT_VERSION: &str = env!("CARGO_PKG_VERSION");
 pub fn instantiate(
     deps: DepsMut,
     _env: Env,
-    info: MessageInfo,
+    _info: MessageInfo,
     msg: InstantiateMsg,
 ) -> Result<Response, ContractError> {
     set_contract_version(deps.storage, CONTRACT_NAME, CONTRACT_VERSION)?;
@@ -30,14 +30,11 @@ pub fn instantiate(
 
     // With `Response` type, it is possible to dispatch message to invoke external logic.
     // See: https://github.com/CosmWasm/cosmwasm/blob/main/SEMANTICS.md#dispatching-messages
-    Ok(Response::new()
-        .add_attribute("method", "instantiate")
-        .add_attribute("owner", info.sender)
-        .add_attributes(vec![
-            ("method", "instantiate"),
-            ("quote_denom", &msg.quote_denom),
-            ("base_denom", &msg.base_denom),
-        ]))
+    Ok(Response::new().add_attributes(vec![
+        ("method", "instantiate"),
+        ("quote_denom", &msg.quote_denom),
+        ("base_denom", &msg.base_denom),
+    ]))
 }
 
 /// Handling contract migration

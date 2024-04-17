@@ -335,6 +335,7 @@ pub fn run_market_order(
     let mut total_output: Uint128 = Uint128::zero();
     let mut tick_updates: Vec<(i64, TickState)> = Vec::new();
 
+    // The price of the last tick iterated on, if no ticks are iterated price is constant
     let mut last_tick_price = Decimal256::one();
     for maybe_current_tick in ticks {
         let current_tick_id = maybe_current_tick?;

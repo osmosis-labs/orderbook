@@ -5,8 +5,8 @@ use cosmwasm_std::{Coin, Decimal, Uint128};
 /// Message type for `instantiate` entry_point
 #[cw_serde]
 pub struct InstantiateMsg {
-    base_denom: String,
-    quote_denom: String,
+    pub base_denom: String,
+    pub quote_denom: String,
 }
 
 /// Message type for `execute` entry_point

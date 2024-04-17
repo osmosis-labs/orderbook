@@ -9,6 +9,7 @@ use crate::error::ContractError;
 use crate::msg::{ExecuteMsg, InstantiateMsg, MigrateMsg, QueryMsg};
 
 use crate::order;
+use crate::orderbook::create_orderbook;
 use crate::types::OrderDirection;
 
 // version info for migration info
@@ -21,15 +22,22 @@ pub fn instantiate(
     deps: DepsMut,
     _env: Env,
     info: MessageInfo,
-    _msg: InstantiateMsg,
+    msg: InstantiateMsg,
 ) -> Result<Response, ContractError> {
     set_contract_version(deps.storage, CONTRACT_NAME, CONTRACT_VERSION)?;
+
+    create_orderbook(deps, msg.quote_denom.clone(), msg.base_denom.clone())?;
 
     // With `Response` type, it is possible to dispatch message to invoke external logic.
     // See: https://github.com/CosmWasm/cosmwasm/blob/main/SEMANTICS.md#dispatching-messages
     Ok(Response::new()
         .add_attribute("method", "instantiate")
-        .add_attribute("owner", info.sender))
+        .add_attribute("owner", info.sender)
+        .add_attributes(vec![
+            ("method", "instantiate"),
+            ("quote_denom", &msg.quote_denom),
+            ("base_denom", &msg.base_denom),
+        ]))
 }
 
 /// Handling contract migration

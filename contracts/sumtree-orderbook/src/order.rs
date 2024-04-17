@@ -44,10 +44,11 @@ pub fn place_limit(
         ContractError::InvalidQuantity { quantity }
     );
 
-    // If applicable, ensure claim_bounty is between 0 and 1
+    // If applicable, ensure claim_bounty is between 0 and 0.01.
+    // We set a conservative upper bound of 1% for claim bounties as a guardrail.
     if let Some(claim_bounty_value) = claim_bounty {
         ensure!(
-            claim_bounty_value >= Decimal::zero() && claim_bounty_value <= Decimal::one(),
+            claim_bounty_value >= Decimal::zero() && claim_bounty_value <= Decimal::percent(1),
             ContractError::InvalidClaimBounty {
                 claim_bounty: Some(claim_bounty_value)
             }

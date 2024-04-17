@@ -1,3 +1,5 @@
+use std::str::FromStr;
+
 use crate::{
     constants::{MAX_TICK, MIN_TICK},
     error::ContractError,
@@ -85,25 +87,35 @@ fn test_place_limit() {
             expected_error: None,
         },
         PlaceLimitTestCase {
-            name: "valid order with claim bounty",
+            name: "valid order with 0.1% claim bounty",
             book_id: valid_book_id,
             tick_id: 10,
             quantity: Uint128::new(100),
             sent: Uint128::new(100),
             order_direction: OrderDirection::Ask,
-            claim_bounty: Some(Decimal::percent(10)),
+            claim_bounty: Some(Decimal::from_str("0.001").unwrap()),
             expected_error: None,
         },
         PlaceLimitTestCase {
-            name: "order with claim bounty > 1 (invalid)",
+            name: "valid order with max claim bounty",
             book_id: valid_book_id,
             tick_id: 10,
             quantity: Uint128::new(100),
             sent: Uint128::new(100),
             order_direction: OrderDirection::Ask,
-            claim_bounty: Some(Decimal::one() + Decimal::one()),
+            claim_bounty: Some(Decimal::percent(1)),
+            expected_error: None,
+        },
+        PlaceLimitTestCase {
+            name: "order with claim bounty > 0.01 (invalid)",
+            book_id: valid_book_id,
+            tick_id: 10,
+            quantity: Uint128::new(100),
+            sent: Uint128::new(100),
+            order_direction: OrderDirection::Ask,
+            claim_bounty: Some(Decimal::from_str("0.011").unwrap()),
             expected_error: Some(ContractError::InvalidClaimBounty {
-                claim_bounty: Some(Decimal::one() + Decimal::one()),
+                claim_bounty: Some(Decimal::from_str("0.011").unwrap()),
             }),
         },
         PlaceLimitTestCase {
@@ -1751,13 +1763,13 @@ fn test_claim_order() {
                     0,
                     OrderDirection::Ask,
                     sender.clone(),
-                    Uint128::from(10u128),
+                    Uint128::from(100u128),
                     Decimal256::zero(),
-                    Some(Decimal::percent(10)),
+                    Some(Decimal::percent(1)),
                 )),
                 OrderOperation::RunMarket(MarketOrder::new(
                     valid_book_id,
-                    Uint128::from(10u128),
+                    Uint128::from(100u128),
                     OrderDirection::Bid,
                     Addr::unchecked("buyer"),
                 )),
@@ -1769,8 +1781,8 @@ fn test_claim_order() {
                 BankMsg::Send {
                     // Ensure the order placer receives the claimed amount
                     to_address: sender.to_string(),
-                    // 10% of the claimed amount goes to the bounty
-                    amount: vec![coin(10u128 - 1u128, quote_denom)],
+                    // 1% of the claimed amount goes to the bounty
+                    amount: vec![coin(100u128 - 1u128, quote_denom)],
                 },
                 REPLY_ID_CLAIM,
             ),
@@ -1796,21 +1808,21 @@ fn test_claim_order() {
                     0,
                     OrderDirection::Ask,
                     sender.clone(),
-                    Uint128::from(10u128),
+                    Uint128::from(1000u128),
                     Decimal256::zero(),
-                    // 35% claim bounty (0.35)
-                    Some(Decimal::percent(35)),
+                    // 0.35% claim bounty (0.0035)
+                    Some(Decimal::from_str("0.0035").unwrap()),
                 )),
                 OrderOperation::RunMarket(MarketOrder::new(
                     valid_book_id,
-                    Uint128::from(7u128),
+                    Uint128::from(700u128),
                     OrderDirection::Bid,
                     Addr::unchecked("buyer"),
                 )),
                 OrderOperation::Claim((valid_book_id, valid_tick_id, 0)),
                 OrderOperation::RunMarket(MarketOrder::new(
                     valid_book_id,
-                    Uint128::from(3u128),
+                    Uint128::from(300u128),
                     OrderDirection::Bid,
                     Addr::unchecked("buyer"),
                 )),
@@ -1821,8 +1833,8 @@ fn test_claim_order() {
             expected_bank_msg: SubMsg::reply_on_error(
                 BankMsg::Send {
                     to_address: sender.to_string(),
-                    // 35% of most recent claim goes to bounty: 3*0.35 = 1.05 -> 1 unit
-                    amount: vec![coin(3u128 - 1u128, quote_denom)],
+                    // 0.35% of most recent claim goes to bounty: 300*0.0035 = 1.05 -> 1 unit
+                    amount: vec![coin(300u128 - 1u128, quote_denom)],
                 },
                 REPLY_ID_CLAIM,
             ),

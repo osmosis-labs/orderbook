@@ -96,7 +96,7 @@ pub enum ContractError {
     #[error("Orderbook ran out of liquidity during market order")]
     InsufficientLiquidity,
 
-    #[error("Claim bounty must be a value between 0 and 1. Received: {claim_bounty:?}")]
+    #[error("Claim bounty must be a value between 0 and 0.01 (1%). Received: {claim_bounty:?}")]
     InvalidClaimBounty { claim_bounty: Option<Decimal> },
 }
 

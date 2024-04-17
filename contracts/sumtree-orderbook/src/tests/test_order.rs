@@ -1,4 +1,4 @@
-use std::str::FromStr;
+use std::{ops::Add, str::FromStr};
 
 use crate::{
     constants::{MAX_TICK, MIN_TICK},
@@ -3680,7 +3680,6 @@ fn test_claim_order_moving_tick() {
 struct BatchClaimOrderTestCase {
     name: &'static str,
     operations: Vec<OrderOperation>,
-    sender: Addr,
     book_id: u64,
     orders: Vec<(i64, u64)>,
     expected_messages: Vec<SubMsg>,
@@ -3694,76 +3693,169 @@ fn test_batch_claim_order_happy_path() {
     let quote_denom = "quote";
     let base_denom = "base";
     let sender = Addr::unchecked("sender");
-    let test_cases: Vec<BatchClaimOrderTestCase> = vec![BatchClaimOrderTestCase {
-        name: "Batch claim orders happy path",
-        operations: vec![
-            // Place two limit orders
-            OrderOperation::PlaceLimit(LimitOrder::new(
+    let owner = Addr::unchecked("owner");
+    let test_cases: Vec<BatchClaimOrderTestCase> = vec![
+        BatchClaimOrderTestCase {
+            name: "Batch claim orders happy path",
+            operations: vec![
+                // Place two limit orders
+                OrderOperation::PlaceLimit(LimitOrder::new(
+                    valid_book_id,
+                    0,
+                    0,
+                    OrderDirection::Bid,
+                    owner.clone(),
+                    Uint128::from(100u128),
+                    Decimal256::zero(),
+                    Some(Decimal::percent(1)),
+                )),
+                OrderOperation::PlaceLimit(LimitOrder::new(
+                    valid_book_id,
+                    1,
+                    1,
+                    OrderDirection::Ask,
+                    owner.clone(),
+                    Uint128::from(50u128),
+                    Decimal256::zero(),
+                    None,
+                )),
+                // Fully fill both orders
+                OrderOperation::RunMarket(MarketOrder::new(
+                    valid_book_id,
+                    Uint128::from(100u128),
+                    OrderDirection::Ask,
+                    owner.clone(),
+                )),
+                OrderOperation::RunMarket(MarketOrder::new(
+                    valid_book_id,
+                    Uint128::from(50u128),
+                    OrderDirection::Bid,
+                    owner.clone(),
+                )),
+            ],
+            book_id: valid_book_id,
+            // (tick_id, order_id) pairs
+            orders: vec![(0, 0), (1, 1)],
+            expected_messages: vec![
+                SubMsg::reply_on_error(
+                    BankMsg::Send {
+                        to_address: owner.to_string(),
+                        // 1% bounty on 100 base tokens
+                        amount: vec![coin(99u128, base_denom)],
+                    },
+                    REPLY_ID_CLAIM,
+                ),
+                SubMsg::reply_on_error(
+                    BankMsg::Send {
+                        to_address: sender.to_string(),
+                        // 1% bounty on 100 base tokens
+                        amount: vec![coin(1u128, base_denom)],
+                    },
+                    REPLY_ID_CLAIM_BOUNTY,
+                ),
+                SubMsg::reply_on_error(
+                    BankMsg::Send {
+                        to_address: owner.to_string(),
+                        // Since tick 1 corresponds to a price slightly higher than 1.0,
+                        // this ends up getting rounded to 49
+                        amount: vec![coin(49u128, quote_denom)],
+                    },
+                    REPLY_ID_CLAIM,
+                ),
+            ],
+            // Orders are fully filled & claimed, so they should be removed from state
+            expected_order_states: None,
+            expected_error: None,
+        },
+        BatchClaimOrderTestCase {
+            name: "Batch claim with unfilled order",
+            operations: vec![
+                // Place three limit orders, two of which will be filled
+                OrderOperation::PlaceLimit(LimitOrder::new(
+                    valid_book_id,
+                    0,
+                    0,
+                    OrderDirection::Bid,
+                    owner.clone(),
+                    Uint128::from(100u128),
+                    Decimal256::zero(),
+                    None,
+                )),
+                OrderOperation::PlaceLimit(LimitOrder::new(
+                    valid_book_id,
+                    1,
+                    1,
+                    OrderDirection::Ask,
+                    owner.clone(),
+                    Uint128::from(50u128),
+                    Decimal256::zero(),
+                    None,
+                )),
+                // This order will not be filled
+                OrderOperation::PlaceLimit(LimitOrder::new(
+                    valid_book_id,
+                    -1,
+                    2,
+                    OrderDirection::Bid,
+                    owner.clone(),
+                    Uint128::from(25u128),
+                    Decimal256::zero(),
+                    None,
+                )),
+                // Fully fill the first two orders
+                OrderOperation::RunMarket(MarketOrder::new(
+                    valid_book_id,
+                    Uint128::from(100u128),
+                    OrderDirection::Ask,
+                    owner.clone(),
+                )),
+                OrderOperation::RunMarket(MarketOrder::new(
+                    valid_book_id,
+                    Uint128::from(50u128),
+                    OrderDirection::Bid,
+                    owner.clone(),
+                )),
+            ],
+            book_id: valid_book_id,
+            // (tick_id, order_id) pairs including the unfilled order
+            orders: vec![(0, 0), (1, 1), (-1, 2)],
+            expected_messages: vec![
+                SubMsg::reply_on_error(
+                    BankMsg::Send {
+                        to_address: owner.to_string(),
+                        amount: vec![coin(100u128, base_denom)],
+                    },
+                    REPLY_ID_CLAIM,
+                ),
+                SubMsg::reply_on_error(
+                    BankMsg::Send {
+                        to_address: owner.to_string(),
+                        amount: vec![coin(49u128, quote_denom)],
+                    },
+                    REPLY_ID_CLAIM,
+                ),
+                // No message for the unfilled order as it cannot be claimed
+            ],
+            // The unfilled order should remain in state
+            expected_order_states: Some(vec![LimitOrder::new(
                 valid_book_id,
-                0,
-                0,
+                -1,
+                2,
                 OrderDirection::Bid,
-                sender.clone(),
-                Uint128::from(100u128),
+                owner.clone(),
+                Uint128::from(25u128),
                 Decimal256::zero(),
                 None,
-            )),
-            OrderOperation::PlaceLimit(LimitOrder::new(
-                valid_book_id,
-                1,
-                1,
-                OrderDirection::Ask,
-                sender.clone(),
-                Uint128::from(50u128),
-                Decimal256::zero(),
-                None,
-            )),
-            // Fully fill both orders
-            OrderOperation::RunMarket(MarketOrder::new(
-                valid_book_id,
-                Uint128::from(100u128),
-                OrderDirection::Ask,
-                sender.clone(),
-            )),
-            OrderOperation::RunMarket(MarketOrder::new(
-                valid_book_id,
-                Uint128::from(50u128),
-                OrderDirection::Bid,
-                sender.clone(),
-            )),
-        ],
-        sender: sender.clone(),
-        book_id: valid_book_id,
-        // (tick_id, order_id) pairs
-        orders: vec![(0, 0), (1, 1)],
-        expected_messages: vec![
-            SubMsg::reply_on_error(
-                BankMsg::Send {
-                    to_address: sender.to_string(),
-                    amount: vec![coin(100u128, base_denom)],
-                },
-                REPLY_ID_CLAIM,
-            ),
-            SubMsg::reply_on_error(
-                BankMsg::Send {
-                    to_address: sender.to_string(),
-                    // Since tick 1 corresponds to a price slightly higher than 1.0,
-                    // this ends up getting rounded to 49
-                    amount: vec![coin(49u128, quote_denom)],
-                },
-                REPLY_ID_CLAIM,
-            ),
-        ],
-        // Orders are fully filled & claimed, so they should be removed from state
-        expected_order_states: None,
-        expected_error: None,
-    }];
+            )]),
+            expected_error: None,
+        },
+    ];
 
     for test in test_cases {
         // Test Setup
         let mut deps = mock_dependencies();
         let env = mock_env();
-        let info = mock_info("sender", &[]);
+        let info = mock_info(owner.as_str(), &[]);
         create_orderbook(
             deps.as_mut(),
             env.clone(),
@@ -3779,6 +3871,9 @@ fn test_batch_claim_order_happy_path() {
                 .run(deps.as_mut(), env.clone(), info.clone(), valid_book_id)
                 .unwrap();
         }
+
+        // Update sender to be different than the order owner
+        let info = mock_info(sender.as_str(), &[]);
 
         // Batch claim orders
         let res = batch_claim_limits(
@@ -3801,8 +3896,8 @@ fn test_batch_claim_order_happy_path() {
 
         // Assert that the generated bank messages are as expected
         assert_eq!(
-            res.messages.len(),
-            test.expected_messages.len(),
+            test.expected_messages,
+            res.messages,
             "Expected {} messages, got {}",
             test.expected_messages.len(),
             res.messages.len()
@@ -3828,8 +3923,8 @@ fn test_batch_claim_order_happy_path() {
                     .find(|order| order.tick_id == *tick_id && order.order_id == *order_id)
             });
             assert_eq!(
-                maybe_order,
                 expected_order_state.cloned(),
+                maybe_order,
                 "{} for order_id {} and tick_id {}",
                 format_test_name(test.name),
                 order_id,

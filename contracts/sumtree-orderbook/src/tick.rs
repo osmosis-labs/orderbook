@@ -10,12 +10,11 @@ use cosmwasm_std::{ensure, Decimal256, Storage};
 /// up until the `current_tick_etas`
 pub fn sync_tick(
     storage: &mut dyn Storage,
-    book_id: u64,
     tick_id: i64,
     current_tick_bid_etas: Decimal256,
     current_tick_ask_etas: Decimal256,
 ) -> Result<(), ContractError> {
-    let mut tick_state = TICK_STATE.load(storage, &(book_id, tick_id))?;
+    let mut tick_state = TICK_STATE.load(storage, tick_id)?;
 
     // Assuming `get_values` returns a type that can be stored directly in a tuple.
     // Adjust the type `(OrderDirection, YourValueType)` as necessary.
@@ -52,7 +51,7 @@ pub fn sync_tick(
         let old_cumulative_realized_cancels = tick_value.cumulative_realized_cancels;
 
         // Fetch sumtree for tick by order direction. If none exists, initialize one.
-        let tree = get_or_init_root_node(storage, book_id, tick_id, direction)?;
+        let tree = get_or_init_root_node(storage, tick_id, direction)?;
 
         // Assuming `calculate_prefix_sum` is a function that calculates the prefix sum at the given ETAS.
         // This function needs to be implemented based on your sumtree structure and logic.
@@ -86,7 +85,7 @@ pub fn sync_tick(
     // Write updated tick values to state
     tick_state.set_values(OrderDirection::Bid, bid_values);
     tick_state.set_values(OrderDirection::Ask, ask_values);
-    TICK_STATE.save(storage, &(book_id, tick_id), &tick_state)?;
+    TICK_STATE.save(storage, tick_id, &tick_state)?;
 
     Ok(())
 }

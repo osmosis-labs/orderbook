@@ -4,34 +4,29 @@ use cosmwasm_std::{Coin, Decimal, Uint128};
 
 /// Message type for `instantiate` entry_point
 #[cw_serde]
-pub struct InstantiateMsg {}
+pub struct InstantiateMsg {
+    base_denom: String,
+    quote_denom: String,
+}
 
 /// Message type for `execute` entry_point
 #[cw_serde]
 pub enum ExecuteMsg {
-    CreateOrderbook {
-        quote_denom: String,
-        base_denom: String,
-    },
     PlaceLimit {
-        book_id: u64,
         tick_id: i64,
         order_direction: OrderDirection,
         quantity: Uint128,
         claim_bounty: Option<Decimal>,
     },
     CancelLimit {
-        book_id: u64,
         tick_id: i64,
         order_id: u64,
     },
     PlaceMarket {
-        book_id: u64,
         order_direction: OrderDirection,
         quantity: Uint128,
     },
     ClaimLimit {
-        book_id: u64,
         tick_id: i64,
         order_id: u64,
     },

@@ -4,15 +4,6 @@ use cosmwasm_std::testing::MockStorage;
 use cosmwasm_std::{Addr, Decimal256, Order, Uint128};
 
 #[test]
-fn test_new_orderbook_id() {
-    let mut storage = MockStorage::new();
-    let id = new_orderbook_id(&mut storage).unwrap();
-    assert_eq!(id, 0);
-    let id = new_orderbook_id(&mut storage).unwrap();
-    assert_eq!(id, 1);
-}
-
-#[test]
 fn test_order_id_works() {
     let mut storage = MockStorage::new();
     let id = new_order_id(&mut storage).unwrap();
@@ -24,14 +15,14 @@ fn test_order_id_works() {
 #[test]
 fn test_tick_iteration() {
     let mut storage = MockStorage::new();
-    let book_id = new_orderbook_id(&mut storage).unwrap();
+
     let tick_amount = 50;
     for i in -tick_amount..tick_amount {
         TICK_STATE
-            .save(&mut storage, &(book_id, i), &TickState::default())
+            .save(&mut storage, i, &TickState::default())
             .unwrap();
     }
-    let prefix = TICK_STATE.prefix(book_id);
+    let prefix = TICK_STATE;
     let ticks_asc: Vec<i64> = prefix
         .keys(&storage, None, None, Order::Ascending)
         .map(|result| result.unwrap())
@@ -50,13 +41,11 @@ fn test_tick_iteration() {
 fn test_order_iteration() {
     let mut storage = MockStorage::new();
     let order_amount = 50;
-    let book_id = new_orderbook_id(&mut storage).unwrap();
     let tick = 0;
     for i in 0..order_amount {
         let order_id = new_order_id(&mut storage).unwrap();
         let order = LimitOrder {
             tick_id: tick,
-            book_id,
             order_id,
             owner: Addr::unchecked(format!("maker{i}")),
             quantity: Uint128::new(i as u128),
@@ -64,12 +53,10 @@ fn test_order_iteration() {
             etas: Decimal256::zero(),
             claim_bounty: None,
         };
-        orders()
-            .save(&mut storage, &(book_id, tick, i), &order)
-            .unwrap();
+        orders().save(&mut storage, &(tick, i), &order).unwrap();
     }
 
-    let tick_orders = orders().prefix((book_id, tick));
+    let tick_orders = orders().prefix(tick);
     let orders_desc: Vec<LimitOrder> = tick_orders
         .range(&storage, None, None, Order::Descending)
         .map(|result| result.unwrap().1)
@@ -90,16 +77,11 @@ fn test_get_orders_by_owner_all() {
     let order_amount = 10;
     let owner = "owner1";
 
-    let book_ids: Vec<u64> = (0..3)
-        .map(|_| new_orderbook_id(&mut storage).unwrap())
-        .collect();
-
     (0..order_amount).for_each(|i| {
         let order_id = new_order_id(&mut storage).unwrap();
         let other_owner = &format!("owner{i}");
         let current_owner = Addr::unchecked(if i % 2 == 0 { owner } else { other_owner });
         let order = LimitOrder::new(
-            book_ids[i % 3],
             0,
             order_id,
             OrderDirection::Ask,
@@ -108,9 +90,7 @@ fn test_get_orders_by_owner_all() {
             Decimal256::zero(),
             None,
         );
-        orders()
-            .save(&mut storage, &(order.book_id, 0, i as u64), &order)
-            .unwrap();
+        orders().save(&mut storage, &(0, i as u64), &order).unwrap();
     });
 
     let owner_orders: Vec<LimitOrder> = get_orders_by_owner(
@@ -134,18 +114,12 @@ fn test_get_orders_by_owner_by_book() {
     let order_amount = 100;
     let owner = "owner1";
 
-    // Generate three new book IDs
-    let book_ids: Vec<u64> = (0..3)
-        .map(|_| new_orderbook_id(&mut storage).unwrap())
-        .collect();
-
     // Create orders alternating ownership between `owner` and dynamically generated owners amongst all books evenly
     (0..order_amount).for_each(|i| {
         let order_id = new_order_id(&mut storage).unwrap();
         let other_owner = &format!("owner{i}");
         let current_owner = Addr::unchecked(if i % 2 == 0 { owner } else { other_owner });
         let order = LimitOrder::new(
-            book_ids[i % 3],
             0,
             order_id,
             OrderDirection::Ask,
@@ -154,27 +128,25 @@ fn test_get_orders_by_owner_by_book() {
             Decimal256::zero(),
             None,
         );
-        orders()
-            .save(&mut storage, &(order.book_id, 0, i as u64), &order)
-            .unwrap();
+        orders().save(&mut storage, &(0, i as u64), &order).unwrap();
     });
 
     // Verify orders by book ID
-    book_ids.iter().for_each(|&book_id| {
-        let owner_orders = get_orders_by_owner(
-            &storage,
-            FilterOwnerOrders::ByBook(book_id, Addr::unchecked(owner)),
-            None,
-            None,
-            None,
-        )
-        .unwrap();
-        assert!(!owner_orders.is_empty());
-        owner_orders.iter().for_each(|order| {
-            assert_eq!(order.owner, Addr::unchecked(owner));
-            assert_eq!(order.book_id, book_id);
-        });
-    });
+    // book_ids.iter().for_each(|&book_id| {
+    //     let owner_orders = get_orders_by_owner(
+    //         &storage,
+    //         FilterOwnerOrders::ByBook(book_id, Addr::unchecked(owner)),
+    //         None,
+    //         None,
+    //         None,
+    //     )
+    //     .unwrap();
+    //     assert!(!owner_orders.is_empty());
+    //     owner_orders.iter().for_each(|order| {
+    //         assert_eq!(order.owner, Addr::unchecked(owner));
+    //         assert_eq!(order.book_id, book_id);
+    //     });
+    // });
 }
 
 #[test]
@@ -183,7 +155,6 @@ fn test_get_orders_by_owner_by_tick() {
     let order_amount = 100;
     let ticks = [0, 1, 2];
     let owner = "owner1";
-    let book_id = new_orderbook_id(&mut storage).unwrap();
 
     // Create orders alternating ownership between `owner` and dynamically generated owners amongst all ticks evenly
     (0..order_amount).for_each(|i| {
@@ -192,7 +163,6 @@ fn test_get_orders_by_owner_by_tick() {
         let current_owner = Addr::unchecked(if i % 2 == 0 { owner } else { other_owner });
         let tick = ticks[i % 3];
         let order = LimitOrder::new(
-            book_id,
             tick,
             order_id,
             OrderDirection::Ask,
@@ -202,14 +172,14 @@ fn test_get_orders_by_owner_by_tick() {
             None,
         );
         orders()
-            .save(&mut storage, &(book_id, tick, i as u64), &order)
+            .save(&mut storage, &(tick, i as u64), &order)
             .unwrap();
     });
 
     ticks.iter().for_each(|&tick| {
         let owner_orders = get_orders_by_owner(
             &storage,
-            FilterOwnerOrders::ByTick(book_id, tick, Addr::unchecked(owner)),
+            FilterOwnerOrders::ByTick(tick, Addr::unchecked(owner)),
             None,
             None,
             None,
@@ -229,14 +199,12 @@ fn test_get_orders_by_owner_with_pagination() {
     let order_amount = 100;
     let ticks = [0, 1, 2];
     let owner = "owner1";
-    let book_id = new_orderbook_id(&mut storage).unwrap();
 
     // Create orders for a single owner across different ticks
     (0..order_amount).for_each(|i| {
         let order_id = new_order_id(&mut storage).unwrap();
         let tick = ticks[i % 3];
         let order = LimitOrder::new(
-            book_id,
             tick,
             order_id,
             OrderDirection::Ask,
@@ -246,7 +214,7 @@ fn test_get_orders_by_owner_with_pagination() {
             None,
         );
         orders()
-            .save(&mut storage, &(book_id, tick, i as u64), &order)
+            .save(&mut storage, &(tick, i as u64), &order)
             .unwrap();
     });
 
@@ -278,7 +246,7 @@ fn test_get_orders_by_owner_with_pagination() {
         start_after = Some(
             owner_orders
                 .last()
-                .map(|order| (order.book_id, order.tick_id, order.order_id))
+                .map(|order| (order.tick_id, order.order_id))
                 .unwrap(),
         );
     }

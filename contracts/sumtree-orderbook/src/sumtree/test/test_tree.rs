@@ -14,7 +14,6 @@ struct TestPrefixSumCase {
 
 #[test]
 fn test_get_prefix_sum_valid() {
-    let book_id = 1;
     let tick_id = 1;
     let direction = OrderDirection::Bid;
     let test_cases: Vec<TestPrefixSumCase> = vec![
@@ -171,12 +170,11 @@ fn test_get_prefix_sum_valid() {
     for test in test_cases {
         let mut deps = mock_dependencies();
 
-        let mut tree =
-            get_or_init_root_node(deps.as_mut().storage, book_id, tick_id, direction).unwrap();
+        let mut tree = get_or_init_root_node(deps.as_mut().storage, tick_id, direction).unwrap();
 
         // Insert nodes into tree
         for node in test.nodes.iter() {
-            tree = insert_and_refetch(deps.as_mut().storage, book_id, tick_id, direction, node);
+            tree = insert_and_refetch(deps.as_mut().storage, tick_id, direction, node);
         }
 
         // Assert that the resulting tree maintains basic sumtree invariants
@@ -195,7 +193,7 @@ fn test_get_prefix_sum_valid() {
         );
 
         // Refetch tree and assert that its nodes were unchanged
-        let tree = get_root_node(deps.as_mut().storage, book_id, tick_id, direction).unwrap();
+        let tree = get_root_node(deps.as_mut().storage, tick_id, direction).unwrap();
         let tree_nodes_post = tree.traverse(deps.as_ref().storage).unwrap();
         assert_eq!(
             tree_nodes, tree_nodes_post,
@@ -205,24 +203,23 @@ fn test_get_prefix_sum_valid() {
     }
 }
 
-// Inserts node into tree at (book_id, tick_id, direction) and return the updated root
+// Inserts node into tree at ( tick_id, direction) and return the updated root
 pub fn insert_and_refetch(
     storage: &mut dyn Storage,
-    book_id: u64,
     tick_id: i64,
     direction: OrderDirection,
     node: &NodeType,
 ) -> TreeNode {
-    let mut tree = get_or_init_root_node(storage, book_id, tick_id, direction).unwrap();
-    let new_node_id = generate_node_id(storage, book_id, tick_id).unwrap();
-    let mut tree_node = TreeNode::new(book_id, tick_id, direction, new_node_id, node.clone());
+    let mut tree = get_or_init_root_node(storage, tick_id, direction).unwrap();
+    let new_node_id = generate_node_id(storage, tick_id).unwrap();
+    let mut tree_node = TreeNode::new(tick_id, direction, new_node_id, node.clone());
 
     // Process insertion
     tree.insert(storage, &mut tree_node).unwrap();
 
     // Refetch tree
     let root_id = TREE
-        .load(storage, &(book_id, tick_id, &direction.to_string()))
+        .load(storage, &(tick_id, &direction.to_string()))
         .unwrap();
-    NODES.load(storage, &(book_id, tick_id, root_id)).unwrap()
+    NODES.load(storage, &(tick_id, root_id)).unwrap()
 }

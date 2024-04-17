@@ -8,7 +8,7 @@ use crate::{
     error::ContractResult,
     msg::{SudoMsg, SwapExactAmountInResponseData},
     order::run_market_order,
-    state::{DENOM_PAIR_BOOK_ID, ORDERBOOKS},
+    state::ORDERBOOK,
     types::{MarketOrder, OrderDirection, REPLY_ID_SUDO_SWAP_EX_AMT_IN},
     ContractError,
 };
@@ -73,24 +73,14 @@ pub(crate) fn dispatch_swap_exact_amount_in(
         }
     );
 
-    // Load the book ID for the provided pair
-    let book_id = DENOM_PAIR_BOOK_ID
-        .may_load(deps.storage, (&token_in_denom, &token_out_denom))?
-        .ok_or(ContractError::InvalidPair {
-            token_in_denom: token_in_denom.clone(),
-            token_out_denom: token_out_denom.clone(),
-        })?;
     // Load the orderbook for the provided pair
-    let orderbook = ORDERBOOKS
-        .may_load(deps.storage, &book_id)?
-        .ok_or(ContractError::InvalidBookId { book_id })?;
+    let orderbook = ORDERBOOK.load(deps.storage)?;
 
     // Determine order direction based on token in/out denoms
     let order_direction = orderbook.direction_from_pair(token_in_denom, token_out_denom.clone())?;
 
     // Generate market order to be run
     let mut order = MarketOrder::new(
-        book_id,
         token_in.amount,
         order_direction,
         deps.api.addr_validate(&sender)?,

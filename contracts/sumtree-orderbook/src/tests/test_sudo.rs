@@ -112,7 +112,6 @@ struct SwapExactAmountInTestCase {
 
 #[test]
 fn test_swap_exact_amount_in() {
-    let valid_book_id = 0;
     let valid_tick_id = 0;
     let quote_denom = "quote";
     let base_denom = "base";
@@ -121,7 +120,6 @@ fn test_swap_exact_amount_in() {
         SwapExactAmountInTestCase {
             name: "BID: valid basic swap",
             pre_operations: vec![OrderOperation::PlaceLimit(LimitOrder::new(
-                valid_book_id,
                 valid_tick_id,
                 0,
                 OrderDirection::Ask,
@@ -140,7 +138,6 @@ fn test_swap_exact_amount_in() {
         SwapExactAmountInTestCase {
             name: "BID: min amount not met",
             pre_operations: vec![OrderOperation::PlaceLimit(LimitOrder::new(
-                valid_book_id,
                 valid_tick_id,
                 0,
                 OrderDirection::Ask,
@@ -181,7 +178,6 @@ fn test_swap_exact_amount_in() {
         SwapExactAmountInTestCase {
             name: "ASK: valid basic swap",
             pre_operations: vec![OrderOperation::PlaceLimit(LimitOrder::new(
-                valid_book_id,
                 valid_tick_id,
                 0,
                 OrderDirection::Bid,
@@ -200,7 +196,6 @@ fn test_swap_exact_amount_in() {
         SwapExactAmountInTestCase {
             name: "ASK: min amount not met",
             pre_operations: vec![OrderOperation::PlaceLimit(LimitOrder::new(
-                valid_book_id,
                 valid_tick_id,
                 0,
                 OrderDirection::Bid,
@@ -300,8 +295,6 @@ fn test_swap_exact_amount_in() {
         let info = mock_info(sender.as_str(), &[]);
         create_orderbook(
             deps.as_mut(),
-            env.clone(),
-            info.clone(),
             quote_denom.to_string(),
             base_denom.to_string(),
         )
@@ -309,8 +302,7 @@ fn test_swap_exact_amount_in() {
 
         // Run any pre-operations
         for op in test.pre_operations {
-            op.run(deps.as_mut(), env.clone(), info.clone(), valid_book_id)
-                .unwrap();
+            op.run(deps.as_mut(), env.clone(), info.clone()).unwrap();
         }
 
         // -- System under test --

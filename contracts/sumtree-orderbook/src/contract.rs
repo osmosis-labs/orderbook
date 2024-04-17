@@ -9,7 +9,6 @@ use crate::error::ContractError;
 use crate::msg::{ExecuteMsg, InstantiateMsg, MigrateMsg, QueryMsg};
 
 use crate::order;
-use crate::orderbook;
 use crate::types::OrderDirection;
 
 // version info for migration info
@@ -57,15 +56,8 @@ pub fn execute(
     msg: ExecuteMsg,
 ) -> Result<Response, ContractError> {
     match msg {
-        // Creates a new orderbook
-        ExecuteMsg::CreateOrderbook {
-            quote_denom,
-            base_denom,
-        } => orderbook::create_orderbook(deps, env, info, quote_denom, base_denom),
-
         // Places limit order on given market
         ExecuteMsg::PlaceLimit {
-            book_id,
             tick_id,
             order_direction,
             quantity,
@@ -74,7 +66,6 @@ pub fn execute(
             deps,
             env,
             info,
-            book_id,
             tick_id,
             order_direction,
             quantity,
@@ -82,25 +73,20 @@ pub fn execute(
         ),
 
         // Cancels limit order with given ID
-        ExecuteMsg::CancelLimit {
-            book_id,
-            tick_id,
-            order_id,
-        } => order::cancel_limit(deps, env, info, book_id, tick_id, order_id),
+        ExecuteMsg::CancelLimit { tick_id, order_id } => {
+            order::cancel_limit(deps, env, info, tick_id, order_id)
+        }
 
         // Places a market order on the passed in market
         ExecuteMsg::PlaceMarket {
-            book_id,
             order_direction,
             quantity,
-        } => order::place_market(deps, env, info, book_id, order_direction, quantity),
+        } => order::place_market(deps, env, info, order_direction, quantity),
 
         // Claims a limit order with given ID
-        ExecuteMsg::ClaimLimit {
-            book_id,
-            tick_id,
-            order_id,
-        } => order::claim_limit(deps, env, info, book_id, tick_id, order_id),
+        ExecuteMsg::ClaimLimit { tick_id, order_id } => {
+            order::claim_limit(deps, env, info, tick_id, order_id)
+        }
     }
 }
 
@@ -137,7 +123,6 @@ pub fn dispatch_place_limit(
     mut deps: DepsMut,
     env: Env,
     info: MessageInfo,
-    book_id: u64,
     tick_id: i64,
     order_direction: OrderDirection,
     quantity: Uint128,
@@ -147,7 +132,6 @@ pub fn dispatch_place_limit(
         &mut deps,
         env,
         info,
-        book_id,
         tick_id,
         order_direction,
         quantity,

@@ -59,12 +59,8 @@ pub enum ContractError {
     #[error("Invalid swap: {error}")]
     InvalidSwap { error: String },
 
-    #[error("Order not found: {book_id:?}, {tick_id:?}, {order_id:?}")]
-    OrderNotFound {
-        book_id: u64,
-        tick_id: i64,
-        order_id: u64,
-    },
+    #[error("Order not found: {tick_id:?}, {order_id:?}")]
+    OrderNotFound { tick_id: i64, order_id: u64 },
 
     #[error("Reply error: {id:?}, {error:?}")]
     ReplyError { id: u64, error: String },

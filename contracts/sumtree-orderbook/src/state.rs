@@ -11,30 +11,26 @@ pub const ORDERBOOK_ID: Item<u64> = Item::new("orderbook_id");
 const MAX_PAGE_SIZE: u8 = 100;
 const DEFAULT_PAGE_SIZE: u8 = 50;
 
-pub const ORDERBOOKS: Map<&u64, Orderbook> = Map::new("orderbooks");
-pub const DENOM_PAIR_BOOK_ID: Map<(&str, &str), u64> = Map::new("denom_pair_book_id");
+pub const ORDERBOOK: Item<Orderbook> = Item::new("orderbook");
 /// Key: (orderbook_id, tick)
-pub const TICK_STATE: Map<&(u64, i64), TickState> = Map::new("tick_state");
+pub const TICK_STATE: Map<i64, TickState> = Map::new("tick_state");
 
 pub struct OrderIndexes {
     // Index by owner; Generic types: MultiIndex<Index Key: owner, Input Data: LimitOrder, Map Key: (orderbook_id, tick, order_id)>
-    pub owner: MultiIndex<'static, Addr, LimitOrder, (u64, i64, u64)>,
-    // Index by book and owner; Generic types: MultiIndex<Index Key: (book_id, owner), Input Data: LimitOrder, Map Key: (orderbook_id, tick, order_id)>
-    pub book_and_owner: MultiIndex<'static, (u64, Addr), LimitOrder, (u64, i64, u64)>,
+    pub owner: MultiIndex<'static, Addr, LimitOrder, (i64, u64)>,
     // Index by tick and owner; Generic types: MultiIndex<Index Key: (book_id, tick_id, owner), Input Data: LimitOrder, Map Key: (orderbook_id, tick, order_id)>
-    pub tick_and_owner: MultiIndex<'static, (u64, i64, Addr), LimitOrder, (u64, i64, u64)>,
+    pub tick_and_owner: MultiIndex<'static, (i64, Addr), LimitOrder, (i64, u64)>,
 }
 
 impl IndexList<LimitOrder> for OrderIndexes {
     fn get_indexes(&'_ self) -> Box<dyn Iterator<Item = &'_ dyn Index<LimitOrder>> + '_> {
-        let v: Vec<&dyn Index<LimitOrder>> =
-            vec![&self.owner, &self.book_and_owner, &self.tick_and_owner];
+        let v: Vec<&dyn Index<LimitOrder>> = vec![&self.owner, &self.tick_and_owner];
         Box::new(v.into_iter())
     }
 }
 
 /// Key: (orderbook_id, tick, order_id)
-pub fn orders() -> IndexedMap<'static, &'static (u64, i64, u64), LimitOrder, OrderIndexes> {
+pub fn orders() -> IndexedMap<'static, &'static (i64, u64), LimitOrder, OrderIndexes> {
     IndexedMap::new(
         "orders",
         OrderIndexes {
@@ -43,24 +39,13 @@ pub fn orders() -> IndexedMap<'static, &'static (u64, i64, u64), LimitOrder, Ord
                 "orders",
                 "orders_owner",
             ),
-            book_and_owner: MultiIndex::new(
-                |_, d: &LimitOrder| (d.book_id, d.owner.clone()),
-                "orders",
-                "orders_book_and_owner",
-            ),
             tick_and_owner: MultiIndex::new(
-                |_, d: &LimitOrder| (d.book_id, d.tick_id, d.owner.clone()),
+                |_, d: &LimitOrder| (d.tick_id, d.owner.clone()),
                 "orders",
                 "orders_tick_and_owner",
             ),
         },
     )
-}
-
-pub fn new_orderbook_id(storage: &mut dyn Storage) -> Result<u64, ContractError> {
-    let id = ORDERBOOK_ID.load(storage).unwrap_or_default();
-    ORDERBOOK_ID.save(storage, &(id + 1))?;
-    Ok(id)
 }
 
 pub fn new_order_id(storage: &mut dyn Storage) -> Result<u64, ContractError> {
@@ -89,8 +74,8 @@ pub fn new_order_id(storage: &mut dyn Storage) -> Result<u64, ContractError> {
 pub fn get_orders_by_owner(
     storage: &dyn Storage,
     filter: FilterOwnerOrders,
-    min: Option<(u64, i64, u64)>,
-    max: Option<(u64, i64, u64)>,
+    min: Option<(i64, u64)>,
+    max: Option<(i64, u64)>,
     page_size: Option<u8>,
 ) -> StdResult<Vec<LimitOrder>> {
     let page_size = page_size.unwrap_or(DEFAULT_PAGE_SIZE).min(MAX_PAGE_SIZE) as usize;
@@ -100,13 +85,9 @@ pub fn get_orders_by_owner(
     // Define the prefix iterator based on the filter
     let iter = match filter {
         FilterOwnerOrders::All(owner) => orders().idx.owner.prefix(owner),
-        FilterOwnerOrders::ByBook(book_id, owner) => {
-            orders().idx.book_and_owner.prefix((book_id, owner))
+        FilterOwnerOrders::ByTick(tick_id, owner) => {
+            orders().idx.tick_and_owner.prefix((tick_id, owner))
         }
-        FilterOwnerOrders::ByTick(book_id, tick_id, owner) => orders()
-            .idx
-            .tick_and_owner
-            .prefix((book_id, tick_id, owner)),
     };
 
     // Get orders based on pagination

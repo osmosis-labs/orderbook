@@ -300,6 +300,47 @@ pub fn place_market(
         .add_message(bank_msg))
 }
 
+// batch_claim_limits allows for multiple limit orders to be claimed in a single transaction.
+// While an arbitrary number of order claims can be triggered, only orders on the same orderbook
+// and on the same tick can be batch claimed.
+pub fn batch_claim_limits(
+    deps: DepsMut,
+    _env: Env,
+    info: MessageInfo,
+    book_id: u64,
+    tick_id: i64,
+    order_ids: Vec<u64>,
+) -> Result<Response, ContractError> {
+    nonpayable(&info)?;
+
+    let mut responses: Vec<SubMsg> = Vec::new();
+
+    for order_id in order_ids {
+        // Attempt to claim each order and ignore errors
+        match claim_order(
+            deps.storage,
+            info.sender.clone(),
+            book_id,
+            tick_id,
+            order_id,
+        ) {
+            Ok((_, mut bank_msgs)) => {
+                responses.append(&mut bank_msgs);
+            }
+            Err(_) => {
+                // We fail silently on errors to allow for the valid claims to be processed
+                // to be processed.
+                continue;
+            }
+        }
+    }
+
+    Ok(Response::new()
+        .add_attribute("method", "batchClaim")
+        .add_attribute("sender", info.sender)
+        .add_submessages(responses))
+}
+
 // run_market_order processes a market order from the current active tick on the order's orderbook
 // up to the passed in `tick_bound`. This allows for this function to be useful both for regular
 // market orders and as a helper to partially fill any limit orders that are placed past the best

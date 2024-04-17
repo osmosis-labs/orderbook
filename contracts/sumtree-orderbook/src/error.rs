@@ -59,6 +59,9 @@ pub enum ContractError {
     #[error("Invalid swap: {error}")]
     InvalidSwap { error: String },
 
+    #[error("Invalid denom")]
+    InvalidDenom { denom: String },
+
     #[error("Order not found: {tick_id:?}, {order_id:?}")]
     OrderNotFound { tick_id: i64, order_id: u64 },
 

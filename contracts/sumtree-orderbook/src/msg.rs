@@ -47,11 +47,31 @@ pub enum QueryMsg {
     //
     // #[returns(YourQueryResponse)]
     // YourQuery {},
+    #[returns(SpotPriceResponse)]
+    SpotPrice {
+        quote_asset_denom: String,
+        base_asset_denom: String,
+    },
 }
 
 // We define a custom struct for each query response
 // #[cw_serde]
 // pub struct YourQueryResponse {}
+
+#[cw_serde]
+pub struct SpotPriceResponse {
+    pub spot_price: Decimal,
+}
+
+#[cw_serde]
+pub struct CalcOutAmtGivenInResponse {
+    pub token_out: Coin,
+}
+
+#[cw_serde]
+pub struct CalcInAmtGivenOutResponse {
+    pub token_in: Coin,
+}
 
 #[cw_serde]
 pub enum SudoMsg {

@@ -1,15 +1,18 @@
 #[cfg(not(feature = "library"))]
 use cosmwasm_std::entry_point;
 use cosmwasm_std::{
-    ensure, Binary, Decimal, Deps, DepsMut, Env, MessageInfo, Reply, Response, StdResult, Uint128,
+    ensure, to_json_binary, Binary, Decimal, Deps, DepsMut, Env, MessageInfo, Reply, Response,
+    Uint128,
 };
 use cw2::set_contract_version;
 
-use crate::error::ContractError;
-use crate::msg::{ExecuteMsg, InstantiateMsg, MigrateMsg, QueryMsg};
+use crate::error::{ContractError, ContractResult};
+use crate::msg::{ExecuteMsg, InstantiateMsg, MigrateMsg, QueryMsg, SpotPriceResponse};
 
 use crate::order;
 use crate::orderbook::create_orderbook;
+use crate::state::ORDERBOOK;
+use crate::tick_math::tick_to_price;
 use crate::types::OrderDirection;
 
 // version info for migration info
@@ -97,14 +100,20 @@ pub fn execute(
 
 /// Handling contract query
 #[cfg_attr(not(feature = "library"), entry_point)]
-pub fn query(_deps: Deps, _env: Env, msg: QueryMsg) -> StdResult<Binary> {
-    match msg {
+pub fn query(deps: Deps, _env: Env, msg: QueryMsg) -> ContractResult<Binary> {
+    let query_resp = match msg {
         // Find matched incoming message variant and query them your custom logic
         // and then construct your query response with the type usually defined
         // `msg.rs` alongside with the query message itself.
         //
         // use `cosmwasm_std::to_binary` to serialize query response to json binary.
-    }
+        QueryMsg::SpotPrice {
+            quote_asset_denom,
+            base_asset_denom,
+        } => query_spot_price(deps, quote_asset_denom, base_asset_denom)?,
+    };
+
+    Ok(to_json_binary(&query_resp)?)
 }
 
 /// Handling submessage reply.
@@ -142,4 +151,37 @@ pub fn dispatch_place_limit(
         quantity,
         claim_bounty,
     )
+}
+
+pub fn query_spot_price(
+    deps: Deps,
+    quote_asset_denom: String,
+    base_asset_denom: String,
+) -> ContractResult<SpotPriceResponse> {
+    // Ensure provided denoms do not match
+    ensure!(
+        quote_asset_denom != base_asset_denom,
+        ContractError::InvalidPair {
+            token_in_denom: quote_asset_denom,
+            token_out_denom: base_asset_denom
+        }
+    );
+
+    // Fetch orderbook to retrieve tick info
+    let orderbook = ORDERBOOK.load(deps.storage)?;
+    // Determine the order direction by denom pairing
+    let direction = orderbook.direction_from_pair(quote_asset_denom, base_asset_denom)?;
+
+    // Determine next tick based on desired order direction
+    let next_tick = match direction {
+        OrderDirection::Ask => orderbook.next_ask_tick,
+        OrderDirection::Bid => orderbook.next_bid_tick,
+    };
+
+    // Generate spot price based on current active tick for desired order direction
+    let price = tick_to_price(next_tick)?;
+
+    Ok(SpotPriceResponse {
+        spot_price: Decimal::from_ratio(Uint128::try_from(price.to_uint_floor())?, Uint128::one()),
+    })
 }

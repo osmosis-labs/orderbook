@@ -386,17 +386,20 @@ pub fn run_market_order(
             OrderDirection::Bid => orderbook.next_bid_tick = current_tick_id,
         }
 
-        // Early exit if order filled
-        if order.quantity.is_zero() {
-            break;
-        }
-
         let output_quantity = amount_to_value(
             order.order_direction,
             order.quantity,
             tick_price,
             RoundingDirection::Down,
         )?;
+
+        // If the output quantity is zero, the remaining input amount cannot generate any output.
+        // When this is the case, we consume the remaining input (which is either zero or rounding error dust)
+        // and terminate tick iteration.
+        if output_quantity.is_zero() {
+            order.quantity = Uint128::zero();
+            break;
+        }
 
         let output_quantity_dec =
             Decimal256::from_ratio(Uint256::from_uint128(output_quantity), Uint256::one());
@@ -437,6 +440,13 @@ pub fn run_market_order(
 
         total_output = total_output.checked_add(fill_amount)?;
     }
+
+    // If, after iterating through all remaining ticks, the order quantity is still not filled,
+    // we error out as the orderbook has insufficient liquidity to fill the order.
+    ensure!(
+        order.quantity.is_zero(),
+        ContractError::InsufficientLiquidity
+    );
 
     // After the core tick iteration loop, write all tick updates to state.
     // We cannot do this during the loop due to the borrow checker.

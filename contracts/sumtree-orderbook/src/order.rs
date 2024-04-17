@@ -334,11 +334,14 @@ pub fn run_market_order(
     // Due to our sumtree-based design, this process carries only O(1) overhead per tick.
     let mut total_output: Uint128 = Uint128::zero();
     let mut tick_updates: Vec<(i64, TickState)> = Vec::new();
-    for maybe_current_tick in ticks {
+
+    let mut last_tick_price = Decimal256::one();
+    for maybe_current_tick in ticks.peekable() {
         let current_tick_id = maybe_current_tick?;
         let mut current_tick = TICK_STATE.load(storage, current_tick_id)?;
         let mut current_tick_values = current_tick.get_values(order.order_direction.opposite());
         let tick_price = tick_to_price(current_tick_id)?;
+        last_tick_price = tick_price;
 
         // Update current tick pointer as we visit ticks
         match order.order_direction.opposite() {
@@ -401,10 +404,19 @@ pub fn run_market_order(
         total_output = total_output.checked_add(fill_amount)?;
     }
 
-    // If, after iterating through all remaining ticks, the order quantity is still not filled,
+    // Determine if filling remaining amount on the last possible tick produced any value
+    // This will be 0 if the remaining balance is dust
+    let remaining_balance = amount_to_value(
+        order.order_direction,
+        order.quantity,
+        last_tick_price,
+        RoundingDirection::Down,
+    )?;
+
+    // If, after iterating through all remaining ticks, the order quantity is still not filled (excluding dust),
     // we error out as the orderbook has insufficient liquidity to fill the order.
     ensure!(
-        order.quantity.is_zero(),
+        remaining_balance.is_zero(),
         ContractError::InsufficientLiquidity
     );
 

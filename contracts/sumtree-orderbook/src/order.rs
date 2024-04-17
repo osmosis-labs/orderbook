@@ -303,7 +303,6 @@ pub fn place_market(
 // batch_claim_limits allows for multiple limit orders to be claimed in a single transaction.
 pub fn batch_claim_limits(
     deps: DepsMut,
-    _env: Env,
     info: MessageInfo,
     book_id: u64,
     orders: Vec<(i64, u64)>,

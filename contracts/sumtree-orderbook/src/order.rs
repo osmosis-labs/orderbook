@@ -301,8 +301,6 @@ pub fn place_market(
 }
 
 // batch_claim_limits allows for multiple limit orders to be claimed in a single transaction.
-// While an arbitrary number of order claims can be triggered, only orders on the same orderbook
-// and on the same tick can be batch claimed.
 pub fn batch_claim_limits(
     deps: DepsMut,
     _env: Env,

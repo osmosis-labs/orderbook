@@ -37,8 +37,7 @@ pub enum ExecuteMsg {
     },
     BatchClaim {
         book_id: u64,
-        tick_id: i64,
-        order_ids: Vec<u64>,
+        orders: Vec<(i64, u64)>,
     },
 }
 

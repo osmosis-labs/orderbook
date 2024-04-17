@@ -308,14 +308,13 @@ pub fn batch_claim_limits(
     _env: Env,
     info: MessageInfo,
     book_id: u64,
-    tick_id: i64,
-    order_ids: Vec<u64>,
+    orders: Vec<(i64, u64)>,
 ) -> Result<Response, ContractError> {
     nonpayable(&info)?;
 
     let mut responses: Vec<SubMsg> = Vec::new();
 
-    for order_id in order_ids {
+    for (tick_id, order_id) in orders {
         // Attempt to claim each order and ignore errors
         match claim_order(
             deps.storage,

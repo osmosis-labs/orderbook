@@ -336,7 +336,7 @@ pub fn run_market_order(
     let mut tick_updates: Vec<(i64, TickState)> = Vec::new();
 
     let mut last_tick_price = Decimal256::one();
-    for maybe_current_tick in ticks.peekable() {
+    for maybe_current_tick in ticks {
         let current_tick_id = maybe_current_tick?;
         let mut current_tick = TICK_STATE.load(storage, current_tick_id)?;
         let mut current_tick_values = current_tick.get_values(order.order_direction.opposite());

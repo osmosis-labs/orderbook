@@ -105,8 +105,13 @@ pub enum ContractError {
     #[error("Orderbook ran out of liquidity during market order")]
     InsufficientLiquidity,
 
-    #[error("Claim bounty must be a value between 0 and 1. Received: {claim_bounty:?}")]
+    #[error("Claim bounty must be a value between 0 and 0.01 (1%). Received: {claim_bounty:?}")]
     InvalidClaimBounty { claim_bounty: Option<Decimal> },
+
+    #[error(
+        "Exceeded the maximum number of claims in a batch. Maximum allowed: {max_batch_claim:?}"
+    )]
+    BatchClaimLimitExceeded { max_batch_claim: u32 },
 }
 
 pub type ContractResult<T> = Result<T, ContractError>;

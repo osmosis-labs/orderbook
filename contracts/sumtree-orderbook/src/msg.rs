@@ -75,6 +75,8 @@ pub enum SudoMsg {
     /// The amount of tokens in is determined by the current exchange rate and the swap fee.
     /// The user specifies a maximum amount of tokens in, and the transaction will revert if that amount of tokens
     /// is exceeded.
+    ///
+    /// **Currently this message is no-op**
     SwapExactAmountOut {
         sender: String,
         token_in_denom: String,

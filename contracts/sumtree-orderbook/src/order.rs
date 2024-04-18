@@ -1,4 +1,4 @@
-use crate::constants::{MAX_TICK, MIN_TICK};
+use crate::constants::{MAX_BATCH_CLAIM, MAX_TICK, MIN_TICK};
 use crate::error::{ContractError, ContractResult};
 use crate::state::{new_order_id, orders, ORDERBOOK, TICK_STATE};
 use crate::sumtree::node::{generate_node_id, NodeType, TreeNode};
@@ -41,10 +41,11 @@ pub fn place_limit(
         ContractError::InvalidQuantity { quantity }
     );
 
-    // If applicable, ensure claim_bounty is between 0 and 1
+    // If applicable, ensure claim_bounty is between 0 and 0.01.
+    // We set a conservative upper bound of 1% for claim bounties as a guardrail.
     if let Some(claim_bounty_value) = claim_bounty {
         ensure!(
-            claim_bounty_value >= Decimal::zero() && claim_bounty_value <= Decimal::one(),
+            claim_bounty_value >= Decimal::zero() && claim_bounty_value <= Decimal::percent(1),
             ContractError::InvalidClaimBounty {
                 claim_bounty: Some(claim_bounty_value)
             }
@@ -261,6 +262,50 @@ pub fn place_market(
         .add_attribute("owner", info.sender)
         .add_attribute("output_quantity", output.to_string())
         .add_message(bank_msg))
+}
+
+// batch_claim_limits allows for multiple limit orders to be claimed in a single transaction.
+pub fn batch_claim_limits(
+    deps: DepsMut,
+    info: MessageInfo,
+    book_id: u64,
+    orders: Vec<(i64, u64)>,
+) -> Result<Response, ContractError> {
+    nonpayable(&info)?;
+
+    ensure!(
+        orders.len() <= MAX_BATCH_CLAIM as usize,
+        ContractError::BatchClaimLimitExceeded {
+            max_batch_claim: MAX_BATCH_CLAIM
+        }
+    );
+
+    let mut responses: Vec<SubMsg> = Vec::new();
+
+    for (tick_id, order_id) in orders {
+        // Attempt to claim each order
+        match claim_order(
+            deps.storage,
+            info.sender.clone(),
+            book_id,
+            tick_id,
+            order_id,
+        ) {
+            Ok((_, mut bank_msgs)) => {
+                responses.append(&mut bank_msgs);
+            }
+            Err(_) => {
+                // We fail silently on errors to allow for the valid claims to be processed
+                // to be processed.
+                continue;
+            }
+        }
+    }
+
+    Ok(Response::new()
+        .add_attribute("method", "batchClaim")
+        .add_attribute("sender", info.sender)
+        .add_submessages(responses))
 }
 
 // run_market_order processes a market order from the current active tick on the order's orderbook

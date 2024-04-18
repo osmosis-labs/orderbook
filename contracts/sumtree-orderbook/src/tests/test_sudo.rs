@@ -5,10 +5,11 @@ use cosmwasm_std::{
 };
 
 use crate::{
+    constants::EXPECTED_SWAP_FEE,
     msg::SwapExactAmountInResponseData,
     orderbook::create_orderbook,
-    sudo::{dispatch_swap_exact_amount_in, ensure_fullfilment_amount, EXPECTED_SWAP_FEE},
-    types::{LimitOrder, OrderDirection, REPLY_ID_SUDO_SWAP_EX_AMT_IN},
+    sudo::{dispatch_swap_exact_amount_in, ensure_fullfilment_amount},
+    types::{LimitOrder, OrderDirection, REPLY_ID_SUDO_SWAP_EXACT_IN},
     ContractError,
 };
 
@@ -94,8 +95,6 @@ fn test_ensure_fulfillment_amount() {
             );
             continue;
         }
-
-        // No assertions as error was not produced
     }
 }
 
@@ -320,7 +319,7 @@ fn test_swap_exact_amount_in() {
                 to_address: sender.to_string(),
                 amount: vec![test.expected_output.clone()],
             },
-            REPLY_ID_SUDO_SWAP_EX_AMT_IN,
+            REPLY_ID_SUDO_SWAP_EXACT_IN,
         );
         assert_eq!(
             bank_msg,

@@ -4,12 +4,12 @@ use cosmwasm_std::{
 };
 
 use crate::{
-    constants::{MAX_TICK, MIN_TICK},
+    constants::{EXPECTED_SWAP_FEE, MAX_TICK, MIN_TICK},
     error::ContractResult,
     msg::{SudoMsg, SwapExactAmountInResponseData},
     order::run_market_order,
     state::ORDERBOOK,
-    types::{MarketOrder, OrderDirection, REPLY_ID_SUDO_SWAP_EX_AMT_IN},
+    types::{MarketOrder, OrderDirection, REPLY_ID_SUDO_SWAP_EXACT_IN},
     ContractError,
 };
 
@@ -111,7 +111,7 @@ pub(crate) fn dispatch_swap_exact_amount_in(
     Ok(Response::default()
         .add_submessage(SubMsg::reply_on_error(
             bank_msg,
-            REPLY_ID_SUDO_SWAP_EX_AMT_IN,
+            REPLY_ID_SUDO_SWAP_EXACT_IN,
         ))
         .add_attributes(vec![
             ("method", "swapExactAmountIn"),
@@ -182,9 +182,6 @@ pub(crate) fn ensure_fullfilment_amount(
     );
     Ok(())
 }
-
-// The swap fee expected by this contract
-pub const EXPECTED_SWAP_FEE: Decimal = Decimal::zero();
 
 /// Ensures that the provided swap fee matches what is expected by this contract
 pub(crate) fn ensure_swap_fee(fee: Decimal) -> ContractResult<()> {

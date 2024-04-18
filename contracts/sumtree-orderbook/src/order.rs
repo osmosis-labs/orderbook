@@ -1,4 +1,4 @@
-use crate::constants::{MAX_TICK, MIN_TICK};
+use crate::constants::{MAX_BATCH_CLAIM, MAX_TICK, MIN_TICK};
 use crate::error::{ContractError, ContractResult};
 use crate::state::{new_order_id, orders, ORDERBOOKS, TICK_STATE};
 use crate::sumtree::node::{generate_node_id, NodeType, TreeNode};
@@ -309,10 +309,17 @@ pub fn batch_claim_limits(
 ) -> Result<Response, ContractError> {
     nonpayable(&info)?;
 
+    ensure!(
+        orders.len() <= MAX_BATCH_CLAIM as usize,
+        ContractError::BatchClaimLimitExceeded {
+            max_batch_claim: MAX_BATCH_CLAIM
+        }
+    );
+
     let mut responses: Vec<SubMsg> = Vec::new();
 
     for (tick_id, order_id) in orders {
-        // Attempt to claim each order and ignore errors
+        // Attempt to claim each order
         match claim_order(
             deps.storage,
             info.sender.clone(),

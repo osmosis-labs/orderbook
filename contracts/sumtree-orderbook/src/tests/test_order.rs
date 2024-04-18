@@ -3688,7 +3688,7 @@ struct BatchClaimOrderTestCase {
 }
 
 #[test]
-fn test_batch_claim_order_happy_path() {
+fn test_batch_claim_order() {
     let valid_book_id = 0;
     let quote_denom = "quote";
     let base_denom = "base";
@@ -3898,16 +3898,20 @@ fn test_batch_claim_order_happy_path() {
         assert_eq!(
             test.expected_messages,
             res.messages,
-            "Expected {} messages, got {}",
+            "{}. Expected {} messages, got {}",
+            format_test_name(test.name),
             test.expected_messages.len(),
             res.messages.len()
         );
 
         for (expected_msg, actual_msg) in test.expected_messages.iter().zip(res.messages.iter()) {
             assert_eq!(
-                expected_msg, actual_msg,
-                "Expected {:?}, got {:?}",
-                expected_msg, actual_msg
+                expected_msg,
+                actual_msg,
+                "{}. Expected {:?}, got {:?}",
+                format_test_name(test.name),
+                expected_msg,
+                actual_msg
             );
         }
 

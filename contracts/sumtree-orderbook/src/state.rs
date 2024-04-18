@@ -12,6 +12,7 @@ const MAX_PAGE_SIZE: u8 = 100;
 const DEFAULT_PAGE_SIZE: u8 = 50;
 
 pub const ORDERBOOKS: Map<&u64, Orderbook> = Map::new("orderbooks");
+pub const DENOM_PAIR_BOOK_ID: Map<(&str, &str), u64> = Map::new("denom_pair_book_id");
 /// Key: (orderbook_id, tick)
 pub const TICK_STATE: Map<&(u64, i64), TickState> = Map::new("tick_state");
 

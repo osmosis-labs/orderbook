@@ -1,5 +1,7 @@
 use cosmwasm_schema::cw_serde;
 
+use crate::{error::ContractResult, ContractError};
+
 use super::OrderDirection;
 
 #[cw_serde]
@@ -50,5 +52,32 @@ impl Orderbook {
             OrderDirection::Bid => self.base_denom.clone(),
             OrderDirection::Ask => self.quote_denom.clone(),
         }
+    }
+
+    /// Determines the order direction given a token denom pair.
+    ///
+    /// Errors if the given pair does not match the current orderbook.
+    #[inline]
+    pub fn direction_from_pair(
+        &self,
+        token_in_denom: String,
+        token_out_denom: String,
+    ) -> ContractResult<OrderDirection> {
+        let in_out_tuple: (String, String) = (token_in_denom.clone(), token_out_denom.clone());
+
+        // Determine order direction based on token in/out denoms
+        let order_direction = if (self.base_denom.clone(), self.quote_denom.clone()) == in_out_tuple
+        {
+            OrderDirection::Ask
+        } else if (self.quote_denom.clone(), self.base_denom.clone()) == in_out_tuple {
+            OrderDirection::Bid
+        } else {
+            return Err(ContractError::InvalidPair {
+                token_in_denom,
+                token_out_denom,
+            });
+        };
+
+        Ok(order_direction)
     }
 }

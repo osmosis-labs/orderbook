@@ -1,11 +1,13 @@
 use cosmwasm_std::{
+    coin,
     testing::{mock_dependencies, mock_env, mock_info},
-    Addr, Decimal, Decimal256, Uint128,
+    Addr, Coin, Decimal, Decimal256, Uint128,
 };
 
 use crate::{
     orderbook::create_orderbook,
     query,
+    sudo::EXPECTED_SWAP_FEE,
     types::{LimitOrder, MarketOrder, OrderDirection},
     ContractError,
 };
@@ -322,5 +324,290 @@ fn test_query_spot_price() {
             "{}: price did not match",
             format_test_name(test.name)
         )
+    }
+}
+
+struct CalcOutAmountGivenInTestCase {
+    name: &'static str,
+    pre_operations: Vec<OrderOperation>,
+    token_in: Coin,
+    token_out_denom: String,
+    swap_fee: Decimal,
+    expected_output: Coin,
+    expected_error: Option<ContractError>,
+}
+
+#[test]
+fn test_calc_out_amount_given_in() {
+    let sender = Addr::unchecked("sender");
+    let quote_denom = "quote".to_string();
+    let base_denom = "base".to_string();
+
+    let test_cases = vec![
+        CalcOutAmountGivenInTestCase {
+            name: "BID: simple swap",
+            pre_operations: vec![OrderOperation::PlaceLimit(LimitOrder::new(
+                0,
+                0,
+                OrderDirection::Ask,
+                sender.clone(),
+                Uint128::from(100u128),
+                Decimal256::percent(0),
+                None,
+            ))],
+            token_in: coin(100, &quote_denom),
+            token_out_denom: base_denom.clone(),
+            swap_fee: EXPECTED_SWAP_FEE,
+            expected_output: coin(100, &base_denom),
+            expected_error: None,
+        },
+        CalcOutAmountGivenInTestCase {
+            name: "BID: invalid partial fill",
+            pre_operations: vec![OrderOperation::PlaceLimit(LimitOrder::new(
+                0,
+                0,
+                OrderDirection::Ask,
+                sender.clone(),
+                Uint128::from(25u128),
+                Decimal256::percent(0),
+                None,
+            ))],
+            token_in: coin(150, &quote_denom),
+            token_out_denom: base_denom.clone(),
+            swap_fee: EXPECTED_SWAP_FEE,
+            expected_output: coin(0, &base_denom),
+            expected_error: Some(ContractError::InsufficientLiquidity {}),
+        },
+        CalcOutAmountGivenInTestCase {
+            name: "BID: multi-tick/direction swap",
+            pre_operations: vec![
+                OrderOperation::PlaceLimit(LimitOrder::new(
+                    0,
+                    0,
+                    OrderDirection::Ask,
+                    sender.clone(),
+                    Uint128::from(100u128),
+                    Decimal256::percent(0),
+                    None,
+                )),
+                OrderOperation::PlaceLimit(LimitOrder::new(
+                    LARGE_POSITIVE_TICK,
+                    0,
+                    OrderDirection::Ask,
+                    sender.clone(),
+                    Uint128::from(100u128),
+                    Decimal256::percent(0),
+                    None,
+                )),
+                OrderOperation::PlaceLimit(LimitOrder::new(
+                    0,
+                    0,
+                    OrderDirection::Bid,
+                    sender.clone(),
+                    Uint128::from(100u128),
+                    Decimal256::percent(0),
+                    None,
+                )),
+                OrderOperation::PlaceLimit(LimitOrder::new(
+                    LARGE_POSITIVE_TICK,
+                    0,
+                    OrderDirection::Bid,
+                    sender.clone(),
+                    Uint128::from(100u128),
+                    Decimal256::percent(0),
+                    None,
+                )),
+            ],
+            token_in: coin(150, &quote_denom),
+            token_out_denom: base_denom.clone(),
+            swap_fee: EXPECTED_SWAP_FEE,
+            // Output: 100*1 (tick: 0) + 50*2 (tick: LARGE_POSITIVE_TICK) = 200
+            expected_output: coin(200, &base_denom),
+            expected_error: None,
+        },
+        CalcOutAmountGivenInTestCase {
+            name: "ASK: simple swap",
+            pre_operations: vec![OrderOperation::PlaceLimit(LimitOrder::new(
+                0,
+                0,
+                OrderDirection::Bid,
+                sender.clone(),
+                Uint128::from(100u128),
+                Decimal256::percent(0),
+                None,
+            ))],
+            token_in: coin(100, &base_denom),
+            token_out_denom: quote_denom.clone(),
+            swap_fee: EXPECTED_SWAP_FEE,
+            expected_output: coin(100, &quote_denom),
+            expected_error: None,
+        },
+        CalcOutAmountGivenInTestCase {
+            name: "ASK: invalid partial fill",
+            pre_operations: vec![OrderOperation::PlaceLimit(LimitOrder::new(
+                0,
+                0,
+                OrderDirection::Bid,
+                sender.clone(),
+                Uint128::from(25u128),
+                Decimal256::percent(0),
+                None,
+            ))],
+            token_in: coin(150, &base_denom),
+            token_out_denom: quote_denom.clone(),
+            swap_fee: EXPECTED_SWAP_FEE,
+            expected_output: coin(0, &quote_denom),
+            expected_error: Some(ContractError::InsufficientLiquidity {}),
+        },
+        CalcOutAmountGivenInTestCase {
+            name: "ASK: multi-tick/direction swap",
+            pre_operations: vec![
+                OrderOperation::PlaceLimit(LimitOrder::new(
+                    0,
+                    0,
+                    OrderDirection::Bid,
+                    sender.clone(),
+                    Uint128::from(100u128),
+                    Decimal256::percent(0),
+                    None,
+                )),
+                OrderOperation::PlaceLimit(LimitOrder::new(
+                    LARGE_POSITIVE_TICK,
+                    0,
+                    OrderDirection::Bid,
+                    sender.clone(),
+                    Uint128::from(25u128),
+                    Decimal256::percent(0),
+                    None,
+                )),
+                OrderOperation::PlaceLimit(LimitOrder::new(
+                    0,
+                    0,
+                    OrderDirection::Ask,
+                    sender.clone(),
+                    Uint128::from(100u128),
+                    Decimal256::percent(0),
+                    None,
+                )),
+                OrderOperation::PlaceLimit(LimitOrder::new(
+                    LARGE_POSITIVE_TICK,
+                    0,
+                    OrderDirection::Ask,
+                    sender.clone(),
+                    Uint128::from(25u128),
+                    Decimal256::percent(0),
+                    None,
+                )),
+            ],
+            token_in: coin(150, &base_denom),
+            token_out_denom: quote_denom.clone(),
+            swap_fee: EXPECTED_SWAP_FEE,
+            // Output: 25 at 0.5 tick price + 100 at 1 tick price = 125
+            expected_output: coin(125, &quote_denom),
+            expected_error: None,
+        },
+        CalcOutAmountGivenInTestCase {
+            name: "insufficient liquidity",
+            pre_operations: vec![],
+            token_in: coin(100, &quote_denom),
+            token_out_denom: base_denom.clone(),
+            swap_fee: EXPECTED_SWAP_FEE,
+            expected_output: coin(0, &base_denom),
+            expected_error: Some(ContractError::InsufficientLiquidity {}),
+        },
+        CalcOutAmountGivenInTestCase {
+            name: "invalid duplicate denom",
+            pre_operations: vec![],
+            token_in: coin(100, &base_denom),
+            token_out_denom: base_denom.clone(),
+            swap_fee: EXPECTED_SWAP_FEE,
+            expected_output: coin(0, &base_denom),
+            expected_error: Some(ContractError::InvalidPair {
+                token_in_denom: base_denom.to_string(),
+                token_out_denom: base_denom.to_string(),
+            }),
+        },
+        CalcOutAmountGivenInTestCase {
+            name: "invalid in denom",
+            pre_operations: vec![],
+            token_in: coin(100, "notadenom"),
+            token_out_denom: base_denom.clone(),
+            swap_fee: EXPECTED_SWAP_FEE,
+            expected_output: coin(0, &base_denom),
+            expected_error: Some(ContractError::InvalidPair {
+                token_in_denom: "notadenom".to_string(),
+                token_out_denom: base_denom.to_string(),
+            }),
+        },
+        CalcOutAmountGivenInTestCase {
+            name: "invalid out denom",
+            pre_operations: vec![],
+            token_in: coin(100, &base_denom),
+            token_out_denom: "notadenom".to_string(),
+            swap_fee: EXPECTED_SWAP_FEE,
+            expected_output: coin(0, &base_denom),
+            expected_error: Some(ContractError::InvalidPair {
+                token_in_denom: base_denom.to_string(),
+                token_out_denom: "notadenom".to_string(),
+            }),
+        },
+        CalcOutAmountGivenInTestCase {
+            name: "invalid zero amount",
+            pre_operations: vec![],
+            token_in: coin(0, &base_denom),
+            token_out_denom: quote_denom.to_string(),
+            swap_fee: EXPECTED_SWAP_FEE,
+            expected_output: coin(0, &base_denom),
+            expected_error: Some(ContractError::InvalidSwap {
+                error: "Input amount cannot be zero".to_string(),
+            }),
+        },
+    ];
+
+    for test in test_cases {
+        // -- Test Setup --
+        let mut deps = mock_dependencies();
+        let env = mock_env();
+        let info = mock_info(sender.as_str(), &[]);
+
+        create_orderbook(
+            deps.as_mut(),
+            quote_denom.to_string(),
+            base_denom.to_string(),
+        )
+        .unwrap();
+
+        // Perform any setup market operations
+        for op in test.pre_operations {
+            op.run(deps.as_mut(), env.clone(), info.clone()).unwrap();
+        }
+
+        // -- System under test --
+
+        let res = query::calc_out_amount_given_in(
+            deps.as_ref(),
+            test.token_in.clone(),
+            test.token_out_denom.clone(),
+            test.swap_fee,
+        );
+
+        // Assert any expected errors from the test
+        if let Some(err) = test.expected_error {
+            assert_eq!(
+                res.unwrap_err(),
+                err,
+                "{}: did not receive expected error",
+                format_test_name(test.name)
+            );
+
+            continue;
+        }
+
+        let res = res.unwrap();
+        assert_eq!(
+            res.token_out, test.expected_output,
+            "{}: output did not match",
+            test.name
+        );
     }
 }

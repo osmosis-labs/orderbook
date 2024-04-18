@@ -328,6 +328,14 @@ pub(crate) fn fulfill_order(
     order: &mut MarketOrder,
     tick_bound: i64,
 ) -> ContractResult<PostFulfillState> {
+    // Ensure order is non-empty
+    ensure!(
+        !order.quantity.is_zero(),
+        ContractError::InvalidSwap {
+            error: "Input amount cannot be zero".to_string()
+        }
+    );
+
     let mut orderbook = ORDERBOOK.load(storage)?;
     let output_denom = orderbook.get_opposite_denom(&order.order_direction);
 

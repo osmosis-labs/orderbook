@@ -45,12 +45,12 @@ pub enum QueryMsg {
         quote_asset_denom: String,
         base_asset_denom: String,
     },
-    // #[returns(CalcOutAmtGivenInResponse)]
-    // CalcOutAmountGivenIn {
-    //     token_in: Coin,
-    //     token_out_denom: String,
-    //     swap_fee: Decimal,
-    // },
+    #[returns(CalcOutAmtGivenInResponse)]
+    CalcOutAmountGivenIn {
+        token_in: Coin,
+        token_out_denom: String,
+        swap_fee: Decimal,
+    },
 }
 
 // We define a custom struct for each query response

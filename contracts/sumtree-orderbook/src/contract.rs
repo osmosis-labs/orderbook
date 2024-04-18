@@ -100,7 +100,7 @@ pub fn execute(
 /// Handling contract query
 #[cfg_attr(not(feature = "library"), entry_point)]
 pub fn query(deps: Deps, _env: Env, msg: QueryMsg) -> ContractResult<Binary> {
-    let query_resp = match msg {
+    match msg {
         // Find matched incoming message variant and query them your custom logic
         // and then construct your query response with the type usually defined
         // `msg.rs` alongside with the query message itself.
@@ -109,10 +109,22 @@ pub fn query(deps: Deps, _env: Env, msg: QueryMsg) -> ContractResult<Binary> {
         QueryMsg::SpotPrice {
             quote_asset_denom,
             base_asset_denom,
-        } => query::spot_price(deps, quote_asset_denom, base_asset_denom)?,
-    };
-
-    Ok(to_json_binary(&query_resp)?)
+        } => Ok(to_json_binary(&query::spot_price(
+            deps,
+            quote_asset_denom,
+            base_asset_denom,
+        )?)?),
+        QueryMsg::CalcOutAmountGivenIn {
+            token_in,
+            token_out_denom,
+            swap_fee,
+        } => Ok(to_json_binary(&query::calc_out_amount_given_in(
+            deps,
+            token_in,
+            token_out_denom,
+            swap_fee,
+        )?)?),
+    }
 }
 
 /// Handling submessage reply.

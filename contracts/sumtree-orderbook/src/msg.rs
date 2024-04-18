@@ -35,6 +35,10 @@ pub enum ExecuteMsg {
         tick_id: i64,
         order_id: u64,
     },
+    BatchClaim {
+        book_id: u64,
+        orders: Vec<(i64, u64)>,
+    },
 }
 
 /// Message type for `migrate` entry_point

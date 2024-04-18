@@ -109,47 +109,6 @@ fn test_get_orders_by_owner_all() {
 }
 
 #[test]
-fn test_get_orders_by_owner_by_book() {
-    let mut storage = MockStorage::new();
-    let order_amount = 100;
-    let owner = "owner1";
-
-    // Create orders alternating ownership between `owner` and dynamically generated owners amongst all books evenly
-    (0..order_amount).for_each(|i| {
-        let order_id = new_order_id(&mut storage).unwrap();
-        let other_owner = &format!("owner{i}");
-        let current_owner = Addr::unchecked(if i % 2 == 0 { owner } else { other_owner });
-        let order = LimitOrder::new(
-            0,
-            order_id,
-            OrderDirection::Ask,
-            current_owner,
-            Uint128::new(i as u128),
-            Decimal256::zero(),
-            None,
-        );
-        orders().save(&mut storage, &(0, i as u64), &order).unwrap();
-    });
-
-    // Verify orders by book ID
-    // book_ids.iter().for_each(|&book_id| {
-    //     let owner_orders = get_orders_by_owner(
-    //         &storage,
-    //         FilterOwnerOrders::ByBook(book_id, Addr::unchecked(owner)),
-    //         None,
-    //         None,
-    //         None,
-    //     )
-    //     .unwrap();
-    //     assert!(!owner_orders.is_empty());
-    //     owner_orders.iter().for_each(|order| {
-    //         assert_eq!(order.owner, Addr::unchecked(owner));
-    //         assert_eq!(order.book_id, book_id);
-    //     });
-    // });
-}
-
-#[test]
 fn test_get_orders_by_owner_by_tick() {
     let mut storage = MockStorage::new();
     let order_amount = 100;

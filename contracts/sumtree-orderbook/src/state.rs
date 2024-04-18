@@ -55,7 +55,7 @@ pub fn new_order_id(storage: &mut dyn Storage) -> Result<u64, ContractError> {
 /// Retrieves a list of `LimitOrder` filtered by the specified `FilterOwnerOrders`.
 ///
 /// This function allows for filtering orders based on the owner's address, optionally further
-/// filtering by book ID or tick ID. It supports pagination through `min`, `max`, and `page_size` parameters.
+/// filtering by tick ID. It supports pagination through `min`, `max`, and `page_size` parameters.
 ///
 /// ## Arguments
 ///

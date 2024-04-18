@@ -10,7 +10,9 @@ use crate::{
     ContractError,
 };
 
-use super::test_utils::{format_test_name, OrderOperation, LARGE_POSITIVE_TICK};
+use super::test_utils::{
+    format_test_name, OrderOperation, LARGE_NEGATIVE_TICK, LARGE_POSITIVE_TICK,
+};
 
 struct SpotPriceTestCase {
     name: &'static str,
@@ -135,7 +137,118 @@ fn test_query_spot_price() {
             ],
             base_denom: base_denom.to_string(),
             quote_denom: quote_denom.to_string(),
-            expected_price: Decimal::from_ratio(Uint128::from(2u128), Uint128::one()),
+            expected_price: Decimal::percent(200),
+            expected_error: None,
+        },
+        SpotPriceTestCase {
+            name: "ASK: basic price 1 query",
+            pre_operations: vec![OrderOperation::PlaceLimit(LimitOrder::new(
+                0,
+                0,
+                OrderDirection::Bid,
+                sender.clone(),
+                Uint128::one(),
+                Decimal256::zero(),
+                None,
+            ))],
+            base_denom: quote_denom.to_string(),
+            quote_denom: base_denom.to_string(),
+            expected_price: Decimal::one(),
+            expected_error: None,
+        },
+        SpotPriceTestCase {
+            name: "ASK: multi tick lowest price",
+            pre_operations: vec![
+                OrderOperation::PlaceLimit(LimitOrder::new(
+                    0,
+                    1,
+                    OrderDirection::Bid,
+                    sender.clone(),
+                    Uint128::one(),
+                    Decimal256::zero(),
+                    None,
+                )),
+                OrderOperation::PlaceLimit(LimitOrder::new(
+                    -1,
+                    2,
+                    OrderDirection::Bid,
+                    sender.clone(),
+                    Uint128::one(),
+                    Decimal256::zero(),
+                    None,
+                )),
+                OrderOperation::PlaceLimit(LimitOrder::new(
+                    -2,
+                    3,
+                    OrderDirection::Bid,
+                    sender.clone(),
+                    Uint128::one(),
+                    Decimal256::zero(),
+                    None,
+                )),
+            ],
+            base_denom: quote_denom.to_string(),
+            quote_denom: base_denom.to_string(),
+            expected_price: Decimal::one(),
+            expected_error: None,
+        },
+        SpotPriceTestCase {
+            name: "ASK: multi direction lowest tick",
+            pre_operations: vec![
+                OrderOperation::PlaceLimit(LimitOrder::new(
+                    0,
+                    0,
+                    OrderDirection::Bid,
+                    sender.clone(),
+                    Uint128::one(),
+                    Decimal256::zero(),
+                    None,
+                )),
+                OrderOperation::PlaceLimit(LimitOrder::new(
+                    0,
+                    1,
+                    OrderDirection::Ask,
+                    sender.clone(),
+                    Uint128::one(),
+                    Decimal256::zero(),
+                    None,
+                )),
+            ],
+            base_denom: quote_denom.to_string(),
+            quote_denom: base_denom.to_string(),
+            expected_price: Decimal::one(),
+            expected_error: None,
+        },
+        SpotPriceTestCase {
+            name: "ASK: moving tick",
+            pre_operations: vec![
+                OrderOperation::PlaceLimit(LimitOrder::new(
+                    0,
+                    0,
+                    OrderDirection::Bid,
+                    sender.clone(),
+                    Uint128::one(),
+                    Decimal256::zero(),
+                    None,
+                )),
+                OrderOperation::PlaceLimit(LimitOrder::new(
+                    LARGE_NEGATIVE_TICK,
+                    1,
+                    OrderDirection::Bid,
+                    sender.clone(),
+                    Uint128::one(),
+                    Decimal256::zero(),
+                    None,
+                )),
+                OrderOperation::RunMarket(MarketOrder::new(
+                    Uint128::from(2u128),
+                    OrderDirection::Ask,
+                    sender.clone(),
+                )),
+            ],
+            base_denom: quote_denom.to_string(),
+            quote_denom: base_denom.to_string(),
+            expected_price: Decimal::percent(50),
             expected_error: None,
         },
         SpotPriceTestCase {

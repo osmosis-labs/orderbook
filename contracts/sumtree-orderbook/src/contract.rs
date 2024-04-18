@@ -1,3 +1,5 @@
+use std::str::FromStr;
+
 #[cfg(not(feature = "library"))]
 use cosmwasm_std::entry_point;
 use cosmwasm_std::{
@@ -182,6 +184,6 @@ pub fn query_spot_price(
     let price = tick_to_price(next_tick)?;
 
     Ok(SpotPriceResponse {
-        spot_price: Decimal::from_ratio(Uint128::try_from(price.to_uint_floor())?, Uint128::one()),
+        spot_price: Decimal::from_str(&price.to_string())?,
     })
 }

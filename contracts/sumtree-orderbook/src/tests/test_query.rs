@@ -138,6 +138,39 @@ fn test_query_spot_price() {
             expected_price: Decimal::percent(50),
             expected_error: None,
         },
+        SpotPriceTestCase {
+            name: "invalid: duplicate denom",
+            pre_operations: vec![],
+            base_denom: base_denom.to_string(),
+            quote_denom: base_denom.to_string(),
+            expected_price: Decimal::percent(50),
+            expected_error: Some(ContractError::InvalidPair {
+                token_in_denom: base_denom.to_string(),
+                token_out_denom: base_denom.to_string(),
+            }),
+        },
+        SpotPriceTestCase {
+            name: "invalid: incorrect base denom",
+            pre_operations: vec![],
+            base_denom: "notadenom".to_string(),
+            quote_denom: quote_denom.to_string(),
+            expected_price: Decimal::percent(50),
+            expected_error: Some(ContractError::InvalidPair {
+                token_in_denom: quote_denom.to_string(),
+                token_out_denom: "notadenom".to_string(),
+            }),
+        },
+        SpotPriceTestCase {
+            name: "invalid: incorrect quote denom",
+            pre_operations: vec![],
+            base_denom: base_denom.to_string(),
+            quote_denom: "notadenom".to_string(),
+            expected_price: Decimal::percent(50),
+            expected_error: Some(ContractError::InvalidPair {
+                token_out_denom: base_denom.to_string(),
+                token_in_denom: "notadenom".to_string(),
+            }),
+        },
     ];
 
     for test in test_cases {

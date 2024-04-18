@@ -126,7 +126,7 @@ pub(crate) fn generate_limit_orders(
     orders
 }
 
-/// Places a vector of limit orders on the given book_id for a specified owner.
+/// Places a vector of limit orders on the current orderbook for a specified owner.
 pub(crate) fn place_multiple_limit_orders(
     deps: &mut DepsMut,
     env: Env,

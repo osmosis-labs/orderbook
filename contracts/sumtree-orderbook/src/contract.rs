@@ -93,9 +93,7 @@ pub fn execute(
             order::claim_limit(deps, env, info, tick_id, order_id)
         }
 
-        ExecuteMsg::BatchClaim { book_id, orders } => {
-            order::batch_claim_limits(deps, info, book_id, orders)
-        }
+        ExecuteMsg::BatchClaim { orders } => order::batch_claim_limits(deps, info, orders),
     }
 }
 

@@ -26,7 +26,6 @@ pub fn place_limit(
     quantity: Uint128,
     claim_bounty: Option<Decimal>,
 ) -> Result<Response, ContractError> {
-    // Validate book_id exists
     let mut orderbook = ORDERBOOK.load(deps.storage)?;
 
     // Validate tick_id is within valid range
@@ -268,7 +267,6 @@ pub fn place_market(
 pub fn batch_claim_limits(
     deps: DepsMut,
     info: MessageInfo,
-    book_id: u64,
     orders: Vec<(i64, u64)>,
 ) -> Result<Response, ContractError> {
     nonpayable(&info)?;
@@ -284,13 +282,7 @@ pub fn batch_claim_limits(
 
     for (tick_id, order_id) in orders {
         // Attempt to claim each order
-        match claim_order(
-            deps.storage,
-            info.sender.clone(),
-            book_id,
-            tick_id,
-            order_id,
-        ) {
+        match claim_order(deps.storage, info.sender.clone(), tick_id, order_id) {
             Ok((_, mut bank_msgs)) => {
                 responses.append(&mut bank_msgs);
             }
@@ -322,7 +314,6 @@ pub fn batch_claim_limits(
 // * Bank send message to process the balance transfer
 //
 // Returns error if:
-// * Orderbook with given ID doesn't exist (order.book_id)
 // * Tick to price conversion fails for any tick
 //
 // CONTRACT: The caller must ensure that the necessary input funds were actually supplied.

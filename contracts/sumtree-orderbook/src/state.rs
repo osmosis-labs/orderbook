@@ -5,20 +5,18 @@ use cw_storage_plus::{Bound, Index, IndexList, IndexedMap, Item, Map, MultiIndex
 
 // Counters for ID tracking
 pub const ORDER_ID: Item<u64> = Item::new("order_id");
-pub const ORDERBOOK_ID: Item<u64> = Item::new("orderbook_id");
 
 // Pagination constants for queries
 const MAX_PAGE_SIZE: u8 = 100;
 const DEFAULT_PAGE_SIZE: u8 = 50;
 
 pub const ORDERBOOK: Item<Orderbook> = Item::new("orderbook");
-/// Key: (orderbook_id, tick)
 pub const TICK_STATE: Map<i64, TickState> = Map::new("tick_state");
 
 pub struct OrderIndexes {
-    // Index by owner; Generic types: MultiIndex<Index Key: owner, Input Data: LimitOrder, Map Key: (orderbook_id, tick, order_id)>
+    // Index by owner; Generic types: MultiIndex<Index Key: owner, Input Data: LimitOrder, Map Key: ( tick, order_id)>
     pub owner: MultiIndex<'static, Addr, LimitOrder, (i64, u64)>,
-    // Index by tick and owner; Generic types: MultiIndex<Index Key: (book_id, tick_id, owner), Input Data: LimitOrder, Map Key: (orderbook_id, tick, order_id)>
+    // Index by tick and owner; Generic types: MultiIndex<Index Key: (tick_id, owner), Input Data: LimitOrder, Map Key: (tick, order_id)>
     pub tick_and_owner: MultiIndex<'static, (i64, Addr), LimitOrder, (i64, u64)>,
 }
 
@@ -29,7 +27,7 @@ impl IndexList<LimitOrder> for OrderIndexes {
     }
 }
 
-/// Key: (orderbook_id, tick, order_id)
+/// Key: (tick_id, order_id)
 pub fn orders() -> IndexedMap<'static, &'static (i64, u64), LimitOrder, OrderIndexes> {
     IndexedMap::new(
         "orders",
@@ -64,7 +62,7 @@ pub fn new_order_id(storage: &mut dyn Storage) -> Result<u64, ContractError> {
 /// * `storage` - CosmWasm Storage struct
 /// * `filter` - Specifies how to filter orders based on the owner. Can be by all orders of the owner,
 /// by a specific book, or by a specific tick within a book.
-/// * `min` - An optional minimum bound (exclusive) for the order key (orderbook_id, tick, order_id) to start the query.
+/// * `min` - An optional minimum bound (exclusive) for the order key (tick, order_id) to start the query.
 /// * `max` - An optional maximum bound (exclusive) for the order key to end the query.
 /// * `page_size` - An optional maximum number of orders to return. Limited by `MAX_PAGE_SIZE = 100` defaults to `DEFAULT_PAGE_SIZE = 50`.
 ///

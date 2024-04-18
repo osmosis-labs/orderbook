@@ -94,8 +94,6 @@ fn test_ensure_fulfillment_amount() {
             );
             continue;
         }
-
-        // No assertions as error was not produced
     }
 }
 

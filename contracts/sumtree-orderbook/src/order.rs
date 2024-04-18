@@ -281,13 +281,16 @@ pub fn place_market(
 // * Tick to price conversion fails for any tick
 //
 // CONTRACT: The caller must ensure that the necessary input funds were actually supplied.
-#[allow(clippy::manual_range_contains)]
 pub fn run_market_order(
     storage: &mut dyn Storage,
     order: &mut MarketOrder,
     tick_bound: i64,
 ) -> Result<(Uint128, BankMsg), ContractError> {
-    let (output, tick_updates, updated_orderbook) = fulfill_order(storage, order, tick_bound)?;
+    let PostFulfillState {
+        output,
+        tick_updates,
+        updated_orderbook,
+    } = fulfill_order(storage, order, tick_bound)?;
 
     // After the core tick iteration loop, write all tick updates to state.
     // We cannot do this during the loop due to the borrow checker.
@@ -311,11 +314,20 @@ pub fn run_market_order(
     ))
 }
 
+/// Defines the output of fulfilling an order.
+/// Includes any potential state updates that may need to be performed post fulfill.
+pub(crate) struct PostFulfillState {
+    pub output: Coin,
+    pub tick_updates: Vec<(i64, TickState)>,
+    pub updated_orderbook: Orderbook,
+}
+
+#[allow(clippy::manual_range_contains)]
 pub(crate) fn fulfill_order(
     storage: &dyn Storage,
     order: &mut MarketOrder,
     tick_bound: i64,
-) -> ContractResult<(Coin, Vec<(i64, TickState)>, Orderbook)> {
+) -> ContractResult<PostFulfillState> {
     let mut orderbook = ORDERBOOK.load(storage)?;
     let output_denom = orderbook.get_opposite_denom(&order.order_direction);
 
@@ -450,7 +462,11 @@ pub(crate) fn fulfill_order(
         ContractError::InsufficientLiquidity
     );
 
-    Ok((coin(total_output.u128(), output_denom), tick_updates))
+    Ok(PostFulfillState {
+        output: coin(total_output.u128(), output_denom),
+        tick_updates,
+        updated_orderbook: orderbook,
+    })
 }
 
 // Note: This can be called by anyone

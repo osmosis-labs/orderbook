@@ -70,7 +70,8 @@ pub(crate) fn calc_out_amount_given_in(
     let mut mock_order = MarketOrder::new(token_in.amount, direction, Addr::unchecked("querier"));
 
     // Generate output coin given the input order by simulating a fill against current orderbook state
-    let (output, _, _) = order::fulfill_order(deps.storage, &mut mock_order, tick_bound)?;
+    let order::PostFulfillState { output, .. } =
+        order::fulfill_order(deps.storage, &mut mock_order, tick_bound)?;
 
     Ok(CalcOutAmtGivenInResponse { token_out: output })
 }

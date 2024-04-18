@@ -289,6 +289,7 @@ fn test_query_spot_price() {
     ];
 
     for test in test_cases {
+        // -- Test Setup --
         let mut deps = mock_dependencies();
         let env = mock_env();
         let info = mock_info(sender.as_str(), &[]);
@@ -300,12 +301,16 @@ fn test_query_spot_price() {
         )
         .unwrap();
 
+        // Perform any setup market operations
         for op in test.pre_operations {
             op.run(deps.as_mut(), env.clone(), info.clone()).unwrap();
         }
 
+        // -- System under test --
+
         let res = query::spot_price(deps.as_ref(), test.quote_denom, test.base_denom);
 
+        // Assert any expected errors from the test
         if let Some(err) = test.expected_error {
             assert_eq!(
                 res.unwrap_err(),
@@ -319,11 +324,10 @@ fn test_query_spot_price() {
 
         let res = res.unwrap();
         assert_eq!(
-            res.spot_price,
-            test.expected_price,
-            "{}: price did not match",
-            format_test_name(test.name)
-        )
+            res.spot_price, test.expected_price,
+            "{}: output did not match",
+            test.name
+        );
     }
 }
 

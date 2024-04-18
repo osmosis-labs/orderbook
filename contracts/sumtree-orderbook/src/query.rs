@@ -1,13 +1,13 @@
 use std::str::FromStr;
 
-use cosmwasm_std::{ensure, Addr, Coin, Decimal, Deps};
+use cosmwasm_std::{coin, ensure, Addr, Coin, Decimal, Deps, Order, Uint128};
 
 use crate::{
     constants::{MAX_TICK, MIN_TICK},
     error::ContractResult,
-    msg::{CalcOutAmtGivenInResponse, SpotPriceResponse},
+    msg::{CalcOutAmtGivenInResponse, GetTotalPoolLiquidityResponse, SpotPriceResponse},
     order,
-    state::ORDERBOOK,
+    state::{ORDERBOOK, TICK_STATE},
     sudo::ensure_swap_fee,
     tick_math::tick_to_price,
     types::{MarketOrder, OrderDirection},
@@ -74,4 +74,40 @@ pub(crate) fn calc_out_amount_given_in(
         order::fulfill_order(deps.storage, &mut mock_order, tick_bound)?;
 
     Ok(CalcOutAmtGivenInResponse { token_out: output })
+}
+
+pub(crate) fn total_pool_liquidity(deps: Deps) -> ContractResult<GetTotalPoolLiquidityResponse> {
+    let orderbook = ORDERBOOK.load(deps.storage)?;
+
+    let mut ask_amount = coin(0u128, orderbook.base_denom);
+    let mut bid_amount = coin(0u128, orderbook.quote_denom);
+    let all_ticks = TICK_STATE.keys(deps.storage, None, None, Order::Ascending);
+
+    for maybe_tick_id in all_ticks {
+        let tick_id = maybe_tick_id?;
+        let tick = TICK_STATE.load(deps.storage, tick_id)?;
+
+        let ask_values = tick.get_values(OrderDirection::Ask);
+        ask_amount.amount = ask_amount.amount.checked_add(Uint128::try_from(
+            ask_values.total_amount_of_liquidity.to_uint_floor(),
+        )?)?;
+
+        let bid_values = tick.get_values(OrderDirection::Bid);
+        bid_amount.amount = bid_amount.amount.checked_add(Uint128::try_from(
+            bid_values.total_amount_of_liquidity.to_uint_floor(),
+        )?)?;
+    }
+
+    let mut total_pool_liquidity = vec![];
+    if !ask_amount.amount.is_zero() {
+        total_pool_liquidity.push(ask_amount)
+    }
+
+    if !bid_amount.amount.is_zero() {
+        total_pool_liquidity.push(bid_amount)
+    }
+
+    Ok(GetTotalPoolLiquidityResponse {
+        total_pool_liquidity,
+    })
 }

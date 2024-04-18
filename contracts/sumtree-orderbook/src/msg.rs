@@ -51,6 +51,8 @@ pub enum QueryMsg {
         token_out_denom: String,
         swap_fee: Decimal,
     },
+    // #[returns(GetTotalPoolLiquidityResponse)]
+    // GetTotalPoolLiquidity {},
 }
 
 // We define a custom struct for each query response
@@ -70,6 +72,11 @@ pub struct CalcOutAmtGivenInResponse {
 #[cw_serde]
 pub struct CalcInAmtGivenOutResponse {
     pub token_in: Coin,
+}
+
+#[cw_serde]
+pub struct GetTotalPoolLiquidityResponse {
+    pub total_pool_liquidity: Vec<Coin>,
 }
 
 #[cw_serde]

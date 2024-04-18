@@ -28,7 +28,6 @@ struct SyncTickTestCase {
 
 #[test]
 fn test_sync_tick() {
-    let default_book_id = 0;
     let default_tick_id = 0;
 
     let test_cases = vec![
@@ -346,11 +345,7 @@ fn test_sync_tick() {
         tick_state.set_values(OrderDirection::Bid, test.initial_tick_bid_values);
         tick_state.set_values(OrderDirection::Ask, test.initial_tick_ask_values);
         TICK_STATE
-            .save(
-                deps.as_mut().storage,
-                &(default_book_id, default_tick_id),
-                &tick_state,
-            )
+            .save(deps.as_mut().storage, default_tick_id, &tick_state)
             .unwrap();
 
         // Insert specified nodes into tree
@@ -359,13 +354,7 @@ fn test_sync_tick() {
             (&test.unrealized_cancels_ask, OrderDirection::Ask),
         ] {
             for node in unrealized_cancels.iter() {
-                insert_and_refetch(
-                    deps.as_mut().storage,
-                    default_book_id,
-                    default_tick_id,
-                    direction,
-                    node,
-                );
+                insert_and_refetch(deps.as_mut().storage, default_tick_id, direction, node);
             }
         }
 
@@ -375,7 +364,6 @@ fn test_sync_tick() {
             // Increment tick ETAS for each step
             let (updated_bid_etas, updated_ask_etas) = increment_tick_etas(
                 deps.as_mut().storage,
-                default_book_id,
                 default_tick_id,
                 &mut tick_state,
                 test.new_bid_etas_per_sync,
@@ -385,7 +373,6 @@ fn test_sync_tick() {
             // Run sync
             sync_tick(
                 deps.as_mut().storage,
-                default_book_id,
                 default_tick_id,
                 updated_bid_etas,
                 updated_ask_etas,
@@ -397,7 +384,7 @@ fn test_sync_tick() {
 
         // Fetch updated tick state and assert
         let updated_tick_state = TICK_STATE
-            .load(deps.as_ref().storage, &(default_book_id, default_tick_id))
+            .load(deps.as_ref().storage, default_tick_id)
             .unwrap();
         let (updated_bid_tick_values, updated_ask_tick_values) = (
             updated_tick_state.get_values(OrderDirection::Bid),
@@ -464,7 +451,6 @@ fn build_tick_values(total_liquidity: u128, unrealized_cancels: u128) -> TickVal
 // increment_tick_etas increments the ETAS of a tick by the given amounts for both bid and ask orders.
 fn increment_tick_etas(
     storage: &mut dyn Storage,
-    book_id: u64,
     tick_id: i64,
     tick_state: &mut TickState,
     new_bid_etas_per_sync: Decimal256,
@@ -484,9 +470,7 @@ fn increment_tick_etas(
     tick_state.set_values(OrderDirection::Bid, bid_tick_values);
     tick_state.set_values(OrderDirection::Ask, ask_tick_values);
 
-    TICK_STATE
-        .save(storage, &(book_id, tick_id), tick_state)
-        .unwrap();
+    TICK_STATE.save(storage, tick_id, tick_state).unwrap();
 
     (updated_bid_etas, updated_ask_etas)
 }

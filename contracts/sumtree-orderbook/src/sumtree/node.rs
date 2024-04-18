@@ -13,19 +13,15 @@ use cw_storage_plus::Map;
 
 use crate::{error::ContractResult, sumtree::tree::TREE, types::OrderDirection, ContractError};
 
-pub const NODES: Map<&(u64, i64, u64), TreeNode> = Map::new("nodes");
-pub const NODE_ID_COUNTER: Map<&(u64, i64), u64> = Map::new("node_id");
+pub const NODES: Map<&(i64, u64), TreeNode> = Map::new("nodes");
+pub const NODE_ID_COUNTER: Map<&i64, u64> = Map::new("node_id");
 
-pub fn generate_node_id(
-    storage: &mut dyn Storage,
-    book_id: u64,
-    tick_id: i64,
-) -> ContractResult<u64> {
+pub fn generate_node_id(storage: &mut dyn Storage, tick_id: i64) -> ContractResult<u64> {
     let mut counter = NODE_ID_COUNTER
-        .may_load(storage, &(book_id, tick_id))?
+        .may_load(storage, &(tick_id))?
         .unwrap_or_default();
     counter += 1;
-    NODE_ID_COUNTER.save(storage, &(book_id, tick_id), &counter)?;
+    NODE_ID_COUNTER.save(storage, &(tick_id), &counter)?;
     Ok(counter)
 }
 
@@ -106,7 +102,6 @@ impl Default for NodeType {
 #[cw_serde]
 pub struct TreeNode {
     pub key: u64,
-    pub book_id: u64,
     pub tick_id: i64,
     pub direction: OrderDirection,
     pub left: Option<u64>,
@@ -119,16 +114,9 @@ pub struct TreeNode {
 pub type BFSVec = Vec<Vec<(Option<TreeNode>, Option<TreeNode>)>>;
 
 impl TreeNode {
-    pub fn new(
-        book_id: u64,
-        tick_id: i64,
-        direction: OrderDirection,
-        key: u64,
-        node_type: NodeType,
-    ) -> Self {
+    pub fn new(tick_id: i64, direction: OrderDirection, key: u64, node_type: NodeType) -> Self {
         Self {
             key,
-            book_id,
             tick_id,
             direction,
             left: None,
@@ -144,7 +132,7 @@ impl TreeNode {
 
     pub fn get_right(&self, storage: &dyn Storage) -> ContractResult<Option<TreeNode>> {
         if let Some(right) = self.right {
-            Ok(NODES.may_load(storage, &(self.book_id, self.tick_id, right))?)
+            Ok(NODES.may_load(storage, &(self.tick_id, right))?)
         } else {
             Ok(None)
         }
@@ -152,7 +140,7 @@ impl TreeNode {
 
     pub fn get_left(&self, storage: &dyn Storage) -> ContractResult<Option<TreeNode>> {
         if let Some(left) = self.left {
-            Ok(NODES.may_load(storage, &(self.book_id, self.tick_id, left))?)
+            Ok(NODES.may_load(storage, &(self.tick_id, left))?)
         } else {
             Ok(None)
         }
@@ -160,7 +148,7 @@ impl TreeNode {
 
     pub fn get_parent(&self, storage: &dyn Storage) -> ContractResult<Option<TreeNode>> {
         if let Some(parent) = self.parent {
-            Ok(NODES.may_load(storage, &(self.book_id, self.tick_id, parent))?)
+            Ok(NODES.may_load(storage, &(self.tick_id, parent))?)
         } else {
             Ok(None)
         }
@@ -171,12 +159,12 @@ impl TreeNode {
     }
 
     pub fn save(&self, storage: &mut dyn Storage) -> ContractResult<()> {
-        Ok(NODES.save(storage, &(self.book_id, self.tick_id, self.key), self)?)
+        Ok(NODES.save(storage, &(self.tick_id, self.key), self)?)
     }
 
     /// Resyncs a node with values stored in CosmWasm Storage
     pub fn sync(&mut self, storage: &dyn Storage) -> ContractResult<()> {
-        *self = NODES.load(storage, &(self.book_id, self.tick_id, self.key))?;
+        *self = NODES.load(storage, &(self.tick_id, self.key))?;
         Ok(())
     }
 
@@ -564,7 +552,7 @@ impl TreeNode {
         new_node: &mut TreeNode,
     ) -> ContractResult<u64> {
         ensure!(!self.is_internal(), ContractError::InvalidNodeType);
-        let id = generate_node_id(storage, self.book_id, self.tick_id)?;
+        let id = generate_node_id(storage, self.tick_id)?;
         let accumulator = self.get_value().checked_add(new_node.get_value())?;
 
         // Determine which node goes to which side, maintaining order by ETAS
@@ -580,7 +568,6 @@ impl TreeNode {
         );
 
         let mut new_parent = TreeNode::new(
-            self.book_id,
             self.tick_id,
             self.direction,
             id,
@@ -623,7 +610,7 @@ impl TreeNode {
             }
         }
 
-        NODES.remove(storage, &(self.book_id, self.tick_id, self.key));
+        NODES.remove(storage, &(self.tick_id, self.key));
 
         Ok(())
     }
@@ -740,7 +727,7 @@ impl TreeNode {
         if left.parent.is_none() {
             TREE.save(
                 storage,
-                &(left.book_id, left.tick_id, &left.direction.to_string()),
+                &(left.tick_id, &left.direction.to_string()),
                 &left.key,
             )?;
         }
@@ -807,7 +794,7 @@ impl TreeNode {
         if right.parent.is_none() {
             TREE.save(
                 storage,
-                &(right.book_id, right.tick_id, &self.direction.to_string()),
+                &(right.tick_id, &self.direction.to_string()),
                 &right.key,
             )?;
         }

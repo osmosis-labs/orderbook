@@ -24,18 +24,12 @@ pub(crate) enum OrderOperation {
     RunMarket(MarketOrder),
     _PlaceLimitMulti((&'static [i64], usize, Uint128, i64)),
     PlaceLimit(LimitOrder),
-    Claim((u64, i64, u64)),
-    Cancel((u64, i64, u64)),
+    Claim((i64, u64)),
+    Cancel((i64, u64)),
 }
 
 impl OrderOperation {
-    pub(crate) fn run(
-        &self,
-        mut deps: DepsMut,
-        env: Env,
-        info: MessageInfo,
-        book_id: u64,
-    ) -> ContractResult<()> {
+    pub(crate) fn run(&self, mut deps: DepsMut, env: Env, info: MessageInfo) -> ContractResult<()> {
         match self.clone() {
             OrderOperation::RunMarket(mut order) => {
                 let tick_bound = match order.order_direction {
@@ -52,14 +46,12 @@ impl OrderOperation {
                 current_tick,
             )) => {
                 let orders = generate_limit_orders(
-                    book_id,
                     tick_ids,
                     current_tick,
                     orders_per_tick,
                     quantity_per_order,
                 );
-                place_multiple_limit_orders(&mut deps, env, info.sender.as_str(), book_id, orders)
-                    .unwrap();
+                place_multiple_limit_orders(&mut deps, env, info.sender.as_str(), orders).unwrap();
                 Ok(())
             }
             OrderOperation::PlaceLimit(limit_order) => {
@@ -75,7 +67,6 @@ impl OrderOperation {
                     &mut deps,
                     env,
                     info,
-                    limit_order.book_id,
                     limit_order.tick_id,
                     limit_order.order_direction,
                     limit_order.quantity,
@@ -83,23 +74,16 @@ impl OrderOperation {
                 )?;
                 Ok(())
             }
-            OrderOperation::Claim((book_id, tick_id, order_id)) => {
-                claim_order(
-                    deps.storage,
-                    info.sender.clone(),
-                    book_id,
-                    tick_id,
-                    order_id,
-                )
-                .unwrap();
+            OrderOperation::Claim((tick_id, order_id)) => {
+                claim_order(deps.storage, info.sender.clone(), tick_id, order_id).unwrap();
                 Ok(())
             }
-            OrderOperation::Cancel((book_id, tick_id, order_id)) => {
+            OrderOperation::Cancel((tick_id, order_id)) => {
                 let order = orders()
-                    .load(deps.as_ref().storage, &(book_id, tick_id, order_id))
+                    .load(deps.as_ref().storage, &(tick_id, order_id))
                     .unwrap();
                 let info = mock_info(order.owner.as_str(), &[]);
-                cancel_limit(deps, env, info, book_id, tick_id, order_id).unwrap();
+                cancel_limit(deps, env, info, tick_id, order_id).unwrap();
                 Ok(())
             }
         }
@@ -111,7 +95,6 @@ impl OrderOperation {
 /// with order direction being determined such that they are all placed
 /// around `current_tick`.
 pub(crate) fn generate_limit_orders(
-    book_id: u64,
     tick_ids: &[i64],
     current_tick: i64,
     orders_per_tick: usize,
@@ -127,7 +110,6 @@ pub(crate) fn generate_limit_orders(
 
         for _ in 0..orders_per_tick {
             let order = LimitOrder {
-                book_id,
                 tick_id,
                 order_direction,
                 owner: Addr::unchecked("creator"),
@@ -144,12 +126,11 @@ pub(crate) fn generate_limit_orders(
     orders
 }
 
-/// Places a vector of limit orders on the given book_id for a specified owner.
+/// Places a vector of limit orders on the current orderbook for a specified owner.
 pub(crate) fn place_multiple_limit_orders(
     deps: &mut DepsMut,
     env: Env,
     owner: &str,
-    book_id: u64,
     orders: Vec<LimitOrder>,
 ) -> ContractResult<()> {
     for order in orders {
@@ -167,7 +148,6 @@ pub(crate) fn place_multiple_limit_orders(
             deps,
             env.clone(),
             info,
-            book_id,
             order.tick_id,
             order.order_direction,
             order.quantity,

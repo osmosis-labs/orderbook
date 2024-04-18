@@ -47,9 +47,6 @@ pub enum ContractError {
     #[error("Insufficient funds. Sent: {sent:?}, Required: {required:?}")]
     InsufficientFunds { sent: Uint128, required: Uint128 },
 
-    #[error("Invalid book ID: {book_id:?}")]
-    InvalidBookId { book_id: u64 },
-
     #[error("Invalid pair: ({token_in_denom}, {token_out_denom})")]
     InvalidPair {
         token_in_denom: String,
@@ -59,12 +56,11 @@ pub enum ContractError {
     #[error("Invalid swap: {error}")]
     InvalidSwap { error: String },
 
-    #[error("Order not found: {book_id:?}, {tick_id:?}, {order_id:?}")]
-    OrderNotFound {
-        book_id: u64,
-        tick_id: i64,
-        order_id: u64,
-    },
+    #[error("Invalid denom")]
+    InvalidDenom { denom: String },
+
+    #[error("Order not found: {tick_id:?}, {order_id:?}")]
+    OrderNotFound { tick_id: i64, order_id: u64 },
 
     #[error("Reply error: {id:?}, {error:?}")]
     ReplyError { id: u64, error: String },
@@ -72,14 +68,6 @@ pub enum ContractError {
     // Tick out of bounds error
     #[error("Tick out of bounds: {tick_id:?}")]
     TickOutOfBounds { tick_id: i64 },
-    #[error("Cannot fulfill order. Order ID: {order_id:?}, Book ID: {book_id:?}, Amount Required: {amount_required:?}, Amount Remaining: {amount_remaining:?} {reason:?}")]
-    InvalidFulfillment {
-        order_id: u64,
-        book_id: u64,
-        amount_required: Uint128,
-        amount_remaining: Uint128,
-        reason: Option<String>,
-    },
 
     #[error("Mismatched order direction")]
     MismatchedOrderDirection {},

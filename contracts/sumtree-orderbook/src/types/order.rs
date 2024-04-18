@@ -38,7 +38,6 @@ impl Display for OrderDirection {
 
 #[cw_serde]
 pub struct LimitOrder {
-    pub book_id: u64,
     pub tick_id: i64,
     pub order_id: u64,
     pub order_direction: OrderDirection,
@@ -51,7 +50,6 @@ pub struct LimitOrder {
 impl LimitOrder {
     #[allow(clippy::too_many_arguments)]
     pub fn new(
-        book_id: u64,
         tick_id: i64,
         order_id: u64,
         order_direction: OrderDirection,
@@ -61,7 +59,6 @@ impl LimitOrder {
         claim_bounty: Option<Decimal>,
     ) -> Self {
         LimitOrder {
-            book_id,
             tick_id,
             order_id,
             order_direction,
@@ -75,21 +72,14 @@ impl LimitOrder {
 
 #[cw_serde]
 pub struct MarketOrder {
-    pub book_id: u64,
     pub quantity: Uint128,
     pub order_direction: OrderDirection,
     pub owner: Addr,
 }
 
 impl MarketOrder {
-    pub fn new(
-        book_id: u64,
-        quantity: Uint128,
-        order_direction: OrderDirection,
-        owner: Addr,
-    ) -> Self {
+    pub fn new(quantity: Uint128, order_direction: OrderDirection, owner: Addr) -> Self {
         MarketOrder {
-            book_id,
             quantity,
             order_direction,
             owner,
@@ -100,7 +90,6 @@ impl MarketOrder {
 impl From<LimitOrder> for MarketOrder {
     fn from(limit_order: LimitOrder) -> Self {
         MarketOrder {
-            book_id: limit_order.book_id,
             quantity: limit_order.quantity,
             order_direction: limit_order.order_direction,
             owner: limit_order.owner,
@@ -112,8 +101,7 @@ impl From<LimitOrder> for MarketOrder {
 #[derive(Clone)]
 pub enum FilterOwnerOrders {
     All(Addr),
-    ByBook(u64, Addr),
-    ByTick(u64, i64, Addr),
+    ByTick(i64, Addr),
 }
 
 impl FilterOwnerOrders {
@@ -121,11 +109,7 @@ impl FilterOwnerOrders {
         FilterOwnerOrders::All(owner)
     }
 
-    pub fn by_book(book_id: u64, owner: Addr) -> Self {
-        FilterOwnerOrders::ByBook(book_id, owner)
-    }
-
-    pub fn by_tick(book_id: u64, tick_id: i64, owner: Addr) -> Self {
-        FilterOwnerOrders::ByTick(book_id, tick_id, owner)
+    pub fn by_tick(tick_id: i64, owner: Addr) -> Self {
+        FilterOwnerOrders::ByTick(tick_id, owner)
     }
 }

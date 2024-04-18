@@ -130,7 +130,6 @@ pub fn assert_internal_values(
 
 #[test]
 fn test_node_insert_cases() {
-    let book_id = 1;
     let tick_id = 1;
     let direction = OrderDirection::Bid;
     let test_cases: Vec<TestNodeInsertCase> = vec![
@@ -361,26 +360,24 @@ fn test_node_insert_cases() {
         let mut deps = mock_dependencies();
         // Create tree root
         let mut tree = TreeNode::new(
-            book_id,
             tick_id,
             direction,
-            generate_node_id(deps.as_mut().storage, book_id, tick_id).unwrap(),
+            generate_node_id(deps.as_mut().storage,  tick_id).unwrap(),
             NodeType::internal_uint256(Uint256::zero(), (u32::MAX, u32::MIN)),
         );
 
         // Insert nodes into tree
         for (idx, node) in test.nodes.iter().enumerate() {
             let mut tree_node = TreeNode::new(
-                book_id,
                 tick_id,
                 direction,
-                generate_node_id(deps.as_mut().storage, book_id, tick_id).unwrap(),
+                generate_node_id(deps.as_mut().storage,  tick_id).unwrap(),
                 node.clone(),
             );
             NODES
                 .save(
                     deps.as_mut().storage,
-                    &(book_id, tick_id, tree_node.key),
+                    &( tick_id, tree_node.key),
                     &tree_node,
                 )
                 .unwrap();
@@ -404,7 +401,7 @@ fn test_node_insert_cases() {
             test.expected
                 .iter()
                 .map(|key| NODES
-                    .load(deps.as_ref().storage, &(book_id, tick_id, *key))
+                    .load(deps.as_ref().storage, &( tick_id, *key))
                     .unwrap())
                 .collect::<Vec<TreeNode>>()
         );
@@ -427,7 +424,6 @@ struct NodeDeletionTestCase {
 
 #[test]
 fn test_node_deletion_valid() {
-    let book_id = 1;
     let tick_id = 1;
     let direction = OrderDirection::Bid;
     let test_cases: Vec<NodeDeletionTestCase> = vec![
@@ -547,25 +543,23 @@ fn test_node_deletion_valid() {
     for test in test_cases {
         let mut deps = mock_dependencies();
         let mut tree = TreeNode::new(
-            book_id,
             tick_id,
             direction,
-            generate_node_id(deps.as_mut().storage, book_id, tick_id).unwrap(),
+            generate_node_id(deps.as_mut().storage,  tick_id).unwrap(),
             NodeType::internal_uint256(Uint256::zero(), (u32::MAX, u32::MIN)),
         );
 
         for node in test.nodes {
             let mut tree_node = TreeNode::new(
-                book_id,
                 tick_id,
                 direction,
-                generate_node_id(deps.as_mut().storage, book_id, tick_id).unwrap(),
+                generate_node_id(deps.as_mut().storage,  tick_id).unwrap(),
                 node,
             );
             NODES
                 .save(
                     deps.as_mut().storage,
-                    &(book_id, tick_id, tree_node.key),
+                    &( tick_id, tree_node.key),
                     &tree_node,
                 )
                 .unwrap();
@@ -578,7 +572,7 @@ fn test_node_deletion_valid() {
 
         for key in test.delete.clone() {
             let node = NODES
-                .load(deps.as_ref().storage, &(book_id, tick_id, key))
+                .load(deps.as_ref().storage, &( tick_id, key))
                 .unwrap();
             node.delete(deps.as_mut().storage).unwrap();
         }
@@ -590,7 +584,7 @@ fn test_node_deletion_valid() {
         }
 
         let tree = NODES
-            .load(deps.as_ref().storage, &(book_id, tick_id, tree.key))
+            .load(deps.as_ref().storage, &( tick_id, tree.key))
             .unwrap();
 
         if test.print {
@@ -604,14 +598,14 @@ fn test_node_deletion_valid() {
             test.expected
                 .iter()
                 .map(|key| NODES
-                    .load(deps.as_ref().storage, &(book_id, tick_id, *key))
+                    .load(deps.as_ref().storage, &( tick_id, *key))
                     .unwrap())
                 .collect::<Vec<TreeNode>>()
         );
 
         for key in test.delete {
             let maybe_node = NODES
-                .may_load(deps.as_ref().storage, &(book_id, tick_id, key))
+                .may_load(deps.as_ref().storage, &( tick_id, key))
                 .unwrap();
             assert!(maybe_node.is_none(), "Node {key} was not deleted");
         }
@@ -631,7 +625,6 @@ struct RotateRightTestCase {
 
 #[test]
 fn test_rotate_right() {
-    let book_id = 1;
     let tick_id = 1;
     let direction = OrderDirection::Bid;
     let test_cases: Vec<RotateRightTestCase> = vec![
@@ -655,7 +648,7 @@ fn test_rotate_right() {
             nodes: vec![
                 // Root
                 TreeNode::new(
-                    book_id,
+                    
                     tick_id,
                     direction,
                     1,
@@ -664,7 +657,7 @@ fn test_rotate_right() {
                 .with_children(Some(2), None),
                 // Left
                 TreeNode::new(
-                    book_id,
+                    
                     tick_id,
                     direction,
                     2,
@@ -674,7 +667,7 @@ fn test_rotate_right() {
                 .with_parent(1),
                 // Left-Left
                 TreeNode::new(
-                    book_id,
+                    
                     tick_id,
                     direction,
                     3,
@@ -683,7 +676,7 @@ fn test_rotate_right() {
                 .with_parent(2),
                 // Left-Right
                 TreeNode::new(
-                    book_id,
+                    
                     tick_id,
                     direction,
                     4,
@@ -715,7 +708,7 @@ fn test_rotate_right() {
             nodes: vec![
                 // Root
                 TreeNode::new(
-                    book_id,
+                    
                     tick_id,
                     direction,
                     1,
@@ -724,7 +717,7 @@ fn test_rotate_right() {
                 .with_children(Some(2), Some(4)),
                 // Left
                 TreeNode::new(
-                    book_id,
+                    
                     tick_id,
                     direction,
                     2,
@@ -734,7 +727,7 @@ fn test_rotate_right() {
                 .with_parent(1),
                 // Left-Left
                 TreeNode::new(
-                    book_id,
+                    
                     tick_id,
                     direction,
                     3,
@@ -743,7 +736,7 @@ fn test_rotate_right() {
                 .with_parent(2),
                 // Right
                 TreeNode::new(
-                    book_id,
+                    
                     tick_id,
                     direction,
                     4,
@@ -775,7 +768,7 @@ fn test_rotate_right() {
             nodes: vec![
                 // Root
                 TreeNode::new(
-                    book_id,
+                    
                     tick_id,
                     direction,
                     1,
@@ -784,7 +777,7 @@ fn test_rotate_right() {
                 .with_children(Some(2), Some(4)),
                 // Left
                 TreeNode::new(
-                    book_id,
+                    
                     tick_id,
                     direction,
                     2,
@@ -794,7 +787,7 @@ fn test_rotate_right() {
                 .with_parent(1),
                 // Left-Right
                 TreeNode::new(
-                    book_id,
+                    
                     tick_id,
                     direction,
                     3,
@@ -803,7 +796,7 @@ fn test_rotate_right() {
                 .with_parent(2),
                 // Right
                 TreeNode::new(
-                    book_id,
+                    
                     tick_id,
                     direction,
                     4,
@@ -835,7 +828,7 @@ fn test_rotate_right() {
             nodes: vec![
                 // Root
                 TreeNode::new(
-                    book_id,
+                    
                     tick_id,
                     direction,
                     1,
@@ -844,7 +837,7 @@ fn test_rotate_right() {
                 .with_children(Some(2), Some(5)),
                 // Left
                 TreeNode::new(
-                    book_id,
+                    
                     tick_id,
                     direction,
                     2,
@@ -854,7 +847,7 @@ fn test_rotate_right() {
                 .with_parent(1),
                 // Left-Left
                 TreeNode::new(
-                    book_id,
+                    
                     tick_id,
                     direction,
                     3,
@@ -863,7 +856,7 @@ fn test_rotate_right() {
                 .with_parent(2),
                 // Left-Right
                 TreeNode::new(
-                    book_id,
+                    
                     tick_id,
                     direction,
                     4,
@@ -872,7 +865,7 @@ fn test_rotate_right() {
                 .with_parent(2),
                 // Right
                 TreeNode::new(
-                    book_id,
+                    
                     tick_id,
                     direction,
                     5,
@@ -906,7 +899,7 @@ fn test_rotate_right() {
             nodes: vec![
                 // Root
                 TreeNode::new(
-                    book_id,
+                    
                     tick_id,
                     direction,
                     1,
@@ -915,7 +908,7 @@ fn test_rotate_right() {
                 .with_children(Some(2), Some(5)),
                 // Left
                 TreeNode::new(
-                    book_id,
+                    
                     tick_id,
                     direction,
                     2,
@@ -925,7 +918,7 @@ fn test_rotate_right() {
                 .with_parent(1),
                 // Left-Left
                 TreeNode::new(
-                    book_id,
+                    
                     tick_id,
                     direction,
                     3,
@@ -934,7 +927,7 @@ fn test_rotate_right() {
                 .with_parent(2),
                 // Left-Right
                 TreeNode::new(
-                    book_id,
+                    
                     tick_id,
                     direction,
                     4,
@@ -943,7 +936,7 @@ fn test_rotate_right() {
                 .with_parent(2),
                 // Right
                 TreeNode::new(
-                    book_id,
+                    
                     tick_id,
                     direction,
                     5,
@@ -953,7 +946,7 @@ fn test_rotate_right() {
                 .with_parent(1),
                 // Right-Left
                 TreeNode::new(
-                    book_id,
+                    
                     tick_id,
                     direction,
                     6,
@@ -962,7 +955,7 @@ fn test_rotate_right() {
                 .with_parent(5),
                 // Right-Right
                 TreeNode::new(
-                    book_id,
+                    
                     tick_id,
                     direction,
                     7,
@@ -996,7 +989,7 @@ fn test_rotate_right() {
             nodes: vec![
                 // Root
                 TreeNode::new(
-                    book_id,
+                    
                     tick_id,
                     direction,
                     1,
@@ -1005,7 +998,7 @@ fn test_rotate_right() {
                 .with_children(Some(2), Some(5)),
                 // Left
                 TreeNode::new(
-                    book_id,
+                    
                     tick_id,
                     direction,
                     2,
@@ -1015,7 +1008,7 @@ fn test_rotate_right() {
                 .with_parent(1),
                 // Left-Right
                 TreeNode::new(
-                    book_id,
+                    
                     tick_id,
                     direction,
                     4,
@@ -1024,7 +1017,7 @@ fn test_rotate_right() {
                 .with_parent(2),
                 // Right
                 TreeNode::new(
-                    book_id,
+                    
                     tick_id,
                     direction,
                     5,
@@ -1034,7 +1027,7 @@ fn test_rotate_right() {
                 .with_parent(1),
                 // Right-Left
                 TreeNode::new(
-                    book_id,
+                    
                     tick_id,
                     direction,
                     6,
@@ -1043,7 +1036,7 @@ fn test_rotate_right() {
                 .with_parent(5),
                 // Right-Right
                 TreeNode::new(
-                    book_id,
+                    
                     tick_id,
                     direction,
                     7,
@@ -1077,7 +1070,7 @@ fn test_rotate_right() {
             nodes: vec![
                 // Root
                 TreeNode::new(
-                    book_id,
+                    
                     tick_id,
                     direction,
                     1,
@@ -1086,7 +1079,7 @@ fn test_rotate_right() {
                 .with_children(Some(2), Some(5)),
                 // Left
                 TreeNode::new(
-                    book_id,
+                    
                     tick_id,
                     direction,
                     2,
@@ -1096,7 +1089,7 @@ fn test_rotate_right() {
                 .with_parent(1),
                 // Left-Left
                 TreeNode::new(
-                    book_id,
+                    
                     tick_id,
                     direction,
                     4,
@@ -1105,7 +1098,7 @@ fn test_rotate_right() {
                 .with_parent(2),
                 // Right
                 TreeNode::new(
-                    book_id,
+                    
                     tick_id,
                     direction,
                     5,
@@ -1115,7 +1108,7 @@ fn test_rotate_right() {
                 .with_parent(1),
                 // Right-Left
                 TreeNode::new(
-                    book_id,
+                    
                     tick_id,
                     direction,
                     6,
@@ -1124,7 +1117,7 @@ fn test_rotate_right() {
                 .with_parent(5),
                 // Right-Right
                 TreeNode::new(
-                    book_id,
+                    
                     tick_id,
                     direction,
                     7,
@@ -1148,7 +1141,7 @@ fn test_rotate_right() {
             nodes: vec![
                 // Root
                 TreeNode::new(
-                    book_id,
+                    
                     tick_id,
                     direction,
                     1,
@@ -1157,7 +1150,7 @@ fn test_rotate_right() {
                 .with_children(None, Some(5)),
                 // Right
                 TreeNode::new(
-                    book_id,
+                    
                     tick_id,
                     direction,
                     5,
@@ -1167,7 +1160,7 @@ fn test_rotate_right() {
                 .with_parent(1),
                 // Right-Left
                 TreeNode::new(
-                    book_id,
+                    
                     tick_id,
                     direction,
                     6,
@@ -1176,7 +1169,7 @@ fn test_rotate_right() {
                 .with_parent(5),
                 // Right-Right
                 TreeNode::new(
-                    book_id,
+                    
                     tick_id,
                     direction,
                     7,
@@ -1200,7 +1193,7 @@ fn test_rotate_right() {
             nodes: vec![
                 // Root
                 TreeNode::new(
-                    book_id,
+                    
                     tick_id,
                     direction,
                     1,
@@ -1209,7 +1202,7 @@ fn test_rotate_right() {
                 .with_children(Some(2), Some(5)),
                 // Left
                 TreeNode::new(
-                    book_id,
+                    
                     tick_id,
                     direction,
                     2,
@@ -1218,7 +1211,7 @@ fn test_rotate_right() {
                 .with_parent(1),
                 // Right
                 TreeNode::new(
-                    book_id,
+                    
                     tick_id,
                     direction,
                     5,
@@ -1228,7 +1221,7 @@ fn test_rotate_right() {
                 .with_parent(1),
                 // Right-Left
                 TreeNode::new(
-                    book_id,
+                    
                     tick_id,
                     direction,
                     6,
@@ -1237,7 +1230,7 @@ fn test_rotate_right() {
                 .with_parent(5),
                 // Right-Right
                 TreeNode::new(
-                    book_id,
+                    
                     tick_id,
                     direction,
                     7,
@@ -1259,13 +1252,13 @@ fn test_rotate_right() {
             if idx == 0 {
                 TREE.save(
                     deps.as_mut().storage,
-                    &(book_id, tick_id, &direction.to_string()),
+                    &( tick_id, &direction.to_string()),
                     &node.key,
                 )
                 .unwrap();
             }
             NODES
-                .save(deps.as_mut().storage, &(book_id, tick_id, node.key), node)
+                .save(deps.as_mut().storage, &( tick_id, node.key), node)
                 .unwrap();
         }
 
@@ -1281,7 +1274,7 @@ fn test_rotate_right() {
                 .unwrap();
         }
 
-        let mut tree = get_root_node(deps.as_ref().storage, book_id, tick_id, direction).unwrap();
+        let mut tree = get_root_node(deps.as_ref().storage,  tick_id, direction).unwrap();
         if test.print {
             print_tree("Pre-rotation", test.name, &tree, &deps.as_ref());
         }
@@ -1294,7 +1287,7 @@ fn test_rotate_right() {
         }
 
         // Get new root node, it may have changed due to rotationss
-        let tree = get_root_node(deps.as_ref().storage, book_id, tick_id, direction).unwrap();
+        let tree = get_root_node(deps.as_ref().storage,  tick_id, direction).unwrap();
         if test.print {
             print_tree("Post-rotation", test.name, &tree, &deps.as_ref());
         }
@@ -1318,7 +1311,7 @@ struct RotateLeftTestCase {
 
 #[test]
 fn test_rotate_left() {
-    let book_id = 1;
+    
     let tick_id = 1;
     let direction = OrderDirection::Bid;
     let test_cases: Vec<RotateLeftTestCase> = vec![
@@ -1342,7 +1335,7 @@ fn test_rotate_left() {
             nodes: vec![
                 // Root
                 TreeNode::new(
-                    book_id,
+                    
                     tick_id,
                     direction,
                     1,
@@ -1351,7 +1344,7 @@ fn test_rotate_left() {
                 .with_children(None, Some(2)),
                 // Right
                 TreeNode::new(
-                    book_id,
+                    
                     tick_id,
                     direction,
                     2,
@@ -1361,7 +1354,7 @@ fn test_rotate_left() {
                 .with_parent(1),
                 // Right-Left
                 TreeNode::new(
-                    book_id,
+                    
                     tick_id,
                     direction,
                     3,
@@ -1370,7 +1363,7 @@ fn test_rotate_left() {
                 .with_parent(2),
                 // Right-Right
                 TreeNode::new(
-                    book_id,
+                    
                     tick_id,
                     direction,
                     4,
@@ -1402,7 +1395,7 @@ fn test_rotate_left() {
             nodes: vec![
                 // Root
                 TreeNode::new(
-                    book_id,
+                    
                     tick_id,
                     direction,
                     1,
@@ -1411,7 +1404,7 @@ fn test_rotate_left() {
                 .with_children(Some(4), Some(2)),
                 // Right
                 TreeNode::new(
-                    book_id,
+                    
                     tick_id,
                     direction,
                     2,
@@ -1421,7 +1414,7 @@ fn test_rotate_left() {
                 .with_parent(1),
                 // Right-Left
                 TreeNode::new(
-                    book_id,
+                    
                     tick_id,
                     direction,
                     3,
@@ -1430,7 +1423,7 @@ fn test_rotate_left() {
                 .with_parent(2),
                 // Left
                 TreeNode::new(
-                    book_id,
+                    
                     tick_id,
                     direction,
                     4,
@@ -1462,7 +1455,7 @@ fn test_rotate_left() {
             nodes: vec![
                 // Root
                 TreeNode::new(
-                    book_id,
+                    
                     tick_id,
                     direction,
                     1,
@@ -1471,7 +1464,7 @@ fn test_rotate_left() {
                 .with_children(Some(4), Some(2)),
                 // Right
                 TreeNode::new(
-                    book_id,
+                    
                     tick_id,
                     direction,
                     2,
@@ -1481,7 +1474,7 @@ fn test_rotate_left() {
                 .with_parent(1),
                 // Right-Right
                 TreeNode::new(
-                    book_id,
+                    
                     tick_id,
                     direction,
                     3,
@@ -1490,7 +1483,7 @@ fn test_rotate_left() {
                 .with_parent(2),
                 // Left
                 TreeNode::new(
-                    book_id,
+                    
                     tick_id,
                     direction,
                     4,
@@ -1522,7 +1515,7 @@ fn test_rotate_left() {
             nodes: vec![
                 // Root
                 TreeNode::new(
-                    book_id,
+                    
                     tick_id,
                     direction,
                     1,
@@ -1531,7 +1524,7 @@ fn test_rotate_left() {
                 .with_children(Some(5), Some(2)),
                 // Right
                 TreeNode::new(
-                    book_id,
+                    
                     tick_id,
                     direction,
                     2,
@@ -1541,7 +1534,7 @@ fn test_rotate_left() {
                 .with_parent(1),
                 // Right-Left
                 TreeNode::new(
-                    book_id,
+                    
                     tick_id,
                     direction,
                     3,
@@ -1550,7 +1543,7 @@ fn test_rotate_left() {
                 .with_parent(2),
                 // Right-Right
                 TreeNode::new(
-                    book_id,
+                    
                     tick_id,
                     direction,
                     4,
@@ -1559,7 +1552,7 @@ fn test_rotate_left() {
                 .with_parent(2),
                 // Left
                 TreeNode::new(
-                    book_id,
+                    
                     tick_id,
                     direction,
                     5,
@@ -1593,7 +1586,7 @@ fn test_rotate_left() {
             nodes: vec![
                 // Root
                 TreeNode::new(
-                    book_id,
+                    
                     tick_id,
                     direction,
                     1,
@@ -1602,7 +1595,7 @@ fn test_rotate_left() {
                 .with_children(Some(5), Some(2)),
                 // Right
                 TreeNode::new(
-                    book_id,
+                    
                     tick_id,
                     direction,
                     2,
@@ -1612,7 +1605,7 @@ fn test_rotate_left() {
                 .with_parent(1),
                 // Right-Right
                 TreeNode::new(
-                    book_id,
+                    
                     tick_id,
                     direction,
                     4,
@@ -1621,7 +1614,7 @@ fn test_rotate_left() {
                 .with_parent(2),
                 // Left
                 TreeNode::new(
-                    book_id,
+                    
                     tick_id,
                     direction,
                     5,
@@ -1631,7 +1624,7 @@ fn test_rotate_left() {
                 .with_parent(1),
                 // Left-Left
                 TreeNode::new(
-                    book_id,
+                    
                     tick_id,
                     direction,
                     6,
@@ -1640,7 +1633,7 @@ fn test_rotate_left() {
                 .with_parent(5),
                 // Left-Right
                 TreeNode::new(
-                    book_id,
+                    
                     tick_id,
                     direction,
                     7,
@@ -1674,7 +1667,7 @@ fn test_rotate_left() {
             nodes: vec![
                 // Root
                 TreeNode::new(
-                    book_id,
+                    
                     tick_id,
                     direction,
                     1,
@@ -1683,7 +1676,7 @@ fn test_rotate_left() {
                 .with_children(Some(5), Some(2)),
                 // Right
                 TreeNode::new(
-                    book_id,
+                    
                     tick_id,
                     direction,
                     2,
@@ -1693,7 +1686,7 @@ fn test_rotate_left() {
                 .with_parent(1),
                 // Right-Left
                 TreeNode::new(
-                    book_id,
+                    
                     tick_id,
                     direction,
                     4,
@@ -1702,7 +1695,7 @@ fn test_rotate_left() {
                 .with_parent(2),
                 // Left
                 TreeNode::new(
-                    book_id,
+                    
                     tick_id,
                     direction,
                     5,
@@ -1712,7 +1705,7 @@ fn test_rotate_left() {
                 .with_parent(1),
                 // Left-Left
                 TreeNode::new(
-                    book_id,
+                    
                     tick_id,
                     direction,
                     6,
@@ -1721,7 +1714,7 @@ fn test_rotate_left() {
                 .with_parent(5),
                 // Left-Right
                 TreeNode::new(
-                    book_id,
+                    
                     tick_id,
                     direction,
                     7,
@@ -1745,7 +1738,7 @@ fn test_rotate_left() {
             nodes: vec![
                 // Root
                 TreeNode::new(
-                    book_id,
+                    
                     tick_id,
                     direction,
                     1,
@@ -1754,7 +1747,7 @@ fn test_rotate_left() {
                 .with_children(Some(5), None),
                 // Left
                 TreeNode::new(
-                    book_id,
+                    
                     tick_id,
                     direction,
                     5,
@@ -1764,7 +1757,7 @@ fn test_rotate_left() {
                 .with_parent(1),
                 // Left-Left
                 TreeNode::new(
-                    book_id,
+                    
                     tick_id,
                     direction,
                     6,
@@ -1773,7 +1766,7 @@ fn test_rotate_left() {
                 .with_parent(5),
                 // Left-Right
                 TreeNode::new(
-                    book_id,
+                    
                     tick_id,
                     direction,
                     7,
@@ -1797,7 +1790,7 @@ fn test_rotate_left() {
             nodes: vec![
                 // Root
                 TreeNode::new(
-                    book_id,
+                    
                     tick_id,
                     direction,
                     1,
@@ -1806,7 +1799,7 @@ fn test_rotate_left() {
                 .with_children(Some(5), Some(2)),
                 // Right
                 TreeNode::new(
-                    book_id,
+                    
                     tick_id,
                     direction,
                     2,
@@ -1815,7 +1808,7 @@ fn test_rotate_left() {
                 .with_parent(1),
                 // Left
                 TreeNode::new(
-                    book_id,
+                    
                     tick_id,
                     direction,
                     5,
@@ -1825,7 +1818,7 @@ fn test_rotate_left() {
                 .with_parent(1),
                 // Left-Left
                 TreeNode::new(
-                    book_id,
+                    
                     tick_id,
                     direction,
                     6,
@@ -1834,7 +1827,7 @@ fn test_rotate_left() {
                 .with_parent(5),
                 // Left-Right
                 TreeNode::new(
-                    book_id,
+                    
                     tick_id,
                     direction,
                     7,
@@ -1856,13 +1849,13 @@ fn test_rotate_left() {
             if idx == 0 {
                 TREE.save(
                     deps.as_mut().storage,
-                    &(book_id, tick_id, &direction.to_string()),
+                    &( tick_id, &direction.to_string()),
                     &node.key,
                 )
                 .unwrap();
             }
             NODES
-                .save(deps.as_mut().storage, &(book_id, tick_id, node.key), node)
+                .save(deps.as_mut().storage, &( tick_id, node.key), node)
                 .unwrap();
         }
 
@@ -1878,7 +1871,7 @@ fn test_rotate_left() {
                 .unwrap();
         }
 
-        let mut tree = get_root_node(deps.as_ref().storage, book_id, tick_id, direction).unwrap();
+        let mut tree = get_root_node(deps.as_ref().storage,  tick_id, direction).unwrap();
         if test.print {
             print_tree("Pre-rotation", test.name, &tree, &deps.as_ref());
         }
@@ -1891,7 +1884,7 @@ fn test_rotate_left() {
         }
 
         // Get new root node, it may have changed due to rotations
-        let tree = get_root_node(deps.as_ref().storage, book_id, tick_id, direction).unwrap();
+        let tree = get_root_node(deps.as_ref().storage,  tick_id, direction).unwrap();
         if test.print {
             print_tree("Post-rotation", test.name, &tree, &deps.as_ref());
         }
@@ -1915,7 +1908,6 @@ struct RebalanceTestCase {
 
 #[test]
 fn test_rebalance() {
-    let book_id = 1;
     let tick_id = 1;
     let direction = OrderDirection::Bid;
     let test_cases: Vec<RebalanceTestCase> = vec![
@@ -1941,7 +1933,7 @@ fn test_rebalance() {
             nodes: vec![
                 // Root
                 TreeNode::new(
-                    book_id,
+                    
                     tick_id,
                     direction,
                     1,
@@ -1950,7 +1942,7 @@ fn test_rebalance() {
                 .with_children(Some(2), Some(3)),
                 // Left
                 TreeNode::new(
-                    book_id,
+                    
                     tick_id,
                     direction,
                     2,
@@ -1959,7 +1951,7 @@ fn test_rebalance() {
                 .with_parent(1),
                 // Right
                 TreeNode::new(
-                    book_id,
+                    
                     tick_id,
                     direction,
                     3,
@@ -1969,7 +1961,7 @@ fn test_rebalance() {
                 .with_parent(1),
                 // Right-Left
                 TreeNode::new(
-                    book_id,
+                    
                     tick_id,
                     direction,
                     4,
@@ -1978,7 +1970,7 @@ fn test_rebalance() {
                 .with_parent(3),
                 // Right-Right
                 TreeNode::new(
-                    book_id,
+                    
                     tick_id,
                     direction,
                     5,
@@ -1988,7 +1980,7 @@ fn test_rebalance() {
                 .with_parent(3),
                 // Right-Right-Left
                 TreeNode::new(
-                    book_id,
+                    
                     tick_id,
                     direction,
                     6,
@@ -1997,7 +1989,7 @@ fn test_rebalance() {
                 .with_parent(5),
                 // Right-Right-Right
                 TreeNode::new(
-                    book_id,
+                    
                     tick_id,
                     direction,
                     7,
@@ -2031,7 +2023,7 @@ fn test_rebalance() {
             nodes: vec![
                 // Root
                 TreeNode::new(
-                    book_id,
+                    
                     tick_id,
                     direction,
                     1,
@@ -2040,7 +2032,7 @@ fn test_rebalance() {
                 .with_children(Some(2), Some(3)),
                 // Left
                 TreeNode::new(
-                    book_id,
+                    
                     tick_id,
                     direction,
                     2,
@@ -2050,7 +2042,7 @@ fn test_rebalance() {
                 .with_parent(1),
                 // Left-Left
                 TreeNode::new(
-                    book_id,
+                    
                     tick_id,
                     direction,
                     4,
@@ -2060,7 +2052,7 @@ fn test_rebalance() {
                 .with_parent(2),
                 // Left-Left-Left
                 TreeNode::new(
-                    book_id,
+                    
                     tick_id,
                     direction,
                     6,
@@ -2069,7 +2061,7 @@ fn test_rebalance() {
                 .with_parent(4),
                 // Left-Left-Right
                 TreeNode::new(
-                    book_id,
+                    
                     tick_id,
                     direction,
                     7,
@@ -2078,7 +2070,7 @@ fn test_rebalance() {
                 .with_parent(4),
                 // Left-Right
                 TreeNode::new(
-                    book_id,
+                    
                     tick_id,
                     direction,
                     5,
@@ -2087,7 +2079,7 @@ fn test_rebalance() {
                 .with_parent(2),
                 // Right
                 TreeNode::new(
-                    book_id,
+                    
                     tick_id,
                     direction,
                     3,
@@ -2121,7 +2113,7 @@ fn test_rebalance() {
             nodes: vec![
                 // Root
                 TreeNode::new(
-                    book_id,
+                    
                     tick_id,
                     direction,
                     1,
@@ -2130,7 +2122,7 @@ fn test_rebalance() {
                 .with_children(Some(2), Some(3)),
                 // Left
                 TreeNode::new(
-                    book_id,
+                    
                     tick_id,
                     direction,
                     2,
@@ -2139,7 +2131,7 @@ fn test_rebalance() {
                 .with_parent(1),
                 // Right
                 TreeNode::new(
-                    book_id,
+                    
                     tick_id,
                     direction,
                     3,
@@ -2149,7 +2141,7 @@ fn test_rebalance() {
                 .with_parent(1),
                 // Right-Left
                 TreeNode::new(
-                    book_id,
+                    
                     tick_id,
                     direction,
                     4,
@@ -2159,7 +2151,7 @@ fn test_rebalance() {
                 .with_parent(3),
                 // Right-Left-Left
                 TreeNode::new(
-                    book_id,
+                    
                     tick_id,
                     direction,
                     6,
@@ -2168,7 +2160,7 @@ fn test_rebalance() {
                 .with_parent(4),
                 // Right-Left-Right
                 TreeNode::new(
-                    book_id,
+                    
                     tick_id,
                     direction,
                     7,
@@ -2177,7 +2169,7 @@ fn test_rebalance() {
                 .with_parent(4),
                 // Right-Right
                 TreeNode::new(
-                    book_id,
+                    
                     tick_id,
                     direction,
                     5,
@@ -2211,7 +2203,7 @@ fn test_rebalance() {
             nodes: vec![
                 // Root
                 TreeNode::new(
-                    book_id,
+                    
                     tick_id,
                     direction,
                     1,
@@ -2220,7 +2212,7 @@ fn test_rebalance() {
                 .with_children(Some(2), Some(3)),
                 // Left
                 TreeNode::new(
-                    book_id,
+                    
                     tick_id,
                     direction,
                     2,
@@ -2230,7 +2222,7 @@ fn test_rebalance() {
                 .with_parent(1),
                 // Left-Left
                 TreeNode::new(
-                    book_id,
+                    
                     tick_id,
                     direction,
                     4,
@@ -2240,7 +2232,7 @@ fn test_rebalance() {
                 .with_parent(2),
                 // Left-Left-Left
                 TreeNode::new(
-                    book_id,
+                    
                     tick_id,
                     direction,
                     6,
@@ -2249,7 +2241,7 @@ fn test_rebalance() {
                 .with_parent(4),
                 // Left-Left-Right
                 TreeNode::new(
-                    book_id,
+                    
                     tick_id,
                     direction,
                     7,
@@ -2258,7 +2250,7 @@ fn test_rebalance() {
                 .with_parent(4),
                 // Left-Right
                 TreeNode::new(
-                    book_id,
+                    
                     tick_id,
                     direction,
                     5,
@@ -2267,7 +2259,7 @@ fn test_rebalance() {
                 .with_parent(2),
                 // Right
                 TreeNode::new(
-                    book_id,
+                    
                     tick_id,
                     direction,
                     3,
@@ -2295,7 +2287,7 @@ fn test_rebalance() {
             nodes: vec![
                 // Root
                 TreeNode::new(
-                    book_id,
+                    
                     tick_id,
                     direction,
                     1,
@@ -2304,7 +2296,7 @@ fn test_rebalance() {
                 .with_children(Some(2), None),
                 // Left
                 TreeNode::new(
-                    book_id,
+                    
                     tick_id,
                     direction,
                     2,
@@ -2332,7 +2324,7 @@ fn test_rebalance() {
             nodes: vec![
                 // Root
                 TreeNode::new(
-                    book_id,
+                    
                     tick_id,
                     direction,
                     1,
@@ -2341,7 +2333,7 @@ fn test_rebalance() {
                 .with_children(None, Some(2)),
                 // Right
                 TreeNode::new(
-                    book_id,
+                    
                     tick_id,
                     direction,
                     2,
@@ -2373,7 +2365,7 @@ fn test_rebalance() {
             nodes: vec![
                 // Root
                 TreeNode::new(
-                    book_id,
+                    
                     tick_id,
                     direction,
                     1,
@@ -2382,7 +2374,7 @@ fn test_rebalance() {
                 .with_children(Some(2), Some(3)),
                 // Left
                 TreeNode::new(
-                    book_id,
+                    
                     tick_id,
                     direction,
                     2,
@@ -2392,7 +2384,7 @@ fn test_rebalance() {
                 .with_parent(1),
                 // Left-Left
                 TreeNode::new(
-                    book_id,
+                    
                     tick_id,
                     direction,
                     4,
@@ -2401,7 +2393,7 @@ fn test_rebalance() {
                 .with_parent(2),
                 // Left-Right
                 TreeNode::new(
-                    book_id,
+                    
                     tick_id,
                     direction,
                     5,
@@ -2410,7 +2402,7 @@ fn test_rebalance() {
                 .with_parent(2),
                 // Right
                 TreeNode::new(
-                    book_id,
+                    
                     tick_id,
                     direction,
                     3,
@@ -2442,7 +2434,7 @@ fn test_rebalance() {
             nodes: vec![
                 // Root
                 TreeNode::new(
-                    book_id,
+                    
                     tick_id,
                     direction,
                     1,
@@ -2451,7 +2443,7 @@ fn test_rebalance() {
                 .with_children(Some(2), Some(3)),
                 // Left
                 TreeNode::new(
-                    book_id,
+                    
                     tick_id,
                     direction,
                     2,
@@ -2460,7 +2452,7 @@ fn test_rebalance() {
                 .with_parent(1),
                 // Right
                 TreeNode::new(
-                    book_id,
+                    
                     tick_id,
                     direction,
                     3,
@@ -2470,7 +2462,7 @@ fn test_rebalance() {
                 .with_parent(1),
                 // Right-Left
                 TreeNode::new(
-                    book_id,
+                    
                     tick_id,
                     direction,
                     4,
@@ -2479,7 +2471,7 @@ fn test_rebalance() {
                 .with_parent(3),
                 // Right-Right
                 TreeNode::new(
-                    book_id,
+                    
                     tick_id,
                     direction,
                     5,
@@ -2511,7 +2503,7 @@ fn test_rebalance() {
             nodes: vec![
                 // Root
                 TreeNode::new(
-                    book_id,
+                    
                     tick_id,
                     direction,
                     1,
@@ -2520,7 +2512,7 @@ fn test_rebalance() {
                 .with_children(Some(2), Some(3)),
                 // Right
                 TreeNode::new(
-                    book_id,
+                    
                     tick_id,
                     direction,
                     2,
@@ -2530,7 +2522,7 @@ fn test_rebalance() {
                 .with_parent(1),
                 // Right-Left
                 TreeNode::new(
-                    book_id,
+                    
                     tick_id,
                     direction,
                     4,
@@ -2539,7 +2531,7 @@ fn test_rebalance() {
                 .with_parent(2),
                 // Right-Right
                 TreeNode::new(
-                    book_id,
+                    
                     tick_id,
                     direction,
                     5,
@@ -2548,7 +2540,7 @@ fn test_rebalance() {
                 .with_parent(2),
                 // Right
                 TreeNode::new(
-                    book_id,
+                    
                     tick_id,
                     direction,
                     3,
@@ -2558,7 +2550,7 @@ fn test_rebalance() {
                 .with_parent(1),
                 // Right-Left
                 TreeNode::new(
-                    book_id,
+                    
                     tick_id,
                     direction,
                     6,
@@ -2567,7 +2559,7 @@ fn test_rebalance() {
                 .with_parent(3),
                 // Right-Right
                 TreeNode::new(
-                    book_id,
+                    
                     tick_id,
                     direction,
                     7,
@@ -2584,7 +2576,7 @@ fn test_rebalance() {
             nodes: vec![
                 // Root
                 TreeNode::new(
-                    book_id,
+                    
                     tick_id,
                     direction,
                     1,
@@ -2600,7 +2592,7 @@ fn test_rebalance() {
             nodes: vec![
                 // Root
                 TreeNode::new(
-                    book_id,
+                    
                     tick_id,
                     direction,
                     1,
@@ -2621,13 +2613,13 @@ fn test_rebalance() {
             if idx == 0 {
                 TREE.save(
                     deps.as_mut().storage,
-                    &(book_id, tick_id, &direction.to_string()),
+                    &( tick_id, &direction.to_string()),
                     &node.key,
                 )
                 .unwrap();
             }
             NODES
-                .save(deps.as_mut().storage, &(book_id, tick_id, node.key), node)
+                .save(deps.as_mut().storage, &( tick_id, node.key), node)
                 .unwrap();
         }
 
@@ -2643,7 +2635,7 @@ fn test_rebalance() {
                 .unwrap();
         }
 
-        let mut tree = get_root_node(deps.as_ref().storage, book_id, tick_id, direction).unwrap();
+        let mut tree = get_root_node(deps.as_ref().storage,  tick_id, direction).unwrap();
         if test.print {
             print_tree("Pre-rotation", test.name, &tree, &deps.as_ref());
         }
@@ -2656,7 +2648,7 @@ fn test_rebalance() {
         }
 
         // Get new root node, it may have changed due to rotations
-        let tree = get_root_node(deps.as_ref().storage, book_id, tick_id, direction).unwrap();
+        let tree = get_root_node(deps.as_ref().storage,  tick_id, direction).unwrap();
         if test.print {
             print_tree("Post-rotation", test.name, &tree, &deps.as_ref());
         }
@@ -2672,7 +2664,6 @@ fn test_rebalance() {
 
 fn generate_nodes(
     storage: &mut dyn Storage,
-    book_id: u64,
     tick_id: i64,
     direction: OrderDirection,
     quantity: u32,
@@ -2687,9 +2678,8 @@ fn generate_nodes(
 
     let mut nodes = vec![];
     for val in range {
-        let id = generate_node_id(storage, book_id, tick_id).unwrap();
+        let id = generate_node_id(storage,  tick_id).unwrap();
         nodes.push(TreeNode::new(
-            book_id,
             tick_id,
             direction,
             id,
@@ -2701,28 +2691,28 @@ fn generate_nodes(
 
 #[test]
 fn test_node_insert_large_quantity() {
-    let book_id = 1;
+    
     let tick_id = 1;
     let direction = OrderDirection::Bid;
 
     let mut deps = mock_dependencies();
     // Create tree root
     let mut tree = TreeNode::new(
-        book_id,
+        
         tick_id,
         direction,
-        generate_node_id(deps.as_mut().storage, book_id, tick_id).unwrap(),
+        generate_node_id(deps.as_mut().storage,  tick_id).unwrap(),
         NodeType::internal_uint256(0u32, (u32::MAX, u32::MIN)),
     );
 
     TREE.save(
         deps.as_mut().storage,
-        &(book_id, tick_id, &direction.to_string()),
+        &( tick_id, &direction.to_string()),
         &tree.key,
     )
     .unwrap();
 
-    let nodes = generate_nodes(deps.as_mut().storage, book_id, tick_id, direction, 1000);
+    let nodes = generate_nodes(deps.as_mut().storage, tick_id, direction, 1000);
 
     let target_etas = Decimal256::from_ratio(536u128, 1u128);
     let mut expected_prefix_sum = Decimal256::zero();
@@ -2730,10 +2720,10 @@ fn test_node_insert_large_quantity() {
     // Insert nodes into tree
     for mut node in nodes {
         NODES
-            .save(deps.as_mut().storage, &(book_id, tick_id, node.key), &node)
+            .save(deps.as_mut().storage, &( tick_id, node.key), &node)
             .unwrap();
         tree.insert(deps.as_mut().storage, &mut node).unwrap();
-        tree = get_root_node(deps.as_ref().storage, book_id, tick_id, direction).unwrap();
+        tree = get_root_node(deps.as_ref().storage,  tick_id, direction).unwrap();
         // Track insertions that fall below our target ETAS
         if node.get_min_range() <= target_etas {
             expected_prefix_sum = expected_prefix_sum.checked_add(Decimal256::one()).unwrap();
@@ -2748,7 +2738,7 @@ fn test_node_insert_large_quantity() {
     assert_internal_values("Large amount of nodes", deps.as_ref(), internals, true);
 
     // Ensure prefix sum functions correctly
-    let root_node = get_root_node(deps.as_mut().storage, book_id, tick_id, direction).unwrap();
+    let root_node = get_root_node(deps.as_mut().storage,  tick_id, direction).unwrap();
 
     let prefix_sum = get_prefix_sum(deps.as_mut().storage, root_node, target_etas).unwrap();
     assert_eq!(expected_prefix_sum, prefix_sum);

@@ -9,7 +9,7 @@ use crate::error::ContractError;
 use crate::msg::{ExecuteMsg, InstantiateMsg, MigrateMsg, QueryMsg};
 
 use crate::order;
-use crate::orderbook;
+use crate::orderbook::create_orderbook;
 use crate::types::OrderDirection;
 
 // version info for migration info
@@ -21,16 +21,20 @@ const CONTRACT_VERSION: &str = env!("CARGO_PKG_VERSION");
 pub fn instantiate(
     deps: DepsMut,
     _env: Env,
-    info: MessageInfo,
-    _msg: InstantiateMsg,
+    _info: MessageInfo,
+    msg: InstantiateMsg,
 ) -> Result<Response, ContractError> {
     set_contract_version(deps.storage, CONTRACT_NAME, CONTRACT_VERSION)?;
 
+    create_orderbook(deps, msg.quote_denom.clone(), msg.base_denom.clone())?;
+
     // With `Response` type, it is possible to dispatch message to invoke external logic.
     // See: https://github.com/CosmWasm/cosmwasm/blob/main/SEMANTICS.md#dispatching-messages
-    Ok(Response::new()
-        .add_attribute("method", "instantiate")
-        .add_attribute("owner", info.sender))
+    Ok(Response::new().add_attributes(vec![
+        ("method", "instantiate"),
+        ("quote_denom", &msg.quote_denom),
+        ("base_denom", &msg.base_denom),
+    ]))
 }
 
 /// Handling contract migration
@@ -57,15 +61,8 @@ pub fn execute(
     msg: ExecuteMsg,
 ) -> Result<Response, ContractError> {
     match msg {
-        // Creates a new orderbook
-        ExecuteMsg::CreateOrderbook {
-            quote_denom,
-            base_denom,
-        } => orderbook::create_orderbook(deps, env, info, quote_denom, base_denom),
-
         // Places limit order on given market
         ExecuteMsg::PlaceLimit {
-            book_id,
             tick_id,
             order_direction,
             quantity,
@@ -74,7 +71,6 @@ pub fn execute(
             deps,
             env,
             info,
-            book_id,
             tick_id,
             order_direction,
             quantity,
@@ -82,29 +78,22 @@ pub fn execute(
         ),
 
         // Cancels limit order with given ID
-        ExecuteMsg::CancelLimit {
-            book_id,
-            tick_id,
-            order_id,
-        } => order::cancel_limit(deps, env, info, book_id, tick_id, order_id),
+        ExecuteMsg::CancelLimit { tick_id, order_id } => {
+            order::cancel_limit(deps, env, info, tick_id, order_id)
+        }
 
         // Places a market order on the passed in market
         ExecuteMsg::PlaceMarket {
-            book_id,
             order_direction,
             quantity,
-        } => order::place_market(deps, env, info, book_id, order_direction, quantity),
+        } => order::place_market(deps, env, info, order_direction, quantity),
 
         // Claims a limit order with given ID
-        ExecuteMsg::ClaimLimit {
-            book_id,
-            tick_id,
-            order_id,
-        } => order::claim_limit(deps, env, info, book_id, tick_id, order_id),
-
-        ExecuteMsg::BatchClaim { book_id, orders } => {
-            order::batch_claim_limits(deps, info, book_id, orders)
+        ExecuteMsg::ClaimLimit { tick_id, order_id } => {
+            order::claim_limit(deps, env, info, tick_id, order_id)
         }
+
+        ExecuteMsg::BatchClaim { orders } => order::batch_claim_limits(deps, info, orders),
     }
 }
 
@@ -141,7 +130,6 @@ pub fn dispatch_place_limit(
     mut deps: DepsMut,
     env: Env,
     info: MessageInfo,
-    book_id: u64,
     tick_id: i64,
     order_direction: OrderDirection,
     quantity: Uint128,
@@ -151,7 +139,6 @@ pub fn dispatch_place_limit(
         &mut deps,
         env,
         info,
-        book_id,
         tick_id,
         order_direction,
         quantity,

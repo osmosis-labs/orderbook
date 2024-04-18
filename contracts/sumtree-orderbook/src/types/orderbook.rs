@@ -6,8 +6,6 @@ use super::OrderDirection;
 
 #[cw_serde]
 pub struct Orderbook {
-    pub book_id: u64,
-
     pub quote_denom: String,
     pub base_denom: String,
 
@@ -19,7 +17,6 @@ pub struct Orderbook {
 
 impl Orderbook {
     pub fn new(
-        book_id: u64,
         quote_denom: String,
         base_denom: String,
         current_tick: i64,
@@ -27,7 +24,6 @@ impl Orderbook {
         next_ask_tick: i64,
     ) -> Self {
         Orderbook {
-            book_id,
             quote_denom,
             base_denom,
             current_tick,

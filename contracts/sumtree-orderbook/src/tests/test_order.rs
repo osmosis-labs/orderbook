@@ -32,7 +32,6 @@ use super::test_utils::{
 
 struct PlaceLimitTestCase {
     name: &'static str,
-    book_id: u64,
     tick_id: i64,
     quantity: Uint128,
     sent: Uint128,
@@ -43,12 +42,9 @@ struct PlaceLimitTestCase {
 
 #[test]
 fn test_place_limit() {
-    let valid_book_id = 0;
-    let invalid_book_id = valid_book_id + 1;
     let test_cases = vec![
         PlaceLimitTestCase {
             name: "valid order with positive tick id",
-            book_id: valid_book_id,
             tick_id: 10,
             quantity: Uint128::new(100),
             sent: Uint128::new(100),
@@ -58,7 +54,6 @@ fn test_place_limit() {
         },
         PlaceLimitTestCase {
             name: "valid order with zero tick id",
-            book_id: valid_book_id,
             tick_id: 0,
             quantity: Uint128::new(34321),
             sent: Uint128::new(34321),
@@ -68,7 +63,6 @@ fn test_place_limit() {
         },
         PlaceLimitTestCase {
             name: "valid order with negative tick id",
-            book_id: valid_book_id,
             tick_id: -5,
             quantity: Uint128::new(100),
             sent: Uint128::new(100),
@@ -78,7 +72,6 @@ fn test_place_limit() {
         },
         PlaceLimitTestCase {
             name: "valid order with large quantity",
-            book_id: valid_book_id,
             tick_id: 3,
             quantity: Uint128::new(34321),
             sent: Uint128::new(34321),
@@ -88,7 +81,6 @@ fn test_place_limit() {
         },
         PlaceLimitTestCase {
             name: "valid order with 0.1% claim bounty",
-            book_id: valid_book_id,
             tick_id: 10,
             quantity: Uint128::new(100),
             sent: Uint128::new(100),
@@ -98,7 +90,6 @@ fn test_place_limit() {
         },
         PlaceLimitTestCase {
             name: "valid order with max claim bounty",
-            book_id: valid_book_id,
             tick_id: 10,
             quantity: Uint128::new(100),
             sent: Uint128::new(100),
@@ -108,7 +99,6 @@ fn test_place_limit() {
         },
         PlaceLimitTestCase {
             name: "order with claim bounty > 0.01 (invalid)",
-            book_id: valid_book_id,
             tick_id: 10,
             quantity: Uint128::new(100),
             sent: Uint128::new(100),
@@ -119,20 +109,7 @@ fn test_place_limit() {
             }),
         },
         PlaceLimitTestCase {
-            name: "invalid book id",
-            book_id: invalid_book_id,
-            tick_id: 1,
-            quantity: Uint128::new(100),
-            sent: Uint128::new(100),
-            order_direction: OrderDirection::Ask,
-            claim_bounty: None,
-            expected_error: Some(ContractError::InvalidBookId {
-                book_id: invalid_book_id,
-            }),
-        },
-        PlaceLimitTestCase {
             name: "invalid tick id (max)",
-            book_id: valid_book_id,
             tick_id: MAX_TICK + 1,
             quantity: Uint128::new(100),
             sent: Uint128::new(100),
@@ -144,7 +121,6 @@ fn test_place_limit() {
         },
         PlaceLimitTestCase {
             name: "invalid tick id (min)",
-            book_id: valid_book_id,
             tick_id: MIN_TICK - 1,
             quantity: Uint128::new(100),
             sent: Uint128::new(100),
@@ -156,7 +132,6 @@ fn test_place_limit() {
         },
         PlaceLimitTestCase {
             name: "invalid quantity",
-            book_id: valid_book_id,
             tick_id: 1,
             quantity: Uint128::zero(),
             sent: Uint128::new(1000),
@@ -168,7 +143,6 @@ fn test_place_limit() {
         },
         PlaceLimitTestCase {
             name: "insufficient funds",
-            book_id: valid_book_id,
             tick_id: 1,
             quantity: Uint128::new(1000),
             sent: Uint128::new(500),
@@ -181,7 +155,6 @@ fn test_place_limit() {
         },
         PlaceLimitTestCase {
             name: "excessive funds",
-            book_id: valid_book_id,
             tick_id: 1,
             quantity: Uint128::new(100),
             sent: Uint128::new(500),
@@ -214,14 +187,7 @@ fn test_place_limit() {
         // Create an orderbook to operate on
         let quote_denom = "quote".to_string();
         let base_denom = "base".to_string();
-        let _create_response = create_orderbook(
-            deps.as_mut(),
-            env.clone(),
-            info.clone(),
-            quote_denom,
-            base_denom,
-        )
-        .unwrap();
+        create_orderbook(deps.as_mut(), quote_denom, base_denom).unwrap();
 
         // --- System under test ---
 
@@ -229,7 +195,6 @@ fn test_place_limit() {
             &mut deps.as_mut(),
             env.clone(),
             info.clone(),
-            test.book_id,
             test.tick_id,
             test.order_direction,
             test.quantity,
@@ -249,13 +214,13 @@ fn test_place_limit() {
 
             // Verify that the order was not put in state
             let order_result = orders()
-                .may_load(&deps.storage, &(test.book_id, test.tick_id, 0))
+                .may_load(&deps.storage, &(test.tick_id, 0))
                 .unwrap();
             assert!(order_result.is_none(), "{}", format_test_name(test.name));
 
             // Verify liquidity was not updated
             let state = TICK_STATE
-                .load(&deps.storage, &(test.book_id, test.tick_id))
+                .load(&deps.storage, test.tick_id)
                 .unwrap_or_default();
             let values = state.get_values(test.order_direction);
             assert!(
@@ -284,24 +249,18 @@ fn test_place_limit() {
         );
         assert_eq!(
             response.attributes[2],
-            ("book_id", test.book_id.to_string()),
-            "{}",
-            format_test_name(test.name)
-        );
-        assert_eq!(
-            response.attributes[3],
             ("tick_id", test.tick_id.to_string()),
             "{}",
             format_test_name(test.name)
         );
         assert_eq!(
-            response.attributes[6],
+            response.attributes[5],
             ("quantity", test.quantity.to_string()),
             "{}",
             format_test_name(test.name)
         );
         assert_eq!(
-            response.attributes[7],
+            response.attributes[6],
             ("quantity_fulfilled", "0"),
             "{}",
             format_test_name(test.name)
@@ -310,19 +269,9 @@ fn test_place_limit() {
         // Retrieve the order from storage to verify it was saved correctly
         let expected_order_id = 0;
         let order = orders()
-            .load(
-                &deps.storage,
-                &(test.book_id, test.tick_id, expected_order_id),
-            )
+            .load(&deps.storage, &(test.tick_id, expected_order_id))
             .unwrap();
 
-        // Verify the order's fields
-        assert_eq!(
-            order.book_id,
-            test.book_id,
-            "{}",
-            format_test_name(test.name)
-        );
         assert_eq!(
             order.tick_id,
             test.tick_id,
@@ -357,7 +306,7 @@ fn test_place_limit() {
 
         // Validate liquidity updated as intended
         let state = TICK_STATE
-            .load(&deps.storage, &(test.book_id, test.tick_id))
+            .load(&deps.storage, test.tick_id)
             .unwrap()
             .get_values(test.order_direction);
         assert_eq!(
@@ -383,7 +332,7 @@ fn test_place_limit() {
 
 struct CancelLimitTestCase {
     name: &'static str,
-    book_id: u64,
+
     tick_id: i64,
     order_id: u64,
     order_direction: OrderDirection,
@@ -397,12 +346,11 @@ struct CancelLimitTestCase {
 
 #[test]
 fn test_cancel_limit() {
-    let valid_book_id = 0;
     let direction = OrderDirection::Ask;
     let test_cases = vec![
         CancelLimitTestCase {
             name: "valid order cancel",
-            book_id: valid_book_id,
+
             tick_id: 1,
             order_id: 0,
             order_direction: OrderDirection::Ask,
@@ -415,7 +363,7 @@ fn test_cancel_limit() {
         },
         CancelLimitTestCase {
             name: "sent funds accidentally",
-            book_id: valid_book_id,
+
             tick_id: 1,
             order_id: 0,
             order_direction: OrderDirection::Ask,
@@ -428,7 +376,7 @@ fn test_cancel_limit() {
         },
         CancelLimitTestCase {
             name: "unauthorized cancel (not owner)",
-            book_id: valid_book_id,
+
             tick_id: 1,
             order_id: 0,
             order_direction: OrderDirection::Ask,
@@ -441,14 +389,13 @@ fn test_cancel_limit() {
         },
         CancelLimitTestCase {
             name: "order not found",
-            book_id: valid_book_id,
+
             tick_id: 1,
             order_id: 0,
             order_direction: OrderDirection::Ask,
             quantity: Uint128::from(100u128),
             place_order: false,
             expected_error: Some(ContractError::OrderNotFound {
-                book_id: valid_book_id,
                 tick_id: 1,
                 order_id: 0,
             }),
@@ -470,14 +417,7 @@ fn test_cancel_limit() {
         // Create an orderbook to operate on
         let quote_denom = "quote".to_string();
         let base_denom = "base".to_string();
-        create_orderbook(
-            deps.as_mut(),
-            env.clone(),
-            info.clone(),
-            quote_denom.clone(),
-            base_denom.clone(),
-        )
-        .unwrap();
+        create_orderbook(deps.as_mut(), quote_denom.clone(), base_denom.clone()).unwrap();
 
         if test.place_order {
             let place_info = mock_info(
@@ -488,7 +428,6 @@ fn test_cancel_limit() {
                 &mut deps.as_mut(),
                 env.clone(),
                 place_info,
-                test.book_id,
                 test.tick_id,
                 test.order_direction,
                 test.quantity,
@@ -503,7 +442,6 @@ fn test_cancel_limit() {
             deps.as_mut(),
             env.clone(),
             info.clone(),
-            test.book_id,
             test.tick_id,
             test.order_id,
         );
@@ -521,7 +459,7 @@ fn test_cancel_limit() {
 
             // Verify that the order was not put in state
             let order_result = orders()
-                .may_load(&deps.storage, &(test.book_id, test.tick_id, test.order_id))
+                .may_load(&deps.storage, &(test.tick_id, test.order_id))
                 .unwrap();
             assert!(
                 order_result.is_some() == test.place_order,
@@ -531,7 +469,7 @@ fn test_cancel_limit() {
 
             // Verify Liqudity was updated as intended
             let state = TICK_STATE
-                .load(deps.as_ref().storage, &(test.book_id, test.tick_id))
+                .load(deps.as_ref().storage, test.tick_id)
                 .unwrap_or_default()
                 .get_values(test.order_direction);
             if test.place_order {
@@ -580,18 +518,12 @@ fn test_cancel_limit() {
         );
         assert_eq!(
             response.attributes[2],
-            ("book_id", test.book_id.to_string()),
-            "{}",
-            format_test_name(test.name)
-        );
-        assert_eq!(
-            response.attributes[3],
             ("tick_id", test.tick_id.to_string()),
             "{}",
             format_test_name(test.name)
         );
         assert_eq!(
-            response.attributes[4],
+            response.attributes[3],
             ("order_id", test.order_id.to_string()),
             "{}",
             format_test_name(test.name)
@@ -612,10 +544,7 @@ fn test_cancel_limit() {
         // Retrieve the order from storage to verify it was saved correctly
         let expected_order_id = 0;
         let order = orders()
-            .may_load(
-                &deps.storage,
-                &(test.book_id, test.tick_id, expected_order_id),
-            )
+            .may_load(&deps.storage, &(test.tick_id, expected_order_id))
             .unwrap();
 
         // Verify the order's fields
@@ -623,7 +552,7 @@ fn test_cancel_limit() {
 
         // Validate liquidity updated as intended
         let state = TICK_STATE
-            .load(deps.as_ref().storage, &(test.book_id, test.tick_id))
+            .load(deps.as_ref().storage, test.tick_id)
             .unwrap_or_default()
             .get_values(test.order_direction);
 
@@ -636,18 +565,11 @@ fn test_cancel_limit() {
         // -- Sumtree --
 
         // Ensure tree is saved correctly
-        let tree = get_root_node(
-            deps.as_ref().storage,
-            valid_book_id,
-            test.tick_id,
-            direction,
-        )
-        .unwrap();
+        let tree = get_root_node(deps.as_ref().storage, test.tick_id, direction).unwrap();
 
         // Traverse the tree to check its form
         let res = tree.traverse(deps.as_ref().storage).unwrap();
         let mut root_node = TreeNode::new(
-            valid_book_id,
             test.tick_id,
             direction,
             1,
@@ -655,7 +577,6 @@ fn test_cancel_limit() {
         );
         root_node.set_weight(2).unwrap();
         let mut cancelled_node = TreeNode::new(
-            valid_book_id,
             test.tick_id,
             direction,
             2,
@@ -683,8 +604,6 @@ struct RunMarketOrderTestCase {
 
 #[test]
 fn test_run_market_order() {
-    let valid_book_id = 0;
-    let invalid_book_id = valid_book_id + 1;
     let quote_denom = "quote";
     let base_denom = "base";
     // TODO: move these defaults to global scope or helper file
@@ -697,7 +616,6 @@ fn test_run_market_order() {
             name: "happy path bid at negative tick",
             sent: Uint128::new(1000),
             placed_order: MarketOrder::new(
-                valid_book_id,
                 Uint128::new(1000),
                 OrderDirection::Bid,
                 Addr::unchecked(default_sender),
@@ -706,7 +624,6 @@ fn test_run_market_order() {
 
             // Orders to fill against
             orders: generate_limit_orders(
-                valid_book_id,
                 &[-1500000],
                 // Current tick is below the active limit orders
                 -2500000,
@@ -726,7 +643,6 @@ fn test_run_market_order() {
             name: "happy path bid at positive tick",
             sent: Uint128::new(1000),
             placed_order: MarketOrder::new(
-                valid_book_id,
                 Uint128::new(1000),
                 OrderDirection::Bid,
                 Addr::unchecked(default_sender),
@@ -735,7 +651,6 @@ fn test_run_market_order() {
 
             // Orders to fill against
             orders: generate_limit_orders(
-                valid_book_id,
                 &[40000000],
                 // Current tick is below the active limit orders
                 default_current_tick,
@@ -756,10 +671,9 @@ fn test_run_market_order() {
         },
         RunMarketOrderTestCase {
             name: "bid at very small negative tick",
-            sent: Uint128::new(973),
+            sent: Uint128::new(1000),
             placed_order: MarketOrder::new(
-                valid_book_id,
-                Uint128::new(973),
+                Uint128::new(1000),
                 OrderDirection::Bid,
                 Addr::unchecked(default_sender),
             ),
@@ -767,7 +681,6 @@ fn test_run_market_order() {
 
             // Orders to fill against
             orders: generate_limit_orders(
-                valid_book_id,
                 &[-17765433],
                 // Current tick is below the active limit orders
                 -20000000,
@@ -791,7 +704,6 @@ fn test_run_market_order() {
             name: "bid across multiple ticks",
             sent: Uint128::new(589 + 1),
             placed_order: MarketOrder::new(
-                valid_book_id,
                 Uint128::new(589 + 1),
                 OrderDirection::Bid,
                 Addr::unchecked(default_sender),
@@ -800,7 +712,6 @@ fn test_run_market_order() {
 
             // Orders to fill against
             orders: generate_limit_orders(
-                valid_book_id,
                 &[-1500000, 40000000],
                 // Current tick is below the active limit orders
                 -2500000,
@@ -832,7 +743,6 @@ fn test_run_market_order() {
             name: "happy path ask at positive tick",
             sent: Uint128::new(100000),
             placed_order: MarketOrder::new(
-                valid_book_id,
                 Uint128::new(100000),
                 OrderDirection::Ask,
                 Addr::unchecked(default_sender),
@@ -841,7 +751,6 @@ fn test_run_market_order() {
 
             // Orders to fill against
             orders: generate_limit_orders(
-                valid_book_id,
                 &[40000000],
                 // Current tick is above the active limit orders
                 40000000 + 1,
@@ -864,7 +773,6 @@ fn test_run_market_order() {
             name: "ask at negative tick",
             sent: Uint128::new(100000),
             placed_order: MarketOrder::new(
-                valid_book_id,
                 Uint128::new(1000),
                 OrderDirection::Ask,
                 Addr::unchecked(default_sender),
@@ -873,7 +781,6 @@ fn test_run_market_order() {
 
             // Orders to fill against
             orders: generate_limit_orders(
-                valid_book_id,
                 &[-17765433],
                 // Current tick is above the active limit orders
                 default_current_tick,
@@ -894,50 +801,16 @@ fn test_run_market_order() {
             expected_error: None,
         },
         RunMarketOrderTestCase {
-            name: "invalid book id",
-            sent: Uint128::new(1000),
-            placed_order: MarketOrder::new(
-                invalid_book_id,
-                Uint128::new(1000),
-                OrderDirection::Bid,
-                Addr::unchecked(default_sender),
-            ),
-            tick_bound: MAX_TICK,
-
-            // Orders we expect to not get touched
-            orders: generate_limit_orders(
-                valid_book_id,
-                &[10],
-                default_current_tick,
-                10,
-                Uint128::new(10),
-            ),
-
-            expected_output: Uint128::zero(),
-            expected_tick_etas: vec![(10, Decimal256::zero())],
-            expected_tick_pointers: vec![(OrderDirection::Ask, 10)],
-            expected_error: Some(ContractError::InvalidBookId {
-                book_id: invalid_book_id,
-            }),
-        },
-        RunMarketOrderTestCase {
             name: "invalid tick bound for bid",
             sent: Uint128::new(1000),
             placed_order: MarketOrder::new(
-                valid_book_id,
                 Uint128::new(1000),
                 OrderDirection::Bid,
                 Addr::unchecked(default_sender),
             ),
             tick_bound: MIN_TICK - 1,
             // Orders we expect to not get touched
-            orders: generate_limit_orders(
-                valid_book_id,
-                &[10],
-                default_current_tick,
-                10,
-                Uint128::new(10),
-            ),
+            orders: generate_limit_orders(&[10], default_current_tick, 10, Uint128::new(10)),
             expected_output: Uint128::zero(),
             expected_tick_etas: vec![(10, Decimal256::zero())],
             expected_tick_pointers: vec![(OrderDirection::Ask, 10)],
@@ -949,20 +822,13 @@ fn test_run_market_order() {
             name: "invalid tick bound for ask",
             sent: Uint128::new(1000),
             placed_order: MarketOrder::new(
-                valid_book_id,
                 Uint128::new(1000),
                 OrderDirection::Ask,
                 Addr::unchecked(default_sender),
             ),
             tick_bound: MAX_TICK + 1,
             // Orders we expect to not get touched
-            orders: generate_limit_orders(
-                valid_book_id,
-                &[10],
-                default_current_tick,
-                10,
-                Uint128::new(10),
-            ),
+            orders: generate_limit_orders(&[10], default_current_tick, 10, Uint128::new(10)),
             expected_output: Uint128::zero(),
             expected_tick_etas: vec![(10, Decimal256::zero())],
             expected_tick_pointers: vec![(OrderDirection::Bid, MIN_TICK)],
@@ -974,7 +840,6 @@ fn test_run_market_order() {
             name: "invalid tick bound due to bid direction",
             sent: Uint128::new(1000),
             placed_order: MarketOrder::new(
-                valid_book_id,
                 Uint128::new(1000),
                 OrderDirection::Bid,
                 Addr::unchecked(default_sender),
@@ -985,7 +850,6 @@ fn test_run_market_order() {
 
             // Orders to fill against
             orders: generate_limit_orders(
-                valid_book_id,
                 &[-1500000],
                 // Current tick is below the active limit orders
                 -2500000,
@@ -1003,8 +867,6 @@ fn test_run_market_order() {
             name: "insufficient liquidity on orderbook",
             sent: Uint128::new(1000),
             placed_order: MarketOrder::new(
-                valid_book_id,
-                // Only 973 can be filled
                 Uint128::new(1000),
                 OrderDirection::Bid,
                 Addr::unchecked(default_sender),
@@ -1013,8 +875,7 @@ fn test_run_market_order() {
 
             // Orders to fill against
             orders: generate_limit_orders(
-                valid_book_id,
-                &[-17765433],
+                &[40000000],
                 // Current tick is below the active limit orders
                 -20000000,
                 // Four limit orders with sufficient total liquidity to process the
@@ -1031,7 +892,6 @@ fn test_run_market_order() {
     ];
 
     for test in test_cases {
-        println!("{:?}", test.name);
         // --- Setup ---
 
         // Create a mock environment and info
@@ -1046,32 +906,23 @@ fn test_run_market_order() {
         let balances = [(default_sender, coin_vec.as_slice())];
         let mut deps = mock_dependencies_with_balances(&balances);
         let env = mock_env();
-        let info = mock_info(default_sender, &coin_vec);
 
         // Create an orderbook to operate on
-        let _create_response = create_orderbook(
+        create_orderbook(
             deps.as_mut(),
-            env.clone(),
-            info.clone(),
             quote_denom.to_string(),
             base_denom.to_string(),
         )
         .unwrap();
 
         // Place limit orders on orderbook
-        place_multiple_limit_orders(
-            &mut deps.as_mut(),
-            env.clone(),
-            default_owner,
-            valid_book_id,
-            test.orders,
-        )
-        .unwrap();
+        place_multiple_limit_orders(&mut deps.as_mut(), env.clone(), default_owner, test.orders)
+            .unwrap();
 
         // We store order state before to run assertions later
         let orders_before = get_orders_by_owner(
             &deps.storage,
-            FilterOwnerOrders::ByBook(valid_book_id, Addr::unchecked(default_owner)),
+            FilterOwnerOrders::all(Addr::unchecked(default_owner)),
             None,
             None,
             None,
@@ -1097,6 +948,7 @@ fn test_run_market_order() {
             continue;
         }
 
+        println!("{:?}", test.name);
         // Assert no error
         let response = response.unwrap();
 
@@ -1104,7 +956,7 @@ fn test_run_market_order() {
         // This should run regardless of whether we error or not.
         for (tick_id, expected_etas) in test.expected_tick_etas {
             let tick_state = TICK_STATE
-                .load(&deps.storage, &(valid_book_id, tick_id))
+                .load(&deps.storage, tick_id)
                 .unwrap()
                 .get_values(test.placed_order.order_direction.opposite());
             assert_eq!(
@@ -1116,9 +968,7 @@ fn test_run_market_order() {
         }
 
         // Assert orderbook tick pointers were updated as expected
-        let post_process_orderbook = ORDERBOOKS
-            .load(deps.as_ref().storage, &valid_book_id)
-            .unwrap();
+        let post_process_orderbook = ORDERBOOK.load(deps.as_ref().storage).unwrap();
         for (direction, tick_id) in test.expected_tick_pointers {
             let pointer = match direction {
                 OrderDirection::Ask => post_process_orderbook.next_ask_tick,
@@ -1130,7 +980,7 @@ fn test_run_market_order() {
         // Regardless of whether we error, orders should not be modified.
         let orders_after = get_orders_by_owner(
             &deps.storage,
-            FilterOwnerOrders::ByBook(valid_book_id, Addr::unchecked(default_owner)),
+            FilterOwnerOrders::all(Addr::unchecked(default_owner)),
             None,
             None,
             None,
@@ -1174,7 +1024,6 @@ struct RunMarketOrderMovingTickTestCase {
 
 #[test]
 fn test_run_market_order_moving_tick() {
-    let book_id = 0;
     let env = mock_env();
     let info = mock_info("sender", &[]);
     let test_cases: Vec<RunMarketOrderMovingTickTestCase> = vec![
@@ -1183,7 +1032,6 @@ fn test_run_market_order_moving_tick() {
             operations: vec![
                 // Place Ask on first tick
                 OrderOperation::PlaceLimit(LimitOrder::new(
-                    book_id,
                     0,
                     0,
                     OrderDirection::Ask,
@@ -1194,7 +1042,6 @@ fn test_run_market_order_moving_tick() {
                 )),
                 // Place Ask on second tick
                 OrderOperation::PlaceLimit(LimitOrder::new(
-                    book_id,
                     1,
                     0,
                     OrderDirection::Ask,
@@ -1205,14 +1052,12 @@ fn test_run_market_order_moving_tick() {
                 )),
                 // Fill all limits on tick 0 and 50% of tick 1, leaving tick 0 empty and forcing positive movement
                 OrderOperation::RunMarket(MarketOrder::new(
-                    book_id,
                     Uint128::from(15u128),
                     OrderDirection::Bid,
                     Addr::unchecked("buyer"),
                 )),
                 // Place Bid on first tick to create overlapping state
                 OrderOperation::PlaceLimit(LimitOrder::new(
-                    book_id,
                     0,
                     0,
                     OrderDirection::Bid,
@@ -1263,7 +1108,6 @@ fn test_run_market_order_moving_tick() {
             operations: vec![
                 // Place Bid on first tick
                 OrderOperation::PlaceLimit(LimitOrder::new(
-                    book_id,
                     0,
                     0,
                     OrderDirection::Bid,
@@ -1274,7 +1118,6 @@ fn test_run_market_order_moving_tick() {
                 )),
                 // Place Bid on negative tick
                 OrderOperation::PlaceLimit(LimitOrder::new(
-                    book_id,
                     -1,
                     0,
                     OrderDirection::Bid,
@@ -1285,14 +1128,12 @@ fn test_run_market_order_moving_tick() {
                 )),
                 // Fill entire first tick and 50% of next tick to force negative movement
                 OrderOperation::RunMarket(MarketOrder::new(
-                    book_id,
                     Uint128::from(15u128),
                     OrderDirection::Ask,
                     Addr::unchecked("buyer"),
                 )),
                 // Place Ask on first tick
                 OrderOperation::PlaceLimit(LimitOrder::new(
-                    book_id,
                     0,
                     0,
                     OrderDirection::Ask,
@@ -1343,7 +1184,6 @@ fn test_run_market_order_moving_tick() {
             operations: vec![
                 // Place Bid on first tick
                 OrderOperation::PlaceLimit(LimitOrder::new(
-                    book_id,
                     0,
                     0,
                     OrderDirection::Bid,
@@ -1354,7 +1194,6 @@ fn test_run_market_order_moving_tick() {
                 )),
                 // Place Bid on negative tick
                 OrderOperation::PlaceLimit(LimitOrder::new(
-                    book_id,
                     -1,
                     0,
                     OrderDirection::Bid,
@@ -1365,14 +1204,12 @@ fn test_run_market_order_moving_tick() {
                 )),
                 // Fill entire first tick and 50% of next tick to force negative movement
                 OrderOperation::RunMarket(MarketOrder::new(
-                    book_id,
                     Uint128::from(15u128),
                     OrderDirection::Ask,
                     Addr::unchecked("buyer"),
                 )),
                 // Place Ask on first tick
                 OrderOperation::PlaceLimit(LimitOrder::new(
-                    book_id,
                     0,
                     0,
                     OrderDirection::Ask,
@@ -1383,14 +1220,12 @@ fn test_run_market_order_moving_tick() {
                 )),
                 // Fill entire ask to force positive movement
                 OrderOperation::RunMarket(MarketOrder::new(
-                    book_id,
                     Uint128::from(10u128),
                     OrderDirection::Bid,
                     Addr::unchecked("buyer"),
                 )),
                 // Place Bid on first tick to update previous state
                 OrderOperation::PlaceLimit(LimitOrder::new(
-                    book_id,
                     0,
                     0,
                     OrderDirection::Bid,
@@ -1445,7 +1280,6 @@ fn test_run_market_order_moving_tick() {
             operations: vec![
                 // Place Ask on first tick
                 OrderOperation::PlaceLimit(LimitOrder::new(
-                    book_id,
                     0,
                     0,
                     OrderDirection::Ask,
@@ -1456,7 +1290,6 @@ fn test_run_market_order_moving_tick() {
                 )),
                 // Place Ask on second tick
                 OrderOperation::PlaceLimit(LimitOrder::new(
-                    book_id,
                     1,
                     0,
                     OrderDirection::Ask,
@@ -1467,14 +1300,12 @@ fn test_run_market_order_moving_tick() {
                 )),
                 // Fill entire first tick and 50% of second tick to force positive movement
                 OrderOperation::RunMarket(MarketOrder::new(
-                    book_id,
                     Uint128::from(15u128),
                     OrderDirection::Bid,
                     Addr::unchecked("buyer"),
                 )),
                 // Place Bid on first tick
                 OrderOperation::PlaceLimit(LimitOrder::new(
-                    book_id,
                     0,
                     0,
                     OrderDirection::Bid,
@@ -1485,14 +1316,12 @@ fn test_run_market_order_moving_tick() {
                 )),
                 // Fill entire first tick to force negative movement
                 OrderOperation::RunMarket(MarketOrder::new(
-                    book_id,
                     Uint128::from(10u128),
                     OrderDirection::Ask,
                     Addr::unchecked("buyer"),
                 )),
                 // Place Ask on first tick to update previous state
                 OrderOperation::PlaceLimit(LimitOrder::new(
-                    book_id,
                     0,
                     0,
                     OrderDirection::Ask,
@@ -1549,8 +1378,6 @@ fn test_run_market_order_moving_tick() {
         let base_denom = "base";
         create_orderbook(
             deps.as_mut(),
-            env.clone(),
-            info.clone(),
             quote_denom.to_string(),
             base_denom.to_string(),
         )
@@ -1558,14 +1385,12 @@ fn test_run_market_order_moving_tick() {
 
         for operation in test.operations {
             operation
-                .run(deps.as_mut(), env.clone(), info.clone(), book_id)
+                .run(deps.as_mut(), env.clone(), info.clone())
                 .unwrap();
         }
 
         for ((tick_id, direction), values) in test.expected_tick_values {
-            let tick_state = TICK_STATE
-                .load(deps.as_ref().storage, &(0, tick_id))
-                .unwrap();
+            let tick_state = TICK_STATE.load(deps.as_ref().storage, tick_id).unwrap();
             let tick_values = tick_state.get_values(direction);
 
             assert_eq!(tick_values, values, "{}", format_test_name(test.name))
@@ -1577,7 +1402,7 @@ struct ClaimOrderTestCase {
     name: &'static str,
     operations: Vec<OrderOperation>,
     sender: Addr,
-    book_id: u64,
+
     tick_id: i64,
     order_id: u64,
 
@@ -1590,7 +1415,6 @@ struct ClaimOrderTestCase {
 
 #[test]
 fn test_claim_order() {
-    let valid_book_id = 0;
     let valid_tick_id = 0;
     let quote_denom = "quote";
     let base_denom = "base";
@@ -1602,7 +1426,6 @@ fn test_claim_order() {
             sender: sender.clone(),
             operations: vec![
                 OrderOperation::PlaceLimit(LimitOrder::new(
-                    valid_book_id,
                     valid_tick_id,
                     0,
                     OrderDirection::Ask,
@@ -1612,14 +1435,13 @@ fn test_claim_order() {
                     None,
                 )),
                 OrderOperation::RunMarket(MarketOrder::new(
-                    valid_book_id,
                     Uint128::from(10u128),
                     OrderDirection::Bid,
                     Addr::unchecked("buyer"),
                 )),
             ],
             order_id: 0,
-            book_id: valid_book_id,
+
             tick_id: valid_tick_id,
             expected_bank_msg: SubMsg::reply_on_error(
                 BankMsg::Send {
@@ -1637,7 +1459,6 @@ fn test_claim_order() {
             sender: sender.clone(),
             operations: vec![
                 OrderOperation::PlaceLimit(LimitOrder::new(
-                    valid_book_id,
                     valid_tick_id,
                     0,
                     OrderDirection::Ask,
@@ -1647,14 +1468,13 @@ fn test_claim_order() {
                     None,
                 )),
                 OrderOperation::RunMarket(MarketOrder::new(
-                    valid_book_id,
                     Uint128::from(10u128),
                     OrderDirection::Bid,
                     Addr::unchecked("buyer"),
                 )),
             ],
             order_id: 0,
-            book_id: valid_book_id,
+
             tick_id: valid_tick_id,
             expected_bank_msg: SubMsg::reply_on_error(
                 BankMsg::Send {
@@ -1672,7 +1492,6 @@ fn test_claim_order() {
             sender: sender.clone(),
             operations: vec![
                 OrderOperation::PlaceLimit(LimitOrder::new(
-                    valid_book_id,
                     valid_tick_id,
                     0,
                     OrderDirection::Ask,
@@ -1682,14 +1501,13 @@ fn test_claim_order() {
                     None,
                 )),
                 OrderOperation::RunMarket(MarketOrder::new(
-                    valid_book_id,
                     Uint128::from(5u128),
                     OrderDirection::Bid,
                     Addr::unchecked("buyer"),
                 )),
             ],
             order_id: 0,
-            book_id: valid_book_id,
+
             tick_id: valid_tick_id,
             expected_bank_msg: SubMsg::reply_on_error(
                 BankMsg::Send {
@@ -1700,7 +1518,6 @@ fn test_claim_order() {
             ),
             expected_bounty_msg: None,
             expected_order_state: Some(LimitOrder::new(
-                valid_book_id,
                 valid_tick_id,
                 0,
                 OrderDirection::Ask,
@@ -1716,7 +1533,6 @@ fn test_claim_order() {
             sender: sender.clone(),
             operations: vec![
                 OrderOperation::PlaceLimit(LimitOrder::new(
-                    valid_book_id,
                     valid_tick_id,
                     0,
                     OrderDirection::Ask,
@@ -1726,21 +1542,19 @@ fn test_claim_order() {
                     None,
                 )),
                 OrderOperation::RunMarket(MarketOrder::new(
-                    valid_book_id,
                     Uint128::from(7u128),
                     OrderDirection::Bid,
                     Addr::unchecked("buyer"),
                 )),
-                OrderOperation::Claim((valid_book_id, valid_tick_id, 0)),
+                OrderOperation::Claim((valid_tick_id, 0)),
                 OrderOperation::RunMarket(MarketOrder::new(
-                    valid_book_id,
                     Uint128::from(3u128),
                     OrderDirection::Bid,
                     Addr::unchecked("buyer"),
                 )),
             ],
             order_id: 0,
-            book_id: valid_book_id,
+
             tick_id: valid_tick_id,
             expected_bank_msg: SubMsg::reply_on_error(
                 BankMsg::Send {
@@ -1758,7 +1572,6 @@ fn test_claim_order() {
             sender: Addr::unchecked("claimer"),
             operations: vec![
                 OrderOperation::PlaceLimit(LimitOrder::new(
-                    valid_book_id,
                     valid_tick_id,
                     0,
                     OrderDirection::Ask,
@@ -1768,14 +1581,13 @@ fn test_claim_order() {
                     Some(Decimal::percent(1)),
                 )),
                 OrderOperation::RunMarket(MarketOrder::new(
-                    valid_book_id,
                     Uint128::from(100u128),
                     OrderDirection::Bid,
                     Addr::unchecked("buyer"),
                 )),
             ],
             order_id: 0,
-            book_id: valid_book_id,
+
             tick_id: valid_tick_id,
             expected_bank_msg: SubMsg::reply_on_error(
                 BankMsg::Send {
@@ -1803,7 +1615,6 @@ fn test_claim_order() {
             sender: Addr::unchecked("claimer"),
             operations: vec![
                 OrderOperation::PlaceLimit(LimitOrder::new(
-                    valid_book_id,
                     valid_tick_id,
                     0,
                     OrderDirection::Ask,
@@ -1814,21 +1625,19 @@ fn test_claim_order() {
                     Some(Decimal::from_str("0.0035").unwrap()),
                 )),
                 OrderOperation::RunMarket(MarketOrder::new(
-                    valid_book_id,
                     Uint128::from(700u128),
                     OrderDirection::Bid,
                     Addr::unchecked("buyer"),
                 )),
-                OrderOperation::Claim((valid_book_id, valid_tick_id, 0)),
+                OrderOperation::Claim((valid_tick_id, 0)),
                 OrderOperation::RunMarket(MarketOrder::new(
-                    valid_book_id,
                     Uint128::from(300u128),
                     OrderDirection::Bid,
                     Addr::unchecked("buyer"),
                 )),
             ],
             order_id: 0,
-            book_id: valid_book_id,
+
             tick_id: valid_tick_id,
             expected_bank_msg: SubMsg::reply_on_error(
                 BankMsg::Send {
@@ -1855,7 +1664,6 @@ fn test_claim_order() {
             sender: sender.clone(),
             operations: vec![
                 OrderOperation::PlaceLimit(LimitOrder::new(
-                    valid_book_id,
                     LARGE_POSITIVE_TICK,
                     0,
                     OrderDirection::Ask,
@@ -1865,7 +1673,6 @@ fn test_claim_order() {
                     None,
                 )),
                 OrderOperation::RunMarket(MarketOrder::new(
-                    valid_book_id,
                     // Tick price is 2, 2*5 = 10
                     Uint128::from(5u128),
                     OrderDirection::Bid,
@@ -1873,7 +1680,7 @@ fn test_claim_order() {
                 )),
             ],
             order_id: 0,
-            book_id: valid_book_id,
+
             tick_id: LARGE_POSITIVE_TICK,
             expected_bank_msg: SubMsg::reply_on_error(
                 BankMsg::Send {
@@ -1892,7 +1699,6 @@ fn test_claim_order() {
             sender: sender.clone(),
             operations: vec![
                 OrderOperation::PlaceLimit(LimitOrder::new(
-                    valid_book_id,
                     LARGE_POSITIVE_TICK,
                     0,
                     OrderDirection::Ask,
@@ -1902,7 +1708,6 @@ fn test_claim_order() {
                     None,
                 )),
                 OrderOperation::RunMarket(MarketOrder::new(
-                    valid_book_id,
                     // Tick price is 2, 2*2 = 4
                     Uint128::from(2u128),
                     OrderDirection::Bid,
@@ -1910,7 +1715,7 @@ fn test_claim_order() {
                 )),
             ],
             order_id: 0,
-            book_id: valid_book_id,
+
             tick_id: LARGE_POSITIVE_TICK,
             expected_bank_msg: SubMsg::reply_on_error(
                 BankMsg::Send {
@@ -1922,7 +1727,6 @@ fn test_claim_order() {
             ),
             expected_bounty_msg: None,
             expected_order_state: Some(LimitOrder::new(
-                valid_book_id,
                 LARGE_POSITIVE_TICK,
                 0,
                 OrderDirection::Ask,
@@ -1938,7 +1742,6 @@ fn test_claim_order() {
             sender: sender.clone(),
             operations: vec![
                 OrderOperation::PlaceLimit(LimitOrder::new(
-                    valid_book_id,
                     LARGE_POSITIVE_TICK,
                     0,
                     OrderDirection::Ask,
@@ -1948,15 +1751,13 @@ fn test_claim_order() {
                     None,
                 )),
                 OrderOperation::RunMarket(MarketOrder::new(
-                    valid_book_id,
                     Uint128::from(2u128),
                     OrderDirection::Bid,
                     Addr::unchecked("buyer"),
                 )),
                 // Claim the first partial fill
-                OrderOperation::Claim((valid_book_id, LARGE_POSITIVE_TICK, 0)),
+                OrderOperation::Claim((LARGE_POSITIVE_TICK, 0)),
                 OrderOperation::RunMarket(MarketOrder::new(
-                    valid_book_id,
                     // Tick price is 2, 2*3 = 6
                     Uint128::from(3u128),
                     OrderDirection::Bid,
@@ -1964,7 +1765,7 @@ fn test_claim_order() {
                 )),
             ],
             order_id: 0,
-            book_id: valid_book_id,
+
             tick_id: LARGE_POSITIVE_TICK,
             expected_bank_msg: SubMsg::reply_on_error(
                 BankMsg::Send {
@@ -1984,7 +1785,6 @@ fn test_claim_order() {
             sender: sender.clone(),
             operations: vec![
                 OrderOperation::PlaceLimit(LimitOrder::new(
-                    valid_book_id,
                     LARGE_NEGATIVE_TICK,
                     0,
                     OrderDirection::Ask,
@@ -1994,14 +1794,13 @@ fn test_claim_order() {
                     None,
                 )),
                 OrderOperation::RunMarket(MarketOrder::new(
-                    valid_book_id,
                     Uint128::from(200u128),
                     OrderDirection::Bid,
                     Addr::unchecked("buyer"),
                 )),
             ],
             order_id: 0,
-            book_id: valid_book_id,
+
             tick_id: LARGE_NEGATIVE_TICK,
             expected_bank_msg: SubMsg::reply_on_error(
                 BankMsg::Send {
@@ -2019,7 +1818,6 @@ fn test_claim_order() {
             sender: sender.clone(),
             operations: vec![
                 OrderOperation::PlaceLimit(LimitOrder::new(
-                    valid_book_id,
                     LARGE_NEGATIVE_TICK,
                     0,
                     OrderDirection::Ask,
@@ -2029,14 +1827,13 @@ fn test_claim_order() {
                     None,
                 )),
                 OrderOperation::RunMarket(MarketOrder::new(
-                    valid_book_id,
                     Uint128::from(100u128),
                     OrderDirection::Bid,
                     Addr::unchecked("buyer"),
                 )),
             ],
             order_id: 0,
-            book_id: valid_book_id,
+
             tick_id: LARGE_NEGATIVE_TICK,
             expected_bank_msg: SubMsg::reply_on_error(
                 BankMsg::Send {
@@ -2047,7 +1844,6 @@ fn test_claim_order() {
             ),
             expected_bounty_msg: None,
             expected_order_state: Some(LimitOrder::new(
-                valid_book_id,
                 LARGE_NEGATIVE_TICK,
                 0,
                 OrderDirection::Ask,
@@ -2063,7 +1859,6 @@ fn test_claim_order() {
             sender: sender.clone(),
             operations: vec![
                 OrderOperation::PlaceLimit(LimitOrder::new(
-                    valid_book_id,
                     LARGE_NEGATIVE_TICK,
                     0,
                     OrderDirection::Ask,
@@ -2073,22 +1868,20 @@ fn test_claim_order() {
                     None,
                 )),
                 OrderOperation::RunMarket(MarketOrder::new(
-                    valid_book_id,
                     Uint128::from(100u128),
                     OrderDirection::Bid,
                     Addr::unchecked("buyer"),
                 )),
                 // Claim the first partial fill
-                OrderOperation::Claim((valid_book_id, LARGE_NEGATIVE_TICK, 0)),
+                OrderOperation::Claim((LARGE_NEGATIVE_TICK, 0)),
                 OrderOperation::RunMarket(MarketOrder::new(
-                    valid_book_id,
                     Uint128::from(100u128),
                     OrderDirection::Bid,
                     Addr::unchecked("buyer"),
                 )),
             ],
             order_id: 0,
-            book_id: valid_book_id,
+
             tick_id: LARGE_NEGATIVE_TICK,
             expected_bank_msg: SubMsg::reply_on_error(
                 BankMsg::Send {
@@ -2106,7 +1899,6 @@ fn test_claim_order() {
             sender: sender.clone(),
             operations: vec![
                 OrderOperation::PlaceLimit(LimitOrder::new(
-                    valid_book_id,
                     valid_tick_id,
                     0,
                     OrderDirection::Ask,
@@ -2116,7 +1908,6 @@ fn test_claim_order() {
                     None,
                 )),
                 OrderOperation::PlaceLimit(LimitOrder::new(
-                    valid_book_id,
                     valid_tick_id,
                     1,
                     OrderDirection::Ask,
@@ -2125,16 +1916,15 @@ fn test_claim_order() {
                     Decimal256::zero(),
                     None,
                 )),
-                OrderOperation::Cancel((valid_book_id, valid_tick_id, 0)),
+                OrderOperation::Cancel((valid_tick_id, 0)),
                 OrderOperation::RunMarket(MarketOrder::new(
-                    valid_book_id,
                     Uint128::from(100u128),
                     OrderDirection::Bid,
                     Addr::unchecked("buyer"),
                 )),
             ],
             order_id: 1,
-            book_id: valid_book_id,
+
             tick_id: valid_tick_id,
             expected_bank_msg: SubMsg::reply_on_error(
                 BankMsg::Send {
@@ -2152,7 +1942,6 @@ fn test_claim_order() {
             sender: sender.clone(),
             operations: vec![
                 OrderOperation::PlaceLimit(LimitOrder::new(
-                    valid_book_id,
                     MIN_TICK,
                     0,
                     OrderDirection::Ask,
@@ -2162,7 +1951,6 @@ fn test_claim_order() {
                     None,
                 )),
                 OrderOperation::RunMarket(MarketOrder::new(
-                    valid_book_id,
                     // Tick price is 0.000000000001, so 3_333_333_333_333 * 0.000000000001 = 3.33333333333
                     // We expect this to get truncated to 3, as order outputs should always be rounding
                     // in favor of the orderbook.
@@ -2172,7 +1960,7 @@ fn test_claim_order() {
                 )),
             ],
             order_id: 0,
-            book_id: valid_book_id,
+
             tick_id: MIN_TICK,
             expected_bank_msg: SubMsg::reply_on_error(
                 BankMsg::Send {
@@ -2184,7 +1972,6 @@ fn test_claim_order() {
             ),
             expected_bounty_msg: None,
             expected_order_state: Some(LimitOrder::new(
-                valid_book_id,
                 MIN_TICK,
                 0,
                 OrderDirection::Ask,
@@ -2201,7 +1988,6 @@ fn test_claim_order() {
             sender: sender.clone(),
             operations: vec![
                 OrderOperation::PlaceLimit(LimitOrder::new(
-                    valid_book_id,
                     valid_tick_id,
                     0,
                     OrderDirection::Bid,
@@ -2211,14 +1997,13 @@ fn test_claim_order() {
                     None,
                 )),
                 OrderOperation::RunMarket(MarketOrder::new(
-                    valid_book_id,
                     Uint128::from(10u128),
                     OrderDirection::Ask,
                     Addr::unchecked("buyer"),
                 )),
             ],
             order_id: 0,
-            book_id: valid_book_id,
+
             tick_id: valid_tick_id,
             expected_bank_msg: SubMsg::reply_on_error(
                 BankMsg::Send {
@@ -2236,7 +2021,6 @@ fn test_claim_order() {
             sender: sender.clone(),
             operations: vec![
                 OrderOperation::PlaceLimit(LimitOrder::new(
-                    valid_book_id,
                     valid_tick_id,
                     0,
                     OrderDirection::Bid,
@@ -2246,14 +2030,13 @@ fn test_claim_order() {
                     None,
                 )),
                 OrderOperation::RunMarket(MarketOrder::new(
-                    valid_book_id,
                     Uint128::from(5u128),
                     OrderDirection::Ask,
                     Addr::unchecked("buyer"),
                 )),
             ],
             order_id: 0,
-            book_id: valid_book_id,
+
             tick_id: valid_tick_id,
             expected_bank_msg: SubMsg::reply_on_error(
                 BankMsg::Send {
@@ -2264,7 +2047,6 @@ fn test_claim_order() {
             ),
             expected_bounty_msg: None,
             expected_order_state: Some(LimitOrder::new(
-                valid_book_id,
                 valid_tick_id,
                 0,
                 OrderDirection::Bid,
@@ -2280,7 +2062,6 @@ fn test_claim_order() {
             sender: sender.clone(),
             operations: vec![
                 OrderOperation::PlaceLimit(LimitOrder::new(
-                    valid_book_id,
                     valid_tick_id,
                     0,
                     OrderDirection::Bid,
@@ -2290,21 +2071,19 @@ fn test_claim_order() {
                     None,
                 )),
                 OrderOperation::RunMarket(MarketOrder::new(
-                    valid_book_id,
                     Uint128::from(7u128),
                     OrderDirection::Ask,
                     Addr::unchecked("buyer"),
                 )),
-                OrderOperation::Claim((valid_book_id, valid_tick_id, 0)),
+                OrderOperation::Claim((valid_tick_id, 0)),
                 OrderOperation::RunMarket(MarketOrder::new(
-                    valid_book_id,
                     Uint128::from(3u128),
                     OrderDirection::Ask,
                     Addr::unchecked("buyer"),
                 )),
             ],
             order_id: 0,
-            book_id: valid_book_id,
+
             tick_id: valid_tick_id,
             expected_bank_msg: SubMsg::reply_on_error(
                 BankMsg::Send {
@@ -2323,7 +2102,6 @@ fn test_claim_order() {
             sender: sender.clone(),
             operations: vec![
                 OrderOperation::PlaceLimit(LimitOrder::new(
-                    valid_book_id,
                     LARGE_POSITIVE_TICK,
                     0,
                     OrderDirection::Bid,
@@ -2333,7 +2111,6 @@ fn test_claim_order() {
                     None,
                 )),
                 OrderOperation::RunMarket(MarketOrder::new(
-                    valid_book_id,
                     // Tick price is 2, 2*5 = 10
                     Uint128::from(20u128),
                     OrderDirection::Ask,
@@ -2341,7 +2118,7 @@ fn test_claim_order() {
                 )),
             ],
             order_id: 0,
-            book_id: valid_book_id,
+
             tick_id: LARGE_POSITIVE_TICK,
             expected_bank_msg: SubMsg::reply_on_error(
                 BankMsg::Send {
@@ -2360,7 +2137,6 @@ fn test_claim_order() {
             sender: sender.clone(),
             operations: vec![
                 OrderOperation::PlaceLimit(LimitOrder::new(
-                    valid_book_id,
                     LARGE_POSITIVE_TICK,
                     0,
                     OrderDirection::Bid,
@@ -2370,14 +2146,13 @@ fn test_claim_order() {
                     None,
                 )),
                 OrderOperation::RunMarket(MarketOrder::new(
-                    valid_book_id,
                     Uint128::from(10u128),
                     OrderDirection::Ask,
                     Addr::unchecked("buyer"),
                 )),
             ],
             order_id: 0,
-            book_id: valid_book_id,
+
             tick_id: LARGE_POSITIVE_TICK,
             expected_bank_msg: SubMsg::reply_on_error(
                 BankMsg::Send {
@@ -2389,7 +2164,6 @@ fn test_claim_order() {
             ),
             expected_bounty_msg: None,
             expected_order_state: Some(LimitOrder::new(
-                valid_book_id,
                 LARGE_POSITIVE_TICK,
                 0,
                 OrderDirection::Bid,
@@ -2405,7 +2179,6 @@ fn test_claim_order() {
             sender: sender.clone(),
             operations: vec![
                 OrderOperation::PlaceLimit(LimitOrder::new(
-                    valid_book_id,
                     LARGE_POSITIVE_TICK,
                     0,
                     OrderDirection::Bid,
@@ -2415,22 +2188,20 @@ fn test_claim_order() {
                     None,
                 )),
                 OrderOperation::RunMarket(MarketOrder::new(
-                    valid_book_id,
                     Uint128::from(10u128),
                     OrderDirection::Ask,
                     Addr::unchecked("buyer"),
                 )),
                 // Claim the first partial fill
-                OrderOperation::Claim((valid_book_id, LARGE_POSITIVE_TICK, 0)),
+                OrderOperation::Claim((LARGE_POSITIVE_TICK, 0)),
                 OrderOperation::RunMarket(MarketOrder::new(
-                    valid_book_id,
                     Uint128::from(10u128),
                     OrderDirection::Ask,
                     Addr::unchecked("buyer"),
                 )),
             ],
             order_id: 0,
-            book_id: valid_book_id,
+
             tick_id: LARGE_POSITIVE_TICK,
             expected_bank_msg: SubMsg::reply_on_error(
                 BankMsg::Send {
@@ -2450,7 +2221,6 @@ fn test_claim_order() {
             sender: sender.clone(),
             operations: vec![
                 OrderOperation::PlaceLimit(LimitOrder::new(
-                    valid_book_id,
                     LARGE_NEGATIVE_TICK,
                     0,
                     OrderDirection::Bid,
@@ -2460,14 +2230,13 @@ fn test_claim_order() {
                     None,
                 )),
                 OrderOperation::RunMarket(MarketOrder::new(
-                    valid_book_id,
                     Uint128::from(50u128),
                     OrderDirection::Ask,
                     Addr::unchecked("buyer"),
                 )),
             ],
             order_id: 0,
-            book_id: valid_book_id,
+
             tick_id: LARGE_NEGATIVE_TICK,
             expected_bank_msg: SubMsg::reply_on_error(
                 BankMsg::Send {
@@ -2485,7 +2254,6 @@ fn test_claim_order() {
             sender: sender.clone(),
             operations: vec![
                 OrderOperation::PlaceLimit(LimitOrder::new(
-                    valid_book_id,
                     LARGE_NEGATIVE_TICK,
                     0,
                     OrderDirection::Bid,
@@ -2495,14 +2263,13 @@ fn test_claim_order() {
                     None,
                 )),
                 OrderOperation::RunMarket(MarketOrder::new(
-                    valid_book_id,
                     Uint128::from(25u128),
                     OrderDirection::Ask,
                     Addr::unchecked("buyer"),
                 )),
             ],
             order_id: 0,
-            book_id: valid_book_id,
+
             tick_id: LARGE_NEGATIVE_TICK,
             expected_bank_msg: SubMsg::reply_on_error(
                 BankMsg::Send {
@@ -2513,7 +2280,6 @@ fn test_claim_order() {
             ),
             expected_bounty_msg: None,
             expected_order_state: Some(LimitOrder::new(
-                valid_book_id,
                 LARGE_NEGATIVE_TICK,
                 0,
                 OrderDirection::Bid,
@@ -2529,7 +2295,6 @@ fn test_claim_order() {
             sender: sender.clone(),
             operations: vec![
                 OrderOperation::PlaceLimit(LimitOrder::new(
-                    valid_book_id,
                     LARGE_NEGATIVE_TICK,
                     0,
                     OrderDirection::Bid,
@@ -2539,22 +2304,20 @@ fn test_claim_order() {
                     None,
                 )),
                 OrderOperation::RunMarket(MarketOrder::new(
-                    valid_book_id,
                     Uint128::from(25u128),
                     OrderDirection::Ask,
                     Addr::unchecked("buyer"),
                 )),
                 // Claim the first partial fill
-                OrderOperation::Claim((valid_book_id, LARGE_NEGATIVE_TICK, 0)),
+                OrderOperation::Claim((LARGE_NEGATIVE_TICK, 0)),
                 OrderOperation::RunMarket(MarketOrder::new(
-                    valid_book_id,
                     Uint128::from(25u128),
                     OrderDirection::Ask,
                     Addr::unchecked("buyer"),
                 )),
             ],
             order_id: 0,
-            book_id: valid_book_id,
+
             tick_id: LARGE_NEGATIVE_TICK,
             expected_bank_msg: SubMsg::reply_on_error(
                 BankMsg::Send {
@@ -2572,7 +2335,6 @@ fn test_claim_order() {
             sender: sender.clone(),
             operations: vec![
                 OrderOperation::PlaceLimit(LimitOrder::new(
-                    valid_book_id,
                     valid_tick_id,
                     0,
                     OrderDirection::Bid,
@@ -2582,7 +2344,6 @@ fn test_claim_order() {
                     None,
                 )),
                 OrderOperation::PlaceLimit(LimitOrder::new(
-                    valid_book_id,
                     valid_tick_id,
                     1,
                     OrderDirection::Bid,
@@ -2591,16 +2352,15 @@ fn test_claim_order() {
                     Decimal256::zero(),
                     None,
                 )),
-                OrderOperation::Cancel((valid_book_id, valid_tick_id, 0)),
+                OrderOperation::Cancel((valid_tick_id, 0)),
                 OrderOperation::RunMarket(MarketOrder::new(
-                    valid_book_id,
                     Uint128::from(100u128),
                     OrderDirection::Ask,
                     Addr::unchecked("buyer"),
                 )),
             ],
             order_id: 1,
-            book_id: valid_book_id,
+
             tick_id: valid_tick_id,
             expected_bank_msg: SubMsg::reply_on_error(
                 BankMsg::Send {
@@ -2614,46 +2374,10 @@ fn test_claim_order() {
             expected_error: None,
         },
         ClaimOrderTestCase {
-            name: "invalid book id",
-            sender: sender.clone(),
-            operations: vec![
-                OrderOperation::PlaceLimit(LimitOrder::new(
-                    valid_book_id,
-                    valid_tick_id,
-                    0,
-                    OrderDirection::Ask,
-                    sender.clone(),
-                    Uint128::from(10u128),
-                    Decimal256::zero(),
-                    None,
-                )),
-                OrderOperation::RunMarket(MarketOrder::new(
-                    valid_book_id,
-                    Uint128::from(5u128),
-                    OrderDirection::Bid,
-                    Addr::unchecked("buyer"),
-                )),
-            ],
-            order_id: 0,
-            book_id: 1,
-            tick_id: valid_tick_id,
-            expected_bank_msg: SubMsg::reply_on_error(
-                BankMsg::Send {
-                    to_address: sender.to_string(),
-                    amount: vec![coin(5u128, quote_denom)],
-                },
-                REPLY_ID_CLAIM,
-            ),
-            expected_bounty_msg: None,
-            expected_order_state: None,
-            expected_error: Some(ContractError::InvalidBookId { book_id: 1 }),
-        },
-        ClaimOrderTestCase {
             name: "invalid tick id",
             sender: sender.clone(),
             operations: vec![
                 OrderOperation::PlaceLimit(LimitOrder::new(
-                    valid_book_id,
                     valid_tick_id,
                     0,
                     OrderDirection::Ask,
@@ -2663,14 +2387,13 @@ fn test_claim_order() {
                     None,
                 )),
                 OrderOperation::RunMarket(MarketOrder::new(
-                    valid_book_id,
                     Uint128::from(5u128),
                     OrderDirection::Bid,
                     Addr::unchecked("buyer"),
                 )),
             ],
             order_id: 0,
-            book_id: valid_book_id,
+
             tick_id: 1,
             expected_bank_msg: SubMsg::reply_on_error(
                 BankMsg::Send {
@@ -2688,7 +2411,6 @@ fn test_claim_order() {
             sender: sender.clone(),
             operations: vec![
                 OrderOperation::PlaceLimit(LimitOrder::new(
-                    valid_book_id,
                     valid_tick_id,
                     0,
                     OrderDirection::Ask,
@@ -2698,14 +2420,13 @@ fn test_claim_order() {
                     None,
                 )),
                 OrderOperation::RunMarket(MarketOrder::new(
-                    valid_book_id,
                     Uint128::from(5u128),
                     OrderDirection::Bid,
                     Addr::unchecked("buyer"),
                 )),
             ],
             order_id: 1,
-            book_id: valid_book_id,
+
             tick_id: valid_tick_id,
             expected_bank_msg: SubMsg::reply_on_error(
                 BankMsg::Send {
@@ -2717,7 +2438,6 @@ fn test_claim_order() {
             expected_bounty_msg: None,
             expected_order_state: None,
             expected_error: Some(ContractError::OrderNotFound {
-                book_id: valid_book_id,
                 tick_id: valid_tick_id,
                 order_id: 1,
             }),
@@ -2727,7 +2447,6 @@ fn test_claim_order() {
             sender: sender.clone(),
             operations: vec![
                 OrderOperation::PlaceLimit(LimitOrder::new(
-                    valid_book_id,
                     valid_tick_id,
                     0,
                     OrderDirection::Ask,
@@ -2736,10 +2455,10 @@ fn test_claim_order() {
                     Decimal256::zero(),
                     None,
                 )),
-                OrderOperation::Cancel((valid_book_id, valid_tick_id, 0)),
+                OrderOperation::Cancel((valid_tick_id, 0)),
             ],
             order_id: 0,
-            book_id: valid_book_id,
+
             tick_id: valid_tick_id,
             expected_bank_msg: SubMsg::reply_on_error(
                 BankMsg::Send {
@@ -2751,7 +2470,6 @@ fn test_claim_order() {
             expected_bounty_msg: None,
             expected_order_state: None,
             expected_error: Some(ContractError::OrderNotFound {
-                book_id: valid_book_id,
                 tick_id: valid_tick_id,
                 order_id: 0,
             }),
@@ -2760,7 +2478,6 @@ fn test_claim_order() {
             name: "zero claim amount",
             sender: sender.clone(),
             operations: vec![OrderOperation::PlaceLimit(LimitOrder::new(
-                valid_book_id,
                 valid_tick_id,
                 0,
                 OrderDirection::Ask,
@@ -2770,7 +2487,7 @@ fn test_claim_order() {
                 None,
             ))],
             order_id: 0,
-            book_id: valid_book_id,
+
             tick_id: valid_tick_id,
             expected_bank_msg: SubMsg::reply_on_error(
                 BankMsg::Send {
@@ -2788,7 +2505,6 @@ fn test_claim_order() {
             sender: sender.clone(),
             operations: vec![
                 OrderOperation::PlaceLimit(LimitOrder::new(
-                    valid_book_id,
                     valid_tick_id,
                     0,
                     OrderDirection::Ask,
@@ -2798,7 +2514,6 @@ fn test_claim_order() {
                     None,
                 )),
                 OrderOperation::PlaceLimit(LimitOrder::new(
-                    valid_book_id,
                     valid_tick_id,
                     0,
                     OrderDirection::Ask,
@@ -2809,7 +2524,7 @@ fn test_claim_order() {
                 )),
             ],
             order_id: 1,
-            book_id: valid_book_id,
+
             tick_id: valid_tick_id,
             expected_bank_msg: SubMsg::reply_on_error(
                 BankMsg::Send {
@@ -2827,7 +2542,6 @@ fn test_claim_order() {
             sender: sender.clone(),
             operations: vec![
                 OrderOperation::PlaceLimit(LimitOrder::new(
-                    valid_book_id,
                     valid_tick_id,
                     0,
                     OrderDirection::Ask,
@@ -2837,7 +2551,6 @@ fn test_claim_order() {
                     None,
                 )),
                 OrderOperation::PlaceLimit(LimitOrder::new(
-                    valid_book_id,
                     valid_tick_id,
                     0,
                     OrderDirection::Ask,
@@ -2846,10 +2559,10 @@ fn test_claim_order() {
                     Decimal256::zero(),
                     None,
                 )),
-                OrderOperation::Cancel((valid_book_id, valid_tick_id, 1)),
+                OrderOperation::Cancel((valid_tick_id, 1)),
             ],
             order_id: 0,
-            book_id: valid_book_id,
+
             tick_id: valid_tick_id,
             expected_bank_msg: SubMsg::reply_on_error(
                 BankMsg::Send {
@@ -2865,15 +2578,12 @@ fn test_claim_order() {
     ];
 
     for test in test_cases {
-        println!("Running test: {}", test.name);
         // Test Setup
         let mut deps = mock_dependencies();
         let env = mock_env();
         let info = mock_info("sender", &[]);
         create_orderbook(
             deps.as_mut(),
-            env.clone(),
-            info.clone(),
             quote_denom.to_string(),
             base_denom.to_string(),
         )
@@ -2882,7 +2592,7 @@ fn test_claim_order() {
         // Run setup operations
         for operation in test.operations {
             operation
-                .run(deps.as_mut(), env.clone(), info.clone(), valid_book_id)
+                .run(deps.as_mut(), env.clone(), info.clone())
                 .unwrap();
         }
 
@@ -2890,7 +2600,6 @@ fn test_claim_order() {
         let res = claim_order(
             deps.as_mut().storage,
             test.sender,
-            test.book_id,
             test.tick_id,
             test.order_id,
         );
@@ -2925,10 +2634,7 @@ fn test_claim_order() {
 
         // Check order in state
         let maybe_order = orders()
-            .may_load(
-                deps.as_ref().storage,
-                &(test.book_id, test.tick_id, test.order_id),
-            )
+            .may_load(deps.as_ref().storage, &(test.tick_id, test.order_id))
             .unwrap();
         // Order in state may have been removed
         assert_eq!(
@@ -2944,7 +2650,7 @@ struct MovingClaimOrderTestCase {
     name: &'static str,
     operations: Vec<OrderOperation>,
     sender: Addr,
-    book_id: u64,
+
     tick_id: i64,
     order_id: u64,
     expected_output: SubMsg,
@@ -2954,7 +2660,6 @@ struct MovingClaimOrderTestCase {
 
 #[test]
 fn test_claim_order_moving_tick() {
-    let valid_book_id = 0;
     let valid_tick_id = 0;
     let quote_denom = "quote";
     let base_denom = "base";
@@ -2966,7 +2671,6 @@ fn test_claim_order_moving_tick() {
             operations: vec![
                 // Place order and immediately fully fill
                 OrderOperation::PlaceLimit(LimitOrder::new(
-                    valid_book_id,
                     valid_tick_id,
                     0,
                     OrderDirection::Bid,
@@ -2976,14 +2680,12 @@ fn test_claim_order_moving_tick() {
                     None,
                 )),
                 OrderOperation::RunMarket(MarketOrder::new(
-                    valid_book_id,
                     Uint128::from(100u128),
                     OrderDirection::Ask,
                     sender.clone(),
                 )),
                 // Place limit in opposite direction from first order on same tick
                 OrderOperation::PlaceLimit(LimitOrder::new(
-                    valid_book_id,
                     valid_tick_id,
                     1,
                     OrderDirection::Ask,
@@ -2993,16 +2695,15 @@ fn test_claim_order_moving_tick() {
                     None,
                 )),
                 OrderOperation::RunMarket(MarketOrder::new(
-                    valid_book_id,
                     Uint128::from(50u128),
                     OrderDirection::Bid,
                     sender.clone(),
                 )),
                 // Ensure no errors on claiming first order
-                OrderOperation::Claim((valid_book_id, valid_tick_id, 0)),
+                OrderOperation::Claim((valid_tick_id, 0)),
             ],
             order_id: 1,
-            book_id: valid_book_id,
+
             tick_id: valid_tick_id,
             expected_output: SubMsg::reply_on_error(
                 BankMsg::Send {
@@ -3020,7 +2721,6 @@ fn test_claim_order_moving_tick() {
             operations: vec![
                 // Place order and immediately fully fill
                 OrderOperation::PlaceLimit(LimitOrder::new(
-                    valid_book_id,
                     valid_tick_id,
                     0,
                     OrderDirection::Bid,
@@ -3030,14 +2730,12 @@ fn test_claim_order_moving_tick() {
                     None,
                 )),
                 OrderOperation::RunMarket(MarketOrder::new(
-                    valid_book_id,
                     Uint128::from(100u128),
                     OrderDirection::Ask,
                     sender.clone(),
                 )),
                 // Place limit in opposite direction from first order on same tick
                 OrderOperation::PlaceLimit(LimitOrder::new(
-                    valid_book_id,
                     valid_tick_id,
                     1,
                     OrderDirection::Ask,
@@ -3047,16 +2745,15 @@ fn test_claim_order_moving_tick() {
                     None,
                 )),
                 OrderOperation::RunMarket(MarketOrder::new(
-                    valid_book_id,
                     Uint128::from(25u128),
                     OrderDirection::Bid,
                     sender.clone(),
                 )),
                 // Ensure no errors on claiming first order
-                OrderOperation::Claim((valid_book_id, valid_tick_id, 0)),
+                OrderOperation::Claim((valid_tick_id, 0)),
             ],
             order_id: 1,
-            book_id: valid_book_id,
+
             tick_id: valid_tick_id,
             expected_output: SubMsg::reply_on_error(
                 BankMsg::Send {
@@ -3066,7 +2763,6 @@ fn test_claim_order_moving_tick() {
                 REPLY_ID_CLAIM,
             ),
             expected_order_state: Some(LimitOrder::new(
-                valid_book_id,
                 valid_tick_id,
                 1,
                 OrderDirection::Ask,
@@ -3083,7 +2779,6 @@ fn test_claim_order_moving_tick() {
             operations: vec![
                 // Place order and immediately fully fill
                 OrderOperation::PlaceLimit(LimitOrder::new(
-                    valid_book_id,
                     valid_tick_id,
                     0,
                     OrderDirection::Bid,
@@ -3093,14 +2788,12 @@ fn test_claim_order_moving_tick() {
                     None,
                 )),
                 OrderOperation::RunMarket(MarketOrder::new(
-                    valid_book_id,
                     Uint128::from(100u128),
                     OrderDirection::Ask,
                     sender.clone(),
                 )),
                 // Place temporary order to be cancelled
                 OrderOperation::PlaceLimit(LimitOrder::new(
-                    valid_book_id,
                     valid_tick_id,
                     1,
                     OrderDirection::Ask,
@@ -3111,7 +2804,6 @@ fn test_claim_order_moving_tick() {
                 )),
                 // Place order to be claimed
                 OrderOperation::PlaceLimit(LimitOrder::new(
-                    valid_book_id,
                     valid_tick_id,
                     2,
                     OrderDirection::Ask,
@@ -3121,19 +2813,18 @@ fn test_claim_order_moving_tick() {
                     None,
                 )),
                 // Cancel temporary order
-                OrderOperation::Cancel((valid_book_id, valid_tick_id, 1)),
+                OrderOperation::Cancel((valid_tick_id, 1)),
                 // Partially fill order to be claimed
                 OrderOperation::RunMarket(MarketOrder::new(
-                    valid_book_id,
                     Uint128::from(25u128),
                     OrderDirection::Bid,
                     sender.clone(),
                 )),
                 // Ensure no errors on claiming first order
-                OrderOperation::Claim((valid_book_id, valid_tick_id, 0)),
+                OrderOperation::Claim((valid_tick_id, 0)),
             ],
             order_id: 2,
-            book_id: valid_book_id,
+
             tick_id: valid_tick_id,
             expected_output: SubMsg::reply_on_error(
                 BankMsg::Send {
@@ -3143,7 +2834,6 @@ fn test_claim_order_moving_tick() {
                 REPLY_ID_CLAIM,
             ),
             expected_order_state: Some(LimitOrder::new(
-                valid_book_id,
                 valid_tick_id,
                 2,
                 OrderDirection::Ask,
@@ -3161,7 +2851,6 @@ fn test_claim_order_moving_tick() {
             operations: vec![
                 // Place order in opposite direction from claimed order
                 OrderOperation::PlaceLimit(LimitOrder::new(
-                    valid_book_id,
                     valid_tick_id,
                     0,
                     OrderDirection::Bid,
@@ -3171,10 +2860,9 @@ fn test_claim_order_moving_tick() {
                     None,
                 )),
                 // Immediately cancel it
-                OrderOperation::Cancel((valid_book_id, valid_tick_id, 0)),
+                OrderOperation::Cancel((valid_tick_id, 0)),
                 // Place order to be claimed
                 OrderOperation::PlaceLimit(LimitOrder::new(
-                    valid_book_id,
                     valid_tick_id,
                     1,
                     OrderDirection::Ask,
@@ -3185,14 +2873,13 @@ fn test_claim_order_moving_tick() {
                 )),
                 // Partially fill order to be claimed
                 OrderOperation::RunMarket(MarketOrder::new(
-                    valid_book_id,
                     Uint128::from(25u128),
                     OrderDirection::Bid,
                     sender.clone(),
                 )),
             ],
             order_id: 1,
-            book_id: valid_book_id,
+
             tick_id: valid_tick_id,
             expected_output: SubMsg::reply_on_error(
                 BankMsg::Send {
@@ -3202,7 +2889,6 @@ fn test_claim_order_moving_tick() {
                 REPLY_ID_CLAIM,
             ),
             expected_order_state: Some(LimitOrder::new(
-                valid_book_id,
                 valid_tick_id,
                 1,
                 OrderDirection::Ask,
@@ -3219,7 +2905,6 @@ fn test_claim_order_moving_tick() {
             operations: vec![
                 // Place order in opposite direction of order to be claimed
                 OrderOperation::PlaceLimit(LimitOrder::new(
-                    valid_book_id,
                     valid_tick_id,
                     0,
                     OrderDirection::Bid,
@@ -3230,14 +2915,12 @@ fn test_claim_order_moving_tick() {
                 )),
                 // Fill order to move tick
                 OrderOperation::RunMarket(MarketOrder::new(
-                    valid_book_id,
                     Uint128::from(100u128),
                     OrderDirection::Ask,
                     sender.clone(),
                 )),
                 // Place order to be claimed
                 OrderOperation::PlaceLimit(LimitOrder::new(
-                    valid_book_id,
                     valid_tick_id,
                     1,
                     OrderDirection::Ask,
@@ -3248,14 +2931,12 @@ fn test_claim_order_moving_tick() {
                 )),
                 // Fill order to move tick
                 OrderOperation::RunMarket(MarketOrder::new(
-                    valid_book_id,
                     Uint128::from(50u128),
                     OrderDirection::Bid,
                     sender.clone(),
                 )),
                 // Place new order in opposite direction to order that's being claimed
                 OrderOperation::PlaceLimit(LimitOrder::new(
-                    valid_book_id,
                     valid_tick_id,
                     2,
                     OrderDirection::Bid,
@@ -3266,17 +2947,16 @@ fn test_claim_order_moving_tick() {
                 )),
                 // Full fill new order
                 OrderOperation::RunMarket(MarketOrder::new(
-                    valid_book_id,
                     Uint128::from(100u128),
                     OrderDirection::Ask,
                     sender.clone(),
                 )),
                 // Ensure no errors on claiming orders for opposite directions
-                OrderOperation::Claim((valid_book_id, valid_tick_id, 0)),
-                OrderOperation::Claim((valid_book_id, valid_tick_id, 2)),
+                OrderOperation::Claim((valid_tick_id, 0)),
+                OrderOperation::Claim((valid_tick_id, 2)),
             ],
             order_id: 1,
-            book_id: valid_book_id,
+
             tick_id: valid_tick_id,
             expected_output: SubMsg::reply_on_error(
                 BankMsg::Send {
@@ -3294,7 +2974,6 @@ fn test_claim_order_moving_tick() {
             operations: vec![
                 // Place order and immediately fully fill to move tick
                 OrderOperation::PlaceLimit(LimitOrder::new(
-                    valid_book_id,
                     valid_tick_id,
                     0,
                     OrderDirection::Ask,
@@ -3304,14 +2983,12 @@ fn test_claim_order_moving_tick() {
                     None,
                 )),
                 OrderOperation::RunMarket(MarketOrder::new(
-                    valid_book_id,
                     Uint128::from(100u128),
                     OrderDirection::Bid,
                     sender.clone(),
                 )),
                 // Place order to be claimed
                 OrderOperation::PlaceLimit(LimitOrder::new(
-                    valid_book_id,
                     valid_tick_id,
                     1,
                     OrderDirection::Bid,
@@ -3321,16 +2998,15 @@ fn test_claim_order_moving_tick() {
                     None,
                 )),
                 OrderOperation::RunMarket(MarketOrder::new(
-                    valid_book_id,
                     Uint128::from(50u128),
                     OrderDirection::Ask,
                     sender.clone(),
                 )),
                 // Ensure no errors on claiming first order
-                OrderOperation::Claim((valid_book_id, valid_tick_id, 0)),
+                OrderOperation::Claim((valid_tick_id, 0)),
             ],
             order_id: 1,
-            book_id: valid_book_id,
+
             tick_id: valid_tick_id,
             expected_output: SubMsg::reply_on_error(
                 BankMsg::Send {
@@ -3348,7 +3024,6 @@ fn test_claim_order_moving_tick() {
             operations: vec![
                 // Place order and immediately fully fill
                 OrderOperation::PlaceLimit(LimitOrder::new(
-                    valid_book_id,
                     valid_tick_id,
                     0,
                     OrderDirection::Ask,
@@ -3358,14 +3033,12 @@ fn test_claim_order_moving_tick() {
                     None,
                 )),
                 OrderOperation::RunMarket(MarketOrder::new(
-                    valid_book_id,
                     Uint128::from(100u128),
                     OrderDirection::Bid,
                     sender.clone(),
                 )),
                 // Place order to be claimed
                 OrderOperation::PlaceLimit(LimitOrder::new(
-                    valid_book_id,
                     valid_tick_id,
                     1,
                     OrderDirection::Bid,
@@ -3375,16 +3048,15 @@ fn test_claim_order_moving_tick() {
                     None,
                 )),
                 OrderOperation::RunMarket(MarketOrder::new(
-                    valid_book_id,
                     Uint128::from(25u128),
                     OrderDirection::Ask,
                     sender.clone(),
                 )),
                 // Ensure no errors on claiming first order
-                OrderOperation::Claim((valid_book_id, valid_tick_id, 0)),
+                OrderOperation::Claim((valid_tick_id, 0)),
             ],
             order_id: 1,
-            book_id: valid_book_id,
+
             tick_id: valid_tick_id,
             expected_output: SubMsg::reply_on_error(
                 BankMsg::Send {
@@ -3394,7 +3066,6 @@ fn test_claim_order_moving_tick() {
                 REPLY_ID_CLAIM,
             ),
             expected_order_state: Some(LimitOrder::new(
-                valid_book_id,
                 valid_tick_id,
                 1,
                 OrderDirection::Bid,
@@ -3411,7 +3082,6 @@ fn test_claim_order_moving_tick() {
             operations: vec![
                 // Place order and immediately fully fill to move tick
                 OrderOperation::PlaceLimit(LimitOrder::new(
-                    valid_book_id,
                     valid_tick_id,
                     0,
                     OrderDirection::Ask,
@@ -3421,14 +3091,12 @@ fn test_claim_order_moving_tick() {
                     None,
                 )),
                 OrderOperation::RunMarket(MarketOrder::new(
-                    valid_book_id,
                     Uint128::from(100u128),
                     OrderDirection::Bid,
                     sender.clone(),
                 )),
                 // Place temporary order to be cancelled
                 OrderOperation::PlaceLimit(LimitOrder::new(
-                    valid_book_id,
                     valid_tick_id,
                     1,
                     OrderDirection::Bid,
@@ -3439,7 +3107,6 @@ fn test_claim_order_moving_tick() {
                 )),
                 // Place order to be claimed
                 OrderOperation::PlaceLimit(LimitOrder::new(
-                    valid_book_id,
                     valid_tick_id,
                     2,
                     OrderDirection::Bid,
@@ -3449,19 +3116,18 @@ fn test_claim_order_moving_tick() {
                     None,
                 )),
                 // Cancel temporary order
-                OrderOperation::Cancel((valid_book_id, valid_tick_id, 1)),
+                OrderOperation::Cancel((valid_tick_id, 1)),
                 // Partially fill order to be claimed
                 OrderOperation::RunMarket(MarketOrder::new(
-                    valid_book_id,
                     Uint128::from(25u128),
                     OrderDirection::Ask,
                     sender.clone(),
                 )),
                 // Ensure no errors on claiming first order
-                OrderOperation::Claim((valid_book_id, valid_tick_id, 0)),
+                OrderOperation::Claim((valid_tick_id, 0)),
             ],
             order_id: 2,
-            book_id: valid_book_id,
+
             tick_id: valid_tick_id,
             expected_output: SubMsg::reply_on_error(
                 BankMsg::Send {
@@ -3471,7 +3137,6 @@ fn test_claim_order_moving_tick() {
                 REPLY_ID_CLAIM,
             ),
             expected_order_state: Some(LimitOrder::new(
-                valid_book_id,
                 valid_tick_id,
                 2,
                 OrderDirection::Bid,
@@ -3489,7 +3154,6 @@ fn test_claim_order_moving_tick() {
             operations: vec![
                 // Place order in opposite direction of order to be claimed
                 OrderOperation::PlaceLimit(LimitOrder::new(
-                    valid_book_id,
                     valid_tick_id,
                     0,
                     OrderDirection::Ask,
@@ -3499,10 +3163,9 @@ fn test_claim_order_moving_tick() {
                     None,
                 )),
                 // Immediately cancel the order
-                OrderOperation::Cancel((valid_book_id, valid_tick_id, 0)),
+                OrderOperation::Cancel((valid_tick_id, 0)),
                 // Place order to be claimed
                 OrderOperation::PlaceLimit(LimitOrder::new(
-                    valid_book_id,
                     valid_tick_id,
                     1,
                     OrderDirection::Bid,
@@ -3513,14 +3176,13 @@ fn test_claim_order_moving_tick() {
                 )),
                 // Partially fill the order
                 OrderOperation::RunMarket(MarketOrder::new(
-                    valid_book_id,
                     Uint128::from(25u128),
                     OrderDirection::Ask,
                     sender.clone(),
                 )),
             ],
             order_id: 1,
-            book_id: valid_book_id,
+
             tick_id: valid_tick_id,
             expected_output: SubMsg::reply_on_error(
                 BankMsg::Send {
@@ -3530,7 +3192,6 @@ fn test_claim_order_moving_tick() {
                 REPLY_ID_CLAIM,
             ),
             expected_order_state: Some(LimitOrder::new(
-                valid_book_id,
                 valid_tick_id,
                 1,
                 OrderDirection::Bid,
@@ -3547,7 +3208,6 @@ fn test_claim_order_moving_tick() {
             operations: vec![
                 // Place order and immediatelly fully fill to move tick
                 OrderOperation::PlaceLimit(LimitOrder::new(
-                    valid_book_id,
                     valid_tick_id,
                     0,
                     OrderDirection::Ask,
@@ -3557,14 +3217,12 @@ fn test_claim_order_moving_tick() {
                     None,
                 )),
                 OrderOperation::RunMarket(MarketOrder::new(
-                    valid_book_id,
                     Uint128::from(100u128),
                     OrderDirection::Bid,
                     sender.clone(),
                 )),
                 // Place order to be claimed and fully fill to move tick
                 OrderOperation::PlaceLimit(LimitOrder::new(
-                    valid_book_id,
                     valid_tick_id,
                     1,
                     OrderDirection::Bid,
@@ -3574,14 +3232,12 @@ fn test_claim_order_moving_tick() {
                     None,
                 )),
                 OrderOperation::RunMarket(MarketOrder::new(
-                    valid_book_id,
                     Uint128::from(50u128),
                     OrderDirection::Ask,
                     sender.clone(),
                 )),
                 // Place order in opposite direction from order to be claimed
                 OrderOperation::PlaceLimit(LimitOrder::new(
-                    valid_book_id,
                     valid_tick_id,
                     2,
                     OrderDirection::Ask,
@@ -3591,17 +3247,16 @@ fn test_claim_order_moving_tick() {
                     None,
                 )),
                 OrderOperation::RunMarket(MarketOrder::new(
-                    valid_book_id,
                     Uint128::from(100u128),
                     OrderDirection::Bid,
                     sender.clone(),
                 )),
                 // Ensure no errors on claiming orders for opposite direction
-                OrderOperation::Claim((valid_book_id, valid_tick_id, 0)),
-                OrderOperation::Claim((valid_book_id, valid_tick_id, 2)),
+                OrderOperation::Claim((valid_tick_id, 0)),
+                OrderOperation::Claim((valid_tick_id, 2)),
             ],
             order_id: 1,
-            book_id: valid_book_id,
+
             tick_id: valid_tick_id,
             expected_output: SubMsg::reply_on_error(
                 BankMsg::Send {
@@ -3622,8 +3277,6 @@ fn test_claim_order_moving_tick() {
         let info = mock_info("sender", &[]);
         create_orderbook(
             deps.as_mut(),
-            env.clone(),
-            info.clone(),
             quote_denom.to_string(),
             base_denom.to_string(),
         )
@@ -3632,7 +3285,7 @@ fn test_claim_order_moving_tick() {
         // Run setup operations
         for operation in test.operations {
             operation
-                .run(deps.as_mut(), env.clone(), info.clone(), valid_book_id)
+                .run(deps.as_mut(), env.clone(), info.clone())
                 .unwrap();
         }
 
@@ -3640,7 +3293,6 @@ fn test_claim_order_moving_tick() {
         let res = claim_order(
             deps.as_mut().storage,
             test.sender,
-            test.book_id,
             test.tick_id,
             test.order_id,
         );
@@ -3662,10 +3314,7 @@ fn test_claim_order_moving_tick() {
 
         // Check order in state
         let maybe_order = orders()
-            .may_load(
-                deps.as_ref().storage,
-                &(test.book_id, test.tick_id, test.order_id),
-            )
+            .may_load(deps.as_ref().storage, &(test.tick_id, test.order_id))
             .unwrap();
         // Order in state may have been removed
         assert_eq!(
@@ -3680,7 +3329,6 @@ fn test_claim_order_moving_tick() {
 struct BatchClaimOrderTestCase {
     name: &'static str,
     operations: Vec<OrderOperation>,
-    book_id: u64,
     orders: Vec<(i64, u64)>,
     expected_messages: Vec<SubMsg>,
     expected_order_states: Option<Vec<LimitOrder>>,
@@ -3689,7 +3337,6 @@ struct BatchClaimOrderTestCase {
 
 #[test]
 fn test_batch_claim_order() {
-    let valid_book_id = 0;
     let quote_denom = "quote";
     let base_denom = "base";
     let sender = Addr::unchecked("sender");
@@ -3700,7 +3347,6 @@ fn test_batch_claim_order() {
             operations: vec![
                 // Place two limit orders
                 OrderOperation::PlaceLimit(LimitOrder::new(
-                    valid_book_id,
                     0,
                     0,
                     OrderDirection::Bid,
@@ -3710,7 +3356,6 @@ fn test_batch_claim_order() {
                     Some(Decimal::percent(1)),
                 )),
                 OrderOperation::PlaceLimit(LimitOrder::new(
-                    valid_book_id,
                     1,
                     1,
                     OrderDirection::Ask,
@@ -3721,19 +3366,16 @@ fn test_batch_claim_order() {
                 )),
                 // Fully fill both orders
                 OrderOperation::RunMarket(MarketOrder::new(
-                    valid_book_id,
                     Uint128::from(100u128),
                     OrderDirection::Ask,
                     owner.clone(),
                 )),
                 OrderOperation::RunMarket(MarketOrder::new(
-                    valid_book_id,
                     Uint128::from(50u128),
                     OrderDirection::Bid,
                     owner.clone(),
                 )),
             ],
-            book_id: valid_book_id,
             // (tick_id, order_id) pairs
             orders: vec![(0, 0), (1, 1)],
             expected_messages: vec![
@@ -3772,7 +3414,6 @@ fn test_batch_claim_order() {
             operations: vec![
                 // Place three limit orders, two of which will be filled
                 OrderOperation::PlaceLimit(LimitOrder::new(
-                    valid_book_id,
                     0,
                     0,
                     OrderDirection::Bid,
@@ -3782,7 +3423,6 @@ fn test_batch_claim_order() {
                     None,
                 )),
                 OrderOperation::PlaceLimit(LimitOrder::new(
-                    valid_book_id,
                     1,
                     1,
                     OrderDirection::Ask,
@@ -3793,7 +3433,6 @@ fn test_batch_claim_order() {
                 )),
                 // This order will not be filled
                 OrderOperation::PlaceLimit(LimitOrder::new(
-                    valid_book_id,
                     -1,
                     2,
                     OrderDirection::Bid,
@@ -3804,19 +3443,16 @@ fn test_batch_claim_order() {
                 )),
                 // Fully fill the first two orders
                 OrderOperation::RunMarket(MarketOrder::new(
-                    valid_book_id,
                     Uint128::from(100u128),
                     OrderDirection::Ask,
                     owner.clone(),
                 )),
                 OrderOperation::RunMarket(MarketOrder::new(
-                    valid_book_id,
                     Uint128::from(50u128),
                     OrderDirection::Bid,
                     owner.clone(),
                 )),
             ],
-            book_id: valid_book_id,
             // (tick_id, order_id) pairs including the unfilled order
             orders: vec![(0, 0), (1, 1), (-1, 2)],
             expected_messages: vec![
@@ -3838,7 +3474,6 @@ fn test_batch_claim_order() {
             ],
             // The unfilled order should remain in state
             expected_order_states: Some(vec![LimitOrder::new(
-                valid_book_id,
                 -1,
                 2,
                 OrderDirection::Bid,
@@ -3858,8 +3493,6 @@ fn test_batch_claim_order() {
         let info = mock_info(owner.as_str(), &[]);
         create_orderbook(
             deps.as_mut(),
-            env.clone(),
-            info.clone(),
             quote_denom.to_string(),
             base_denom.to_string(),
         )
@@ -3868,7 +3501,7 @@ fn test_batch_claim_order() {
         // Run setup operations
         for operation in test.operations {
             operation
-                .run(deps.as_mut(), env.clone(), info.clone(), valid_book_id)
+                .run(deps.as_mut(), env.clone(), info.clone())
                 .unwrap();
         }
 
@@ -3876,12 +3509,7 @@ fn test_batch_claim_order() {
         let info = mock_info(sender.as_str(), &[]);
 
         // Batch claim orders
-        let res = batch_claim_limits(
-            deps.as_mut(),
-            info.clone(),
-            test.book_id,
-            test.orders.clone(),
-        );
+        let res = batch_claim_limits(deps.as_mut(), info.clone(), test.orders.clone());
 
         if let Some(err) = test.expected_error {
             assert_eq!(res, Err(err), "{}", format_test_name(test.name));
@@ -3918,7 +3546,7 @@ fn test_batch_claim_order() {
         // Assert correct order states
         for (tick_id, order_id) in &test.orders {
             let maybe_order = orders()
-                .may_load(deps.as_ref().storage, &(test.book_id, *tick_id, *order_id))
+                .may_load(deps.as_ref().storage, &(*tick_id, *order_id))
                 .unwrap();
             // Order in state may have been removed or still present depending on the test case
             let expected_order_state = test.expected_order_states.as_ref().and_then(|states| {

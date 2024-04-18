@@ -1,37 +1,37 @@
 use crate::constants::{MAX_TICK, MIN_TICK};
-use crate::error::ContractError;
-use crate::state::{new_orderbook_id, DENOM_PAIR_BOOK_ID, ORDERBOOKS};
+use crate::error::ContractResult;
+use crate::state::ORDERBOOK;
 use crate::types::Orderbook;
-use cosmwasm_std::{DepsMut, Env, MessageInfo, Response};
+#[cfg(not(test))]
+use crate::ContractError;
+#[cfg(not(test))]
+use cosmwasm_std::ensure;
+use cosmwasm_std::DepsMut;
 
 pub fn create_orderbook(
     deps: DepsMut,
-    _env: Env,
-    _info: MessageInfo,
     quote_denom: String,
     base_denom: String,
-) -> Result<Response, ContractError> {
+) -> ContractResult<()> {
     // TODO: add necessary validation logic
     // https://github.com/osmosis-labs/orderbook/issues/26
+    #[cfg(not(test))]
+    let denoms = [quote_denom.clone(), base_denom.clone()];
 
-    let book_id = new_orderbook_id(deps.storage)?;
-    let book = Orderbook::new(
-        book_id,
-        quote_denom.clone(),
-        base_denom.clone(),
-        0,
-        MIN_TICK,
-        MAX_TICK,
-    );
+    // TODO: Write custom mock querier for unit tests for this
+    #[cfg(not(test))]
+    for denom in denoms {
+        let maybe_supply = deps.querier.query_supply(denom.clone());
 
-    ORDERBOOKS.save(deps.storage, &book_id, &book)?;
-    DENOM_PAIR_BOOK_ID
-        .save(deps.storage, (&quote_denom, &base_denom), &book_id)
-        .unwrap();
-    DENOM_PAIR_BOOK_ID
-        .save(deps.storage, (&base_denom, &quote_denom), &book_id)
-        .unwrap();
-    Ok(Response::new()
-        .add_attribute("method", "createOrderbook")
-        .add_attribute("book_id", book_id.to_string()))
+        // Ensure denom exists and has at least 1 token
+        ensure!(
+            maybe_supply.is_ok() && !maybe_supply.unwrap().amount.is_zero(),
+            ContractError::InvalidDenom { denom }
+        );
+    }
+
+    let book = Orderbook::new(quote_denom, base_denom, 0, MIN_TICK, MAX_TICK);
+
+    ORDERBOOK.save(deps.storage, &book)?;
+    Ok(())
 }

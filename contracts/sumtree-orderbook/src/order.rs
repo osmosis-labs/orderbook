@@ -1,6 +1,6 @@
 use crate::constants::{MAX_BATCH_CLAIM, MAX_TICK, MIN_TICK};
 use crate::error::{ContractError, ContractResult};
-use crate::state::{new_order_id, orders, ORDERBOOKS, TICK_STATE};
+use crate::state::{new_order_id, orders, ORDERBOOK, TICK_STATE};
 use crate::sumtree::node::{generate_node_id, NodeType, TreeNode};
 use crate::sumtree::tree::get_or_init_root_node;
 use crate::tick::sync_tick;
@@ -21,16 +21,12 @@ pub fn place_limit(
     deps: &mut DepsMut,
     _env: Env,
     info: MessageInfo,
-    book_id: u64,
     tick_id: i64,
     order_direction: OrderDirection,
     quantity: Uint128,
     claim_bounty: Option<Decimal>,
 ) -> Result<Response, ContractError> {
-    // Validate book_id exists
-    let mut orderbook = ORDERBOOKS
-        .load(deps.storage, &book_id)
-        .map_err(|_| ContractError::InvalidBookId { book_id })?;
+    let mut orderbook = ORDERBOOK.load(deps.storage)?;
 
     // Validate tick_id is within valid range
     ensure!(
@@ -87,17 +83,14 @@ pub fn place_limit(
             }
         }
     }
-    ORDERBOOKS.save(deps.storage, &book_id, &orderbook)?;
+    ORDERBOOK.save(deps.storage, &orderbook)?;
 
     // Update ETAS from Tick State
-    let mut tick_state = TICK_STATE
-        .load(deps.storage, &(book_id, tick_id))
-        .unwrap_or_default();
+    let mut tick_state = TICK_STATE.load(deps.storage, tick_id).unwrap_or_default();
     let mut tick_values = tick_state.get_values(order_direction);
 
     // Build limit order
     let limit_order = LimitOrder::new(
-        book_id,
         tick_id,
         order_id,
         order_direction,
@@ -112,7 +105,7 @@ pub fn place_limit(
     // Only save the order if not fully filled
     if limit_order.quantity > Uint128::zero() {
         // Save the order to the orderbook
-        orders().save(deps.storage, &(book_id, tick_id, order_id), &limit_order)?;
+        orders().save(deps.storage, &(tick_id, order_id), &limit_order)?;
 
         tick_values.total_amount_of_liquidity = tick_values
             .total_amount_of_liquidity
@@ -128,12 +121,11 @@ pub fn place_limit(
         .checked_add(Decimal256::from_ratio(quantity, Uint256::one()))?;
 
     tick_state.set_values(order_direction, tick_values);
-    TICK_STATE.save(deps.storage, &(book_id, tick_id), &tick_state)?;
+    TICK_STATE.save(deps.storage, tick_id, &tick_state)?;
 
     Ok(Response::default()
         .add_attribute("method", "placeLimit")
         .add_attribute("owner", info.sender.to_string())
-        .add_attribute("book_id", book_id.to_string())
         .add_attribute("tick_id", tick_id.to_string())
         .add_attribute("order_id", order_id.to_string())
         .add_attribute("order_direction", format!("{order_direction:?}"))
@@ -145,28 +137,21 @@ pub fn cancel_limit(
     deps: DepsMut,
     _env: Env,
     info: MessageInfo,
-    book_id: u64,
     tick_id: i64,
     order_id: u64,
 ) -> Result<Response, ContractError> {
     nonpayable(&info)?;
-    let key = (book_id, tick_id, order_id);
+    let key = (tick_id, order_id);
     // Check for the order, error if not found
     let order = orders()
         .may_load(deps.storage, &key)?
-        .ok_or(ContractError::OrderNotFound {
-            book_id,
-            tick_id,
-            order_id,
-        })?;
+        .ok_or(ContractError::OrderNotFound { tick_id, order_id })?;
 
     // Ensure the sender is the order owner
     ensure_eq!(info.sender, order.owner, ContractError::Unauthorized {});
 
     // Ensure the order has not been filled.
-    let tick_state = TICK_STATE
-        .load(deps.storage, &(book_id, tick_id))
-        .unwrap_or_default();
+    let tick_state = TICK_STATE.load(deps.storage, tick_id).unwrap_or_default();
     let tick_values = tick_state.get_values(order.order_direction);
     ensure!(
         tick_values.effective_total_amount_swapped <= order.etas,
@@ -174,20 +159,20 @@ pub fn cancel_limit(
     );
 
     // Fetch the sumtree from storage, or create one if it does not exist
-    let mut tree = get_or_init_root_node(deps.storage, book_id, tick_id, order.order_direction)?;
+    let mut tree = get_or_init_root_node(deps.storage, tick_id, order.order_direction)?;
 
     // Generate info for new node to insert to sumtree
-    let node_id = generate_node_id(deps.storage, order.book_id, order.tick_id)?;
-    let mut curr_tick_state = TICK_STATE
-        .load(deps.storage, &(order.book_id, order.tick_id))
-        .ok()
-        .ok_or(ContractError::InvalidTickId {
-            tick_id: order.tick_id,
-        })?;
+    let node_id = generate_node_id(deps.storage, order.tick_id)?;
+    let mut curr_tick_state =
+        TICK_STATE
+            .load(deps.storage, order.tick_id)
+            .ok()
+            .ok_or(ContractError::InvalidTickId {
+                tick_id: order.tick_id,
+            })?;
     let mut curr_tick_values = curr_tick_state.get_values(order.order_direction);
 
     let mut new_node = TreeNode::new(
-        order.book_id,
         order.tick_id,
         order.order_direction,
         node_id,
@@ -201,12 +186,7 @@ pub fn cancel_limit(
     tree.insert(deps.storage, &mut new_node)?;
 
     // Get orderbook info for correct denomination
-    let orderbook =
-        ORDERBOOKS
-            .may_load(deps.storage, &order.book_id)?
-            .ok_or(ContractError::InvalidBookId {
-                book_id: order.book_id,
-            })?;
+    let orderbook = ORDERBOOK.load(deps.storage)?;
 
     // Generate refund
     let expected_denom = orderbook.get_expected_denom(&order.order_direction);
@@ -218,27 +198,19 @@ pub fn cancel_limit(
         REPLY_ID_REFUND,
     );
 
-    orders().remove(
-        deps.storage,
-        &(order.book_id, order.tick_id, order.order_id),
-    )?;
+    orders().remove(deps.storage, &(order.tick_id, order.order_id))?;
 
     curr_tick_values.total_amount_of_liquidity = curr_tick_values
         .total_amount_of_liquidity
         .checked_sub(Decimal256::from_ratio(order.quantity, Uint256::one()))?;
     curr_tick_state.set_values(order.order_direction, curr_tick_values);
-    TICK_STATE.save(
-        deps.storage,
-        &(order.book_id, order.tick_id),
-        &curr_tick_state,
-    )?;
+    TICK_STATE.save(deps.storage, order.tick_id, &curr_tick_state)?;
 
     tree.save(deps.storage)?;
 
     Ok(Response::new()
         .add_attribute("method", "cancelLimit")
         .add_attribute("owner", info.sender)
-        .add_attribute("book_id", book_id.to_string())
         .add_attribute("tick_id", tick_id.to_string())
         .add_attribute("order_id", order_id.to_string())
         .add_submessage(refund_msg))
@@ -248,24 +220,17 @@ pub fn claim_limit(
     _deps: DepsMut,
     _env: Env,
     info: MessageInfo,
-    book_id: u64,
     tick_id: i64,
     order_id: u64,
 ) -> Result<Response, ContractError> {
     nonpayable(&info)?;
 
-    let (amount_claimed, bank_msgs) = claim_order(
-        _deps.storage,
-        info.sender.clone(),
-        book_id,
-        tick_id,
-        order_id,
-    )?;
+    let (amount_claimed, bank_msgs) =
+        claim_order(_deps.storage, info.sender.clone(), tick_id, order_id)?;
 
     Ok(Response::new()
         .add_attribute("method", "claimMarket")
         .add_attribute("sender", info.sender)
-        .add_attribute("book_id", book_id.to_string())
         .add_attribute("tick_id", tick_id.to_string())
         .add_attribute("order_id", order_id.to_string())
         .add_attribute("amount_claimed", amount_claimed.to_string())
@@ -276,13 +241,11 @@ pub fn place_market(
     deps: DepsMut,
     _env: Env,
     info: MessageInfo,
-    book_id: u64,
     order_direction: OrderDirection,
     quantity: Uint128,
 ) -> Result<Response, ContractError> {
     // Build market order from inputs
-    let mut market_order =
-        MarketOrder::new(book_id, quantity, order_direction, info.sender.clone());
+    let mut market_order = MarketOrder::new(quantity, order_direction, info.sender.clone());
 
     // Market orders always run until either the input is filled or the orderbook is exhausted.
     let tick_bound = match order_direction {
@@ -304,7 +267,6 @@ pub fn place_market(
 pub fn batch_claim_limits(
     deps: DepsMut,
     info: MessageInfo,
-    book_id: u64,
     orders: Vec<(i64, u64)>,
 ) -> Result<Response, ContractError> {
     nonpayable(&info)?;
@@ -320,13 +282,7 @@ pub fn batch_claim_limits(
 
     for (tick_id, order_id) in orders {
         // Attempt to claim each order
-        match claim_order(
-            deps.storage,
-            info.sender.clone(),
-            book_id,
-            tick_id,
-            order_id,
-        ) {
+        match claim_order(deps.storage, info.sender.clone(), tick_id, order_id) {
             Ok((_, mut bank_msgs)) => {
                 responses.append(&mut bank_msgs);
             }
@@ -358,7 +314,6 @@ pub fn batch_claim_limits(
 // * Bank send message to process the balance transfer
 //
 // Returns error if:
-// * Orderbook with given ID doesn't exist (order.book_id)
 // * Tick to price conversion fails for any tick
 //
 // CONTRACT: The caller must ensure that the necessary input funds were actually supplied.
@@ -368,12 +323,7 @@ pub fn run_market_order(
     order: &mut MarketOrder,
     tick_bound: i64,
 ) -> Result<(Uint128, BankMsg), ContractError> {
-    let mut orderbook =
-        ORDERBOOKS
-            .load(storage, &order.book_id)
-            .map_err(|_| ContractError::InvalidBookId {
-                book_id: order.book_id,
-            })?;
+    let mut orderbook = ORDERBOOK.load(storage)?;
     let output_denom = orderbook.get_opposite_denom(&order.order_direction);
 
     // Ensure the given tick bound is within global limits
@@ -409,10 +359,10 @@ pub fn run_market_order(
     };
 
     // Create tick iterator between first tick and requested tick
-    let ticks = TICK_STATE.prefix(order.book_id).range(
+    let ticks = TICK_STATE.keys(
         storage,
-        Some(min_tick).map(Bound::inclusive),
-        Some(max_tick).map(Bound::inclusive),
+        Some(Bound::inclusive(min_tick)),
+        Some(Bound::inclusive(max_tick)),
         ordering,
     );
 
@@ -420,10 +370,15 @@ pub fn run_market_order(
     // Due to our sumtree-based design, this process carries only O(1) overhead per tick.
     let mut total_output: Uint128 = Uint128::zero();
     let mut tick_updates: Vec<(i64, TickState)> = Vec::new();
+
+    // The price of the last tick iterated on, if no ticks are iterated price is constant
+    let mut last_tick_price = Decimal256::one();
     for maybe_current_tick in ticks {
-        let (current_tick_id, mut current_tick) = maybe_current_tick?;
+        let current_tick_id = maybe_current_tick?;
+        let mut current_tick = TICK_STATE.load(storage, current_tick_id)?;
         let mut current_tick_values = current_tick.get_values(order.order_direction.opposite());
         let tick_price = tick_to_price(current_tick_id)?;
+        last_tick_price = tick_price;
 
         // Update current tick pointer as we visit ticks
         match order.order_direction.opposite() {
@@ -486,21 +441,30 @@ pub fn run_market_order(
         total_output = total_output.checked_add(fill_amount)?;
     }
 
-    // If, after iterating through all remaining ticks, the order quantity is still not filled,
+    // Determine if filling remaining amount on the last possible tick produced any value
+    // This will be 0 if the remaining balance is dust
+    let remaining_balance = amount_to_value(
+        order.order_direction,
+        order.quantity,
+        last_tick_price,
+        RoundingDirection::Down,
+    )?;
+
+    // If, after iterating through all remaining ticks, the order quantity is still not filled (excluding dust),
     // we error out as the orderbook has insufficient liquidity to fill the order.
     ensure!(
-        order.quantity.is_zero(),
+        remaining_balance.is_zero(),
         ContractError::InsufficientLiquidity
     );
 
     // After the core tick iteration loop, write all tick updates to state.
     // We cannot do this during the loop due to the borrow checker.
     for (tick_id, tick_state) in tick_updates {
-        TICK_STATE.save(storage, &(order.book_id, tick_id), &tick_state)?;
+        TICK_STATE.save(storage, tick_id, &tick_state)?;
     }
 
     // Update tick pointers in orderbook
-    ORDERBOOKS.save(storage, &order.book_id, &orderbook)?;
+    ORDERBOOK.save(storage, &orderbook)?;
 
     // TODO: If we intend to support refunds for partial fills, we will need to return
     // the consumed input here as well. If we choose not to, we should error in this case.
@@ -519,34 +483,26 @@ pub fn run_market_order(
 pub(crate) fn claim_order(
     storage: &mut dyn Storage,
     sender: Addr,
-    book_id: u64,
     tick_id: i64,
     order_id: u64,
 ) -> ContractResult<(Uint128, Vec<SubMsg>)> {
-    let orderbook = ORDERBOOKS
-        .may_load(storage, &book_id)?
-        .ok_or(ContractError::InvalidBookId { book_id })?;
+    let orderbook = ORDERBOOK.load(storage)?;
     // Fetch tick values for current order direction
     let tick_state = TICK_STATE
-        .may_load(storage, &(book_id, tick_id))?
+        .may_load(storage, tick_id)?
         .ok_or(ContractError::InvalidTickId { tick_id })?;
 
-    let key = (book_id, tick_id, order_id);
+    let key = (tick_id, order_id);
     // Check for the order, error if not found
     let mut order = orders()
         .may_load(storage, &key)?
-        .ok_or(ContractError::OrderNotFound {
-            book_id,
-            tick_id,
-            order_id,
-        })?;
+        .ok_or(ContractError::OrderNotFound { tick_id, order_id })?;
 
     // Sync the tick the order is on to ensure correct ETAS
     let bid_tick_values = tick_state.get_values(OrderDirection::Bid);
     let ask_tick_values = tick_state.get_values(OrderDirection::Ask);
     sync_tick(
         storage,
-        book_id,
         tick_id,
         bid_tick_values.effective_total_amount_swapped,
         ask_tick_values.effective_total_amount_swapped,
@@ -554,7 +510,7 @@ pub(crate) fn claim_order(
 
     // Re-fetch tick post sync call
     let tick_state = TICK_STATE
-        .may_load(storage, &(book_id, tick_id))?
+        .may_load(storage, tick_id)?
         .ok_or(ContractError::InvalidTickId { tick_id })?;
     let tick_values = tick_state.get_values(order.order_direction);
 

@@ -6,12 +6,12 @@ use crate::sumtree::tree::get_or_init_root_node;
 use crate::tick::sync_tick;
 use crate::tick_math::{amount_to_value, tick_to_price, RoundingDirection};
 use crate::types::{
-    LimitOrder, MarketOrder, OrderDirection, TickState, REPLY_ID_CLAIM, REPLY_ID_CLAIM_BOUNTY,
-    REPLY_ID_REFUND,
+    LimitOrder, MarketOrder, OrderDirection, Orderbook, TickState, REPLY_ID_CLAIM,
+    REPLY_ID_CLAIM_BOUNTY, REPLY_ID_REFUND,
 };
 use cosmwasm_std::{
-    coin, ensure, ensure_eq, Addr, BankMsg, Decimal, Decimal256, DepsMut, Env, MessageInfo, Order,
-    Response, Storage, SubMsg, Uint128, Uint256,
+    coin, ensure, ensure_eq, Addr, BankMsg, Coin, Decimal, Decimal256, DepsMut, Env, MessageInfo,
+    Order, Response, Storage, SubMsg, Uint128, Uint256,
 };
 use cw_storage_plus::Bound;
 use cw_utils::{must_pay, nonpayable};
@@ -287,6 +287,35 @@ pub fn run_market_order(
     order: &mut MarketOrder,
     tick_bound: i64,
 ) -> Result<(Uint128, BankMsg), ContractError> {
+    let (output, tick_updates, updated_orderbook) = fulfill_order(storage, order, tick_bound)?;
+
+    // After the core tick iteration loop, write all tick updates to state.
+    // We cannot do this during the loop due to the borrow checker.
+    for (tick_id, tick_state) in tick_updates {
+        TICK_STATE.save(storage, tick_id, &tick_state)?;
+    }
+
+    // Update tick pointers in orderbook
+    ORDERBOOK.save(storage, &updated_orderbook)?;
+
+    // TODO: If we intend to support refunds for partial fills, we will need to return
+    // the consumed input here as well. If we choose not to, we should error in this case.
+    //
+    // Tracked in issue https://github.com/osmosis-labs/orderbook/issues/86
+    Ok((
+        output.amount,
+        BankMsg::Send {
+            to_address: order.owner.to_string(),
+            amount: vec![output],
+        },
+    ))
+}
+
+pub(crate) fn fulfill_order(
+    storage: &dyn Storage,
+    order: &mut MarketOrder,
+    tick_bound: i64,
+) -> ContractResult<(Coin, Vec<(i64, TickState)>, Orderbook)> {
     let mut orderbook = ORDERBOOK.load(storage)?;
     let output_denom = orderbook.get_opposite_denom(&order.order_direction);
 
@@ -421,26 +450,7 @@ pub fn run_market_order(
         ContractError::InsufficientLiquidity
     );
 
-    // After the core tick iteration loop, write all tick updates to state.
-    // We cannot do this during the loop due to the borrow checker.
-    for (tick_id, tick_state) in tick_updates {
-        TICK_STATE.save(storage, tick_id, &tick_state)?;
-    }
-
-    // Update tick pointers in orderbook
-    ORDERBOOK.save(storage, &orderbook)?;
-
-    // TODO: If we intend to support refunds for partial fills, we will need to return
-    // the consumed input here as well. If we choose not to, we should error in this case.
-    //
-    // Tracked in issue https://github.com/osmosis-labs/orderbook/issues/86
-    Ok((
-        total_output,
-        BankMsg::Send {
-            to_address: order.owner.to_string(),
-            amount: vec![coin(total_output.u128(), output_denom)],
-        },
-    ))
+    Ok((coin(total_output.u128(), output_denom), tick_updates))
 }
 
 // Note: This can be called by anyone

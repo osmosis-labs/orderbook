@@ -4,8 +4,8 @@ use cosmwasm_std::{
 };
 
 use crate::{
-    contract::query_spot_price,
     orderbook::create_orderbook,
+    query,
     types::{LimitOrder, MarketOrder, OrderDirection},
     ContractError,
 };
@@ -302,7 +302,7 @@ fn test_query_spot_price() {
             op.run(deps.as_mut(), env.clone(), info.clone()).unwrap();
         }
 
-        let res = query_spot_price(deps.as_ref(), test.quote_denom, test.base_denom);
+        let res = query::spot_price(deps.as_ref(), test.quote_denom, test.base_denom);
 
         if let Some(err) = test.expected_error {
             assert_eq!(

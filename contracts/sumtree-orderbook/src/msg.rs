@@ -40,18 +40,17 @@ pub enum MigrateMsg {}
 #[cw_serde]
 #[derive(QueryResponses)]
 pub enum QueryMsg {
-    // This example query variant indicates that any client can query the contract
-    // using `YourQuery` and it will return `YourQueryResponse`
-    // This `returns` information will be included in contract's schema
-    // which is used for client code generation.
-    //
-    // #[returns(YourQueryResponse)]
-    // YourQuery {},
     #[returns(SpotPriceResponse)]
     SpotPrice {
         quote_asset_denom: String,
         base_asset_denom: String,
     },
+    // #[returns(CalcOutAmtGivenInResponse)]
+    // CalcOutAmountGivenIn {
+    //     token_in: Coin,
+    //     token_out_denom: String,
+    //     swap_fee: Decimal,
+    // },
 }
 
 // We define a custom struct for each query response

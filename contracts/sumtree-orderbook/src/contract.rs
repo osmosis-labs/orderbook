@@ -176,8 +176,8 @@ pub fn query_spot_price(
 
     // Determine next tick based on desired order direction
     let next_tick = match direction {
-        OrderDirection::Ask => orderbook.next_ask_tick,
-        OrderDirection::Bid => orderbook.next_bid_tick,
+        OrderDirection::Ask => orderbook.next_bid_tick,
+        OrderDirection::Bid => orderbook.next_ask_tick,
     };
 
     // Generate spot price based on current active tick for desired order direction

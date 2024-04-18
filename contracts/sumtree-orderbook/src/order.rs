@@ -263,24 +263,21 @@ pub fn place_market(
         .add_message(bank_msg))
 }
 
-// run_market_order processes a market order from the current active tick on the order's orderbook
-// up to the passed in `tick_bound`. This allows for this function to be useful both for regular
-// market orders and as a helper to partially fill any limit orders that are placed past the best
-// current price on an orderbook.
-//
-// Note that this mutates the `order` object, so in the case where this function is used to partially
-// fill a limit order, it should leave the order in a valid and up-to-date state to be placed on the
-// orderbook.
-//
-// Returns:
-// * The output after the order has been processed
-// * Bank send message to process the balance transfer
-//
-// Returns error if:
-// * Orderbook with given ID doesn't exist (order.book_id)
-// * Tick to price conversion fails for any tick
-//
-// CONTRACT: The caller must ensure that the necessary input funds were actually supplied.
+/// run_market_order processes a market order from the current active tick on the order's orderbook
+/// up to the passed in `tick_bound`. **Partial fills are not allowed.**
+///
+/// Note that this mutates the `order` object
+///
+/// Returns:
+/// * The output after the order has been processed
+/// * Bank send message to process the balance transfer
+///
+/// Returns error if:
+/// * Provided order has zero quantity
+/// * Tick to price conversion fails for any tick
+/// * Order is not fully filled
+///
+/// CONTRACT: The caller must ensure that the necessary input funds were actually supplied.
 pub fn run_market_order(
     storage: &mut dyn Storage,
     order: &mut MarketOrder,
@@ -322,6 +319,23 @@ pub(crate) struct PostFulfillState {
     pub updated_orderbook: Orderbook,
 }
 
+/// Attempts to fill a market order against limit orders of the opposite direction starts from
+/// best price to worst price.
+///
+///
+/// Note that this mutates the `order` object and **does not perform any state mutations**
+///
+/// Returns:
+/// * The output after the order has been processed
+/// * Any required tick state updates
+/// * The updated orderbook state
+///
+/// Returns error if:
+/// * Provided order has zero quantity
+/// * Tick to price conversion fails for any tick
+/// * Order is not fully filled
+///
+/// CONTRACT: The caller must ensure that the necessary input funds were actually supplied.
 #[allow(clippy::manual_range_contains)]
 pub(crate) fn fulfill_order(
     storage: &dyn Storage,

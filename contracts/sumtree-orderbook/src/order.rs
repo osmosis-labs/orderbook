@@ -100,8 +100,6 @@ pub fn place_limit(
         claim_bounty,
     );
 
-    let quantity_fullfilled = quantity.checked_sub(limit_order.quantity)?;
-
     // Only save the order if not fully filled
     if limit_order.quantity > Uint128::zero() {
         // Save the order to the orderbook
@@ -129,8 +127,7 @@ pub fn place_limit(
         .add_attribute("tick_id", tick_id.to_string())
         .add_attribute("order_id", order_id.to_string())
         .add_attribute("order_direction", format!("{order_direction:?}"))
-        .add_attribute("quantity", quantity.to_string())
-        .add_attribute("quantity_fulfilled", quantity_fullfilled))
+        .add_attribute("quantity", quantity.to_string()))
 }
 
 pub fn cancel_limit(
@@ -321,11 +318,11 @@ pub fn run_market_order(
     order: &mut MarketOrder,
     tick_bound: i64,
 ) -> Result<(Uint128, BankMsg), ContractError> {
-    let PostFulfillState {
+    let PostMarketOrderState {
         output,
         tick_updates,
         updated_orderbook,
-    } = fulfill_order(storage, order, tick_bound)?;
+    } = run_market_order_internal(storage, order, tick_bound)?;
 
     // After the core tick iteration loop, write all tick updates to state.
     // We cannot do this during the loop due to the borrow checker.
@@ -349,17 +346,15 @@ pub fn run_market_order(
     ))
 }
 
-/// Defines the output of fulfilling an order.
-/// Includes any potential state updates that may need to be performed post fulfill.
-pub(crate) struct PostFulfillState {
+/// Defines the state changes resulting from a market order.
+pub(crate) struct PostMarketOrderState {
     pub output: Coin,
     pub tick_updates: Vec<(i64, TickState)>,
     pub updated_orderbook: Orderbook,
 }
 
-/// Attempts to fill a market order against limit orders of the opposite direction starts from
-/// best price to worst price.
-///
+/// Attempts to fill a market order against the orderbook. Due to the sumtree-based orderbook design,
+/// this does not require iterating linearly through all the filled orders.
 ///
 /// Note that this mutates the `order` object and **does not perform any state mutations**
 ///
@@ -375,11 +370,11 @@ pub(crate) struct PostFulfillState {
 ///
 /// CONTRACT: The caller must ensure that the necessary input funds were actually supplied.
 #[allow(clippy::manual_range_contains)]
-pub(crate) fn fulfill_order(
+pub(crate) fn run_market_order_internal(
     storage: &dyn Storage,
     order: &mut MarketOrder,
     tick_bound: i64,
-) -> ContractResult<PostFulfillState> {
+) -> ContractResult<PostMarketOrderState> {
     // Ensure order is non-empty
     ensure!(
         !order.quantity.is_zero(),
@@ -522,7 +517,7 @@ pub(crate) fn fulfill_order(
         ContractError::InsufficientLiquidity
     );
 
-    Ok(PostFulfillState {
+    Ok(PostMarketOrderState {
         output: coin(total_output.u128(), output_denom),
         tick_updates,
         updated_orderbook: orderbook,

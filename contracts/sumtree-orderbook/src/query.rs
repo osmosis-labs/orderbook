@@ -62,7 +62,7 @@ pub(crate) fn spot_price(
 /// The mock order is then filled against the current orderbook state, and the output amount is the result of the fill.
 ///
 /// Errors if:
-/// 1. The provided swap fee does not match the orderbook's expected swap fee
+/// 1. The provided swap fee does not match the orderbook's expected swap fee, which is set to zero.
 /// 2. The provided denom pair is not supported by the orderbook
 pub(crate) fn calc_out_amount_given_in(
     deps: Deps,
@@ -87,8 +87,8 @@ pub(crate) fn calc_out_amount_given_in(
     let mut mock_order = MarketOrder::new(token_in.amount, direction, Addr::unchecked("querier"));
 
     // Generate output coin given the input order by simulating a fill against current orderbook state
-    let order::PostFulfillState { output, .. } =
-        order::fulfill_order(deps.storage, &mut mock_order, tick_bound)?;
+    let order::PostMarketOrderState { output, .. } =
+        order::run_market_order_internal(deps.storage, &mut mock_order, tick_bound)?;
 
     Ok(CalcOutAmtGivenInResponse { token_out: output })
 }
@@ -96,8 +96,6 @@ pub(crate) fn calc_out_amount_given_in(
 /// Calculates the total pool liquidity for the current orderbook state.
 ///
 /// Total pool liquidity is calculated by summing the total amount of liquidity in each active tick.
-///
-/// **May return 0 amounts**
 ///
 /// Errors if:
 /// 1. Summing total liquidity overflows Uint128

@@ -259,12 +259,6 @@ fn test_place_limit() {
             "{}",
             format_test_name(test.name)
         );
-        assert_eq!(
-            response.attributes[6],
-            ("quantity_fulfilled", "0"),
-            "{}",
-            format_test_name(test.name)
-        );
 
         // Retrieve the order from storage to verify it was saved correctly
         let expected_order_id = 0;

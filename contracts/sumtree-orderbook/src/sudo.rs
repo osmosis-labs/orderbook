@@ -95,17 +95,12 @@ pub(crate) fn dispatch_swap_exact_amount_in(
     // Run market order against orderbook
     let (output, bank_msg) = run_market_order(deps.storage, &mut order, tick_bound)?;
 
-    // Validate the fullfillment message against the order
+    // Validate the output message against the order
     if let BankMsg::Send { amount, .. } = bank_msg.clone() {
-        let fullfillment_amt = amount.first().ok_or(ContractError::InvalidSwap {
-            error: "Order did not generate a fulfillment message".to_string(),
+        let output_amt = amount.first().ok_or(ContractError::InvalidSwap {
+            error: "Market order did not generate an output message".to_string(),
         })?;
-        ensure_fullfilment_amount(
-            None,
-            Some(token_out_min_amount),
-            &token_in,
-            fullfillment_amt,
-        )?;
+        validate_output_amount(None, Some(token_out_min_amount), &token_in, output_amt)?;
     }
 
     Ok(Response::default()
@@ -138,11 +133,11 @@ pub(crate) fn dispatch_swap_exact_amount_out(
     unimplemented!();
 }
 
-/// Ensures that the generated fullfillment meets the criteria set by the CW Pool interface. Ensures the following:
+/// Ensures that the generated output meets the criteria set by the CW Pool interface. Ensures the following:
 /// 1. An optional provided maximum amount (swap exact amount out)
 /// 2. An optional provided minimum amount (swap exact amount in)
 /// 3. An expected denom
-pub(crate) fn ensure_fullfilment_amount(
+pub(crate) fn validate_output_amount(
     max_in_amount: Option<Uint128>,
     min_out_amount: Option<Uint128>,
     input: &Coin,

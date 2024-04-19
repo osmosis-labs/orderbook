@@ -8,14 +8,14 @@ use crate::{
     constants::EXPECTED_SWAP_FEE,
     msg::SwapExactAmountInResponseData,
     orderbook::create_orderbook,
-    sudo::{dispatch_swap_exact_amount_in, ensure_fullfilment_amount},
+    sudo::{dispatch_swap_exact_amount_in, validate_output_amount},
     types::{LimitOrder, OrderDirection, REPLY_ID_SUDO_SWAP_EXACT_IN},
     ContractError,
 };
 
 use super::test_utils::{format_test_name, OrderOperation};
 
-struct EnsureFulfillmentAmountTestCase {
+struct ValidateOutputAmountTestCase {
     name: &'static str,
     max_in_amount: Option<Uint128>,
     min_out_amount: Option<Uint128>,
@@ -25,19 +25,19 @@ struct EnsureFulfillmentAmountTestCase {
 }
 
 #[test]
-fn test_ensure_fulfillment_amount() {
+fn test_validate_output_amount() {
     let in_denom = "denoma";
     let out_denom = "denomb";
-    let test_cases: Vec<EnsureFulfillmentAmountTestCase> = vec![
-        EnsureFulfillmentAmountTestCase {
-            name: "valid fulfillment",
+    let test_cases: Vec<ValidateOutputAmountTestCase> = vec![
+        ValidateOutputAmountTestCase {
+            name: "valid output",
             max_in_amount: Some(Uint128::from(100u128)),
             min_out_amount: Some(Uint128::zero()),
             input: coin(50u128, in_denom),
             output: coin(50u128, out_denom),
             expected_error: None,
         },
-        EnsureFulfillmentAmountTestCase {
+        ValidateOutputAmountTestCase {
             name: "exceed max",
             max_in_amount: Some(Uint128::from(100u128)),
             min_out_amount: Some(Uint128::zero()),
@@ -51,7 +51,7 @@ fn test_ensure_fulfillment_amount() {
                 ),
             }),
         },
-        EnsureFulfillmentAmountTestCase {
+        ValidateOutputAmountTestCase {
             name: "do not meet min",
             max_in_amount: Some(Uint128::from(100u128)),
             min_out_amount: Some(Uint128::from(50u128)),
@@ -65,7 +65,7 @@ fn test_ensure_fulfillment_amount() {
                 ),
             }),
         },
-        EnsureFulfillmentAmountTestCase {
+        ValidateOutputAmountTestCase {
             name: "duplicate denom",
             max_in_amount: Some(Uint128::from(100u128)),
             min_out_amount: Some(Uint128::zero()),
@@ -79,7 +79,7 @@ fn test_ensure_fulfillment_amount() {
 
     for test in test_cases {
         // -- System under test --
-        let resp = ensure_fullfilment_amount(
+        let resp = validate_output_amount(
             test.max_in_amount,
             test.min_out_amount,
             &test.input,
@@ -312,7 +312,7 @@ fn test_swap_exact_amount_in() {
             format_test_name(test.name)
         );
 
-        // Ensure that generated fulfillment message matches what is expected
+        // Ensure that generated output message matches what is expected
         let bank_msg = response.messages.first().unwrap();
         let expected_msg = SubMsg::reply_on_error(
             BankMsg::Send {
@@ -324,7 +324,7 @@ fn test_swap_exact_amount_in() {
         assert_eq!(
             bank_msg,
             &expected_msg,
-            "{}: did not receive expected fulfillment message",
+            "{}: did not receive expected output message",
             format_test_name(test.name)
         );
 

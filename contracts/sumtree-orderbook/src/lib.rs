@@ -4,6 +4,7 @@ mod error;
 pub mod msg;
 mod order;
 mod orderbook;
+pub mod query;
 pub mod state;
 pub mod sudo;
 mod sumtree;

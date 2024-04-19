@@ -1,15 +1,17 @@
 #[cfg(not(feature = "library"))]
 use cosmwasm_std::entry_point;
 use cosmwasm_std::{
-    ensure, Binary, Decimal, Deps, DepsMut, Env, MessageInfo, Reply, Response, StdResult, Uint128,
+    ensure, to_json_binary, Binary, Decimal, Deps, DepsMut, Env, MessageInfo, Reply, Response,
+    Uint128,
 };
 use cw2::set_contract_version;
 
-use crate::error::ContractError;
+use crate::error::{ContractError, ContractResult};
 use crate::msg::{ExecuteMsg, InstantiateMsg, MigrateMsg, QueryMsg};
 
 use crate::order;
 use crate::orderbook::create_orderbook;
+use crate::query;
 use crate::types::OrderDirection;
 
 // version info for migration info
@@ -99,13 +101,35 @@ pub fn execute(
 
 /// Handling contract query
 #[cfg_attr(not(feature = "library"), entry_point)]
-pub fn query(_deps: Deps, _env: Env, msg: QueryMsg) -> StdResult<Binary> {
+pub fn query(deps: Deps, _env: Env, msg: QueryMsg) -> ContractResult<Binary> {
     match msg {
         // Find matched incoming message variant and query them your custom logic
         // and then construct your query response with the type usually defined
         // `msg.rs` alongside with the query message itself.
         //
         // use `cosmwasm_std::to_binary` to serialize query response to json binary.
+        QueryMsg::SpotPrice {
+            quote_asset_denom,
+            base_asset_denom,
+        } => Ok(to_json_binary(&query::spot_price(
+            deps,
+            quote_asset_denom,
+            base_asset_denom,
+        )?)?),
+        QueryMsg::CalcOutAmountGivenIn {
+            token_in,
+            token_out_denom,
+            swap_fee,
+        } => Ok(to_json_binary(&query::calc_out_amount_given_in(
+            deps,
+            token_in,
+            token_out_denom,
+            swap_fee,
+        )?)?),
+        QueryMsg::GetTotalPoolLiquidity {} => {
+            Ok(to_json_binary(&query::total_pool_liquidity(deps)?)?)
+        }
+        QueryMsg::CalcInAmtGivenOut {} => unimplemented!(),
     }
 }
 

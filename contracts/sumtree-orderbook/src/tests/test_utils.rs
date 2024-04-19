@@ -22,7 +22,7 @@ pub(crate) fn decimal256_from_u128(input: impl Into<u128>) -> Decimal256 {
 #[derive(Clone)]
 pub(crate) enum OrderOperation {
     RunMarket(MarketOrder),
-    _PlaceLimitMulti((&'static [i64], usize, Uint128, i64)),
+    PlaceLimitMulti((&'static [i64], usize, Uint128, OrderDirection)),
     PlaceLimit(LimitOrder),
     Claim((i64, u64)),
     Cancel((i64, u64)),
@@ -39,18 +39,14 @@ impl OrderOperation {
                 run_market_order(deps.storage, &mut order, tick_bound).unwrap();
                 Ok(())
             }
-            OrderOperation::_PlaceLimitMulti((
+            OrderOperation::PlaceLimitMulti((
                 tick_ids,
                 orders_per_tick,
                 quantity_per_order,
-                current_tick,
+                direction,
             )) => {
-                let orders = generate_limit_orders(
-                    tick_ids,
-                    current_tick,
-                    orders_per_tick,
-                    quantity_per_order,
-                );
+                let orders =
+                    generate_limit_orders(tick_ids, orders_per_tick, quantity_per_order, direction);
                 place_multiple_limit_orders(&mut deps, env, info.sender.as_str(), orders).unwrap();
                 Ok(())
             }
@@ -96,18 +92,12 @@ impl OrderOperation {
 /// around `current_tick`.
 pub(crate) fn generate_limit_orders(
     tick_ids: &[i64],
-    current_tick: i64,
     orders_per_tick: usize,
     quantity_per_order: Uint128,
+    order_direction: OrderDirection,
 ) -> Vec<LimitOrder> {
     let mut orders = Vec::new();
     for &tick_id in tick_ids {
-        let order_direction = if tick_id < current_tick {
-            OrderDirection::Bid
-        } else {
-            OrderDirection::Ask
-        };
-
         for _ in 0..orders_per_tick {
             let order = LimitOrder {
                 tick_id,

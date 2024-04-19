@@ -6,12 +6,12 @@ use crate::sumtree::tree::get_or_init_root_node;
 use crate::tick::sync_tick;
 use crate::tick_math::{amount_to_value, tick_to_price, RoundingDirection};
 use crate::types::{
-    LimitOrder, MarketOrder, OrderDirection, TickState, REPLY_ID_CLAIM, REPLY_ID_CLAIM_BOUNTY,
-    REPLY_ID_REFUND,
+    LimitOrder, MarketOrder, OrderDirection, Orderbook, TickState, REPLY_ID_CLAIM,
+    REPLY_ID_CLAIM_BOUNTY, REPLY_ID_REFUND,
 };
 use cosmwasm_std::{
-    coin, ensure, ensure_eq, Addr, BankMsg, Decimal, Decimal256, DepsMut, Env, MessageInfo, Order,
-    Response, Storage, SubMsg, Uint128, Uint256,
+    coin, ensure, ensure_eq, Addr, BankMsg, Coin, Decimal, Decimal256, DepsMut, Env, MessageInfo,
+    Order, Response, Storage, SubMsg, Uint128, Uint256,
 };
 use cw_storage_plus::Bound;
 use cw_utils::{must_pay, nonpayable};
@@ -301,28 +301,93 @@ pub fn batch_claim_limits(
 }
 
 // run_market_order processes a market order from the current active tick on the order's orderbook
-// up to the passed in `tick_bound`. This allows for this function to be useful both for regular
-// market orders and as a helper to partially fill any limit orders that are placed past the best
-// current price on an orderbook.
-//
-// Note that this mutates the `order` object, so in the case where this function is used to partially
-// fill a limit order, it should leave the order in a valid and up-to-date state to be placed on the
-// orderbook.
-//
-// Returns:
-// * The output after the order has been processed
-// * Bank send message to process the balance transfer
-//
-// Returns error if:
-// * Tick to price conversion fails for any tick
-//
-// CONTRACT: The caller must ensure that the necessary input funds were actually supplied.
+/// up to the passed in `tick_bound`. **Partial fills are not allowed.**
+///
+/// Note that this mutates the `order` object
+///
+/// Returns:
+/// * The output after the order has been processed
+/// * Bank send message to process the balance transfer
+///
+/// Returns error if:
+/// * Provided order has zero quantity
+/// * Tick to price conversion fails for any tick
+/// * Order is not fully filled
+///
+/// CONTRACT: The caller must ensure that the necessary input funds were actually supplied.
 #[allow(clippy::manual_range_contains)]
 pub fn run_market_order(
     storage: &mut dyn Storage,
     order: &mut MarketOrder,
     tick_bound: i64,
 ) -> Result<(Uint128, BankMsg), ContractError> {
+    let PostFulfillState {
+        output,
+        tick_updates,
+        updated_orderbook,
+    } = fulfill_order(storage, order, tick_bound)?;
+
+    // After the core tick iteration loop, write all tick updates to state.
+    // We cannot do this during the loop due to the borrow checker.
+    for (tick_id, tick_state) in tick_updates {
+        TICK_STATE.save(storage, tick_id, &tick_state)?;
+    }
+
+    // Update tick pointers in orderbook
+    ORDERBOOK.save(storage, &updated_orderbook)?;
+
+    // TODO: If we intend to support refunds for partial fills, we will need to return
+    // the consumed input here as well. If we choose not to, we should error in this case.
+    //
+    // Tracked in issue https://github.com/osmosis-labs/orderbook/issues/86
+    Ok((
+        output.amount,
+        BankMsg::Send {
+            to_address: order.owner.to_string(),
+            amount: vec![output],
+        },
+    ))
+}
+
+/// Defines the output of fulfilling an order.
+/// Includes any potential state updates that may need to be performed post fulfill.
+pub(crate) struct PostFulfillState {
+    pub output: Coin,
+    pub tick_updates: Vec<(i64, TickState)>,
+    pub updated_orderbook: Orderbook,
+}
+
+/// Attempts to fill a market order against limit orders of the opposite direction starts from
+/// best price to worst price.
+///
+///
+/// Note that this mutates the `order` object and **does not perform any state mutations**
+///
+/// Returns:
+/// * The output after the order has been processed
+/// * Any required tick state updates
+/// * The updated orderbook state
+///
+/// Returns error if:
+/// * Provided order has zero quantity
+/// * Tick to price conversion fails for any tick
+/// * Order is not fully filled
+///
+/// CONTRACT: The caller must ensure that the necessary input funds were actually supplied.
+#[allow(clippy::manual_range_contains)]
+pub(crate) fn fulfill_order(
+    storage: &dyn Storage,
+    order: &mut MarketOrder,
+    tick_bound: i64,
+) -> ContractResult<PostFulfillState> {
+    // Ensure order is non-empty
+    ensure!(
+        !order.quantity.is_zero(),
+        ContractError::InvalidSwap {
+            error: "Input amount cannot be zero".to_string()
+        }
+    );
+
     let mut orderbook = ORDERBOOK.load(storage)?;
     let output_denom = orderbook.get_opposite_denom(&order.order_direction);
 
@@ -457,26 +522,11 @@ pub fn run_market_order(
         ContractError::InsufficientLiquidity
     );
 
-    // After the core tick iteration loop, write all tick updates to state.
-    // We cannot do this during the loop due to the borrow checker.
-    for (tick_id, tick_state) in tick_updates {
-        TICK_STATE.save(storage, tick_id, &tick_state)?;
-    }
-
-    // Update tick pointers in orderbook
-    ORDERBOOK.save(storage, &orderbook)?;
-
-    // TODO: If we intend to support refunds for partial fills, we will need to return
-    // the consumed input here as well. If we choose not to, we should error in this case.
-    //
-    // Tracked in issue https://github.com/osmosis-labs/orderbook/issues/86
-    Ok((
-        total_output,
-        BankMsg::Send {
-            to_address: order.owner.to_string(),
-            amount: vec![coin(total_output.u128(), output_denom)],
-        },
-    ))
+    Ok(PostFulfillState {
+        output: coin(total_output.u128(), output_denom),
+        tick_updates,
+        updated_orderbook: orderbook,
+    })
 }
 
 // Note: This can be called by anyone

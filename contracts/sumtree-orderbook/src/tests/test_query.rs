@@ -112,7 +112,7 @@ fn test_query_spot_price() {
             expected_error: None,
         },
         SpotPriceTestCase {
-            name: "BID: moving tick",
+            name: "BID: change in spot price",
             pre_operations: vec![
                 OrderOperation::PlaceLimit(LimitOrder::new(
                     0,
@@ -223,7 +223,7 @@ fn test_query_spot_price() {
             expected_error: None,
         },
         SpotPriceTestCase {
-            name: "ASK: moving tick",
+            name: "ASK: change in spot price",
             pre_operations: vec![
                 OrderOperation::PlaceLimit(LimitOrder::new(
                     0,

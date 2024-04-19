@@ -5,6 +5,7 @@ use cosmwasm_std::{
 };
 
 use crate::{
+    constants::{MAX_TICK, MIN_TICK},
     orderbook::create_orderbook,
     query,
     sudo::EXPECTED_SWAP_FEE,
@@ -610,6 +611,131 @@ fn test_calc_out_amount_given_in() {
         let res = res.unwrap();
         assert_eq!(
             res.token_out, test.expected_output,
+            "{}: output did not match",
+            test.name
+        );
+    }
+}
+
+struct TotalPoolLiquidityTestCase {
+    name: &'static str,
+    pre_operations: Vec<OrderOperation>,
+    expected_output: Vec<Coin>,
+    expected_error: Option<ContractError>,
+}
+
+#[test]
+fn test_total_pool_liquidity() {
+    let sender = Addr::unchecked("sender");
+    let quote_denom = "quote".to_string();
+    let base_denom = "base".to_string();
+
+    let test_cases = vec![
+        TotalPoolLiquidityTestCase {
+            name: "simple test",
+            pre_operations: vec![],
+            expected_output: vec![coin(0, &base_denom), coin(0, &quote_denom)],
+            expected_error: None,
+        },
+        TotalPoolLiquidityTestCase {
+            name: "basic single tick non-empty query",
+            pre_operations: vec![
+                OrderOperation::PlaceLimit(LimitOrder::new(
+                    0,
+                    0,
+                    OrderDirection::Bid,
+                    sender.clone(),
+                    Uint128::from(100u128),
+                    Decimal256::zero(),
+                    None,
+                )),
+                OrderOperation::PlaceLimit(LimitOrder::new(
+                    0,
+                    1,
+                    OrderDirection::Ask,
+                    sender.clone(),
+                    Uint128::from(100u128),
+                    Decimal256::zero(),
+                    None,
+                )),
+            ],
+            expected_output: vec![coin(100, &base_denom), coin(100, &quote_denom)],
+            expected_error: None,
+        },
+        TotalPoolLiquidityTestCase {
+            name: "multi-tick test",
+            pre_operations: vec![
+                OrderOperation::PlaceLimitMulti((
+                    // Increasingly spread ticks
+                    &[
+                        -1,
+                        -2,
+                        -3,
+                        -5,
+                        -8,
+                        -13,
+                        -21,
+                        -34,
+                        -55,
+                        LARGE_NEGATIVE_TICK,
+                        MIN_TICK,
+                    ],
+                    100,
+                    Uint128::from(50u128),
+                    OrderDirection::Bid,
+                )),
+                OrderOperation::PlaceLimitMulti((
+                    // Increasingly spread ticks
+                    &[1, 2, 3, 5, 8, 13, 21, 34, 55, LARGE_POSITIVE_TICK, MAX_TICK],
+                    100,
+                    Uint128::from(110u128),
+                    OrderDirection::Ask,
+                )),
+            ],
+            // Base: 11 ticks at 110*100 = 11000*11 = 121000
+            // Quote: 11 ticks at 50*100 = 5000*11 = 55000
+            expected_output: vec![coin(121000, &base_denom), coin(55000, &quote_denom)],
+            expected_error: None,
+        },
+    ];
+
+    for test in test_cases {
+        // -- Test Setup --
+        let mut deps = mock_dependencies();
+        let env = mock_env();
+        let info = mock_info(sender.as_str(), &[]);
+
+        create_orderbook(
+            deps.as_mut(),
+            quote_denom.to_string(),
+            base_denom.to_string(),
+        )
+        .unwrap();
+
+        // Perform any setup market operations
+        for op in test.pre_operations {
+            op.run(deps.as_mut(), env.clone(), info.clone()).unwrap();
+        }
+
+        // -- System under test --
+
+        let res = query::total_pool_liquidity(deps.as_ref());
+
+        // Assert any expected errors from the test
+        if let Some(err) = test.expected_error {
+            assert_eq!(
+                res.unwrap_err(),
+                err,
+                "{}: did not receive expected error",
+                format_test_name(test.name)
+            );
+
+            continue;
+        }
+
+        let res = res.unwrap();
+        assert_eq!(
+            res.total_pool_liquidity, test.expected_output,
             "{}: output did not match",
             test.name
         );

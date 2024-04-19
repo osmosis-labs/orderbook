@@ -614,11 +614,10 @@ fn test_run_market_order() {
             // Orders to fill against
             orders: generate_limit_orders(
                 &[-1500000],
-                // Current tick is below the active limit orders
-                -2500000,
                 // 1000 units of liquidity total
                 10,
                 default_quantity,
+                OrderDirection::Ask,
             ),
 
             // Bidding 1000 units of input into tick -1500000, which corresponds to $0.85,
@@ -641,12 +640,11 @@ fn test_run_market_order() {
             // Orders to fill against
             orders: generate_limit_orders(
                 &[40000000],
-                // Current tick is below the active limit orders
-                default_current_tick,
                 // Two orders with sufficient total liquidity to process the
                 // full market order
                 2,
                 Uint128::new(25_000_000),
+                OrderDirection::Ask,
             ),
 
             // Bidding 1000 units of input into tick 40,000,000, which corresponds to a
@@ -671,12 +669,11 @@ fn test_run_market_order() {
             // Orders to fill against
             orders: generate_limit_orders(
                 &[-17765433],
-                // Current tick is below the active limit orders
-                -20000000,
                 // Four limit orders with sufficient total liquidity to process the
                 // full market order
                 4,
                 Uint128::new(3),
+                OrderDirection::Ask,
             ),
 
             // Bidding 1000 units of input into tick -17765433, which corresponds to a
@@ -702,11 +699,10 @@ fn test_run_market_order() {
             // Orders to fill against
             orders: generate_limit_orders(
                 &[-1500000, 40000000],
-                // Current tick is below the active limit orders
-                -2500000,
                 // 500 units of liquidity on each tick
                 5,
                 default_quantity,
+                OrderDirection::Ask,
             ),
 
             // Bidding 1000 units of input into tick -1500000, which corresponds to $0.85,
@@ -741,12 +737,11 @@ fn test_run_market_order() {
             // Orders to fill against
             orders: generate_limit_orders(
                 &[40000000],
-                // Current tick is above the active limit orders
-                40000000 + 1,
                 // Two orders with sufficient total liquidity to process the
                 // full market order
                 2,
                 Uint128::new(1),
+                OrderDirection::Bid,
             ),
 
             // Asking 100,000 units of input into tick 40,000,000, which corresponds to a
@@ -771,12 +766,11 @@ fn test_run_market_order() {
             // Orders to fill against
             orders: generate_limit_orders(
                 &[-17765433],
-                // Current tick is above the active limit orders
-                default_current_tick,
                 // Two orders with sufficient total liquidity to process the
                 // full market order
                 2,
                 Uint128::new(50_000),
+                OrderDirection::Bid,
             ),
 
             // The order asks with 1000 units of input into tick -17765433, which corresponds
@@ -799,7 +793,7 @@ fn test_run_market_order() {
             ),
             tick_bound: MIN_TICK - 1,
             // Orders we expect to not get touched
-            orders: generate_limit_orders(&[10], default_current_tick, 10, Uint128::new(10)),
+            orders: generate_limit_orders(&[10], 10, Uint128::new(10), OrderDirection::Ask),
             expected_output: Uint128::zero(),
             expected_tick_etas: vec![(10, Decimal256::zero())],
             expected_tick_pointers: vec![(OrderDirection::Ask, 10)],
@@ -817,7 +811,7 @@ fn test_run_market_order() {
             ),
             tick_bound: MAX_TICK + 1,
             // Orders we expect to not get touched
-            orders: generate_limit_orders(&[10], default_current_tick, 10, Uint128::new(10)),
+            orders: generate_limit_orders(&[10], 10, Uint128::new(10), OrderDirection::Bid),
             expected_output: Uint128::zero(),
             expected_tick_etas: vec![(10, Decimal256::zero())],
             expected_tick_pointers: vec![(OrderDirection::Bid, MIN_TICK)],
@@ -840,11 +834,10 @@ fn test_run_market_order() {
             // Orders to fill against
             orders: generate_limit_orders(
                 &[-1500000],
-                // Current tick is below the active limit orders
-                -2500000,
                 // 1000 units of liquidity total
                 10,
                 default_quantity,
+                OrderDirection::Ask,
             ),
 
             expected_output: Uint128::zero(),
@@ -865,12 +858,11 @@ fn test_run_market_order() {
             // Orders to fill against
             orders: generate_limit_orders(
                 &[40000000],
-                // Current tick is below the active limit orders
-                -20000000,
                 // Four limit orders with sufficient total liquidity to process the
                 // full market order
                 4,
                 Uint128::new(3),
+                OrderDirection::Ask,
             ),
 
             expected_output: Uint128::zero(),

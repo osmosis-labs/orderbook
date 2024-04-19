@@ -5,10 +5,10 @@ use cosmwasm_std::{
 };
 
 use crate::{
+    constants::EXPECTED_SWAP_FEE,
     constants::{MAX_TICK, MIN_TICK},
     orderbook::create_orderbook,
     query,
-    sudo::EXPECTED_SWAP_FEE,
     types::{LimitOrder, MarketOrder, OrderDirection},
     ContractError,
 };

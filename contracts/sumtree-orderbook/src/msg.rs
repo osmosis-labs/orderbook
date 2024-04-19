@@ -51,8 +51,11 @@ pub enum QueryMsg {
         token_out_denom: String,
         swap_fee: Decimal,
     },
-    // #[returns(GetTotalPoolLiquidityResponse)]
-    // GetTotalPoolLiquidity {},
+    #[returns(GetTotalPoolLiquidityResponse)]
+    GetTotalPoolLiquidity {},
+    /// NO-OP QUERY
+    #[returns(CalcInAmtGivenOutResponse)]
+    CalcInAmtGivenOut {},
 }
 
 // We define a custom struct for each query response

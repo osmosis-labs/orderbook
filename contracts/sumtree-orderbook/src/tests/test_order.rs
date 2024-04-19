@@ -596,7 +596,6 @@ fn test_run_market_order() {
     let quote_denom = "quote";
     let base_denom = "base";
     // TODO: move these defaults to global scope or helper file
-    let default_current_tick = 0;
     let default_owner = "creator";
     let default_sender = "sender";
     let default_quantity = Uint128::new(100);

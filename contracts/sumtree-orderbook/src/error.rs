@@ -47,9 +47,6 @@ pub enum ContractError {
     #[error("Insufficient funds. Sent: {sent:?}, Required: {required:?}")]
     InsufficientFunds { sent: Uint128, required: Uint128 },
 
-    #[error("Invalid book ID: {book_id:?}")]
-    InvalidBookId { book_id: u64 },
-
     #[error("Invalid pair: ({token_in_denom}, {token_out_denom})")]
     InvalidPair {
         token_in_denom: String,
@@ -71,14 +68,6 @@ pub enum ContractError {
     // Tick out of bounds error
     #[error("Tick out of bounds: {tick_id:?}")]
     TickOutOfBounds { tick_id: i64 },
-    #[error("Cannot fulfill order. Order ID: {order_id:?}, Book ID: {book_id:?}, Amount Required: {amount_required:?}, Amount Remaining: {amount_remaining:?} {reason:?}")]
-    InvalidFulfillment {
-        order_id: u64,
-        book_id: u64,
-        amount_required: Uint128,
-        amount_remaining: Uint128,
-        reason: Option<String>,
-    },
 
     #[error("Mismatched order direction")]
     MismatchedOrderDirection {},
@@ -104,8 +93,13 @@ pub enum ContractError {
     #[error("Orderbook ran out of liquidity during market order")]
     InsufficientLiquidity,
 
-    #[error("Claim bounty must be a value between 0 and 1. Received: {claim_bounty:?}")]
+    #[error("Claim bounty must be a value between 0 and 0.01 (1%). Received: {claim_bounty:?}")]
     InvalidClaimBounty { claim_bounty: Option<Decimal> },
+
+    #[error(
+        "Exceeded the maximum number of claims in a batch. Maximum allowed: {max_batch_claim:?}"
+    )]
+    BatchClaimLimitExceeded { max_batch_claim: u32 },
 }
 
 pub type ContractResult<T> = Result<T, ContractError>;

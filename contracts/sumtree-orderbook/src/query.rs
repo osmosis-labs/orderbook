@@ -14,6 +14,15 @@ use crate::{
     ContractError,
 };
 
+/// Calculates the spot price given current orderbook state.
+///
+/// Spot price is calculated by taking the best available price (next tick) with liquidity for the opposite direction of the order.
+/// i.e. if the order direction is bid, the spot price is the price of the next ask tick with ask liquidity, and if the order direction is bid,
+/// the spot price is the price of the next bid tick with bid liquidity.
+///
+/// Errors if:
+/// 1. Provided denoms are the same
+/// 2. One or more of the provided denoms are not supported by the orderbook
 pub(crate) fn spot_price(
     deps: Deps,
     quote_asset_denom: String,
@@ -47,6 +56,14 @@ pub(crate) fn spot_price(
     })
 }
 
+/// Calculates the output amount given the input amount for the current orderbook state.
+///
+/// Output is calculated by generating a mock market order, the direction of which is dependent on the order of the input/output denoms versus what the orderbook expects.
+/// The mock order is then filled against the current orderbook state, and the output amount is the result of the fill.
+///
+/// Errors if:
+/// 1. The provided swap fee does not match the orderbook's expected swap fee
+/// 2. The provided denom pair is not supported by the orderbook
 pub(crate) fn calc_out_amount_given_in(
     deps: Deps,
     token_in: Coin,
@@ -76,6 +93,14 @@ pub(crate) fn calc_out_amount_given_in(
     Ok(CalcOutAmtGivenInResponse { token_out: output })
 }
 
+/// Calculates the total pool liquidity for the current orderbook state.
+///
+/// Total pool liquidity is calculated by summing the total amount of liquidity in each active tick.
+///
+/// **May return 0 amounts**
+///
+/// Errors if:
+/// 1. Summing total liquidity overflows Uint128
 pub(crate) fn total_pool_liquidity(deps: Deps) -> ContractResult<GetTotalPoolLiquidityResponse> {
     let orderbook = ORDERBOOK.load(deps.storage)?;
 

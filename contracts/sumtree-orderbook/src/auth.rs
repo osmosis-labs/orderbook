@@ -20,13 +20,13 @@ pub(crate) fn dispatch_transfer_admin(
     ]))
 }
 
-pub(crate) fn dispatch_cancel_transfer_admin(
+pub(crate) fn dispatch_cancel_admin_transfer(
     deps: DepsMut,
     info: MessageInfo,
 ) -> ContractResult<Response> {
     ensure_is_admin(deps.as_ref(), &info.sender)?;
 
-    cancel_transfer_admin(deps)?;
+    remove_admin_transfer(deps)?;
 
     Ok(Response::default().add_attributes(vec![("method", "cancel_transfer_admin")]))
 }
@@ -39,7 +39,22 @@ pub(crate) fn dispatch_claim_admin(deps: DepsMut, info: MessageInfo) -> Contract
     );
 
     ADMIN.save(deps.storage, &info.sender)?;
-    ADMIN_OFFER.remove(deps.storage);
+    remove_admin_transfer(deps)?;
+
+    Ok(Response::default().add_attributes(vec![("method", "claim_admin")]))
+}
+
+pub(crate) fn dispatch_reject_admin_transfer(
+    deps: DepsMut,
+    info: MessageInfo,
+) -> ContractResult<Response> {
+    let offer = ADMIN_OFFER.may_load(deps.storage)?;
+    ensure!(
+        Some(info.sender.clone()) == offer,
+        ContractError::Unauthorized {}
+    );
+
+    remove_admin_transfer(deps)?;
 
     Ok(Response::default().add_attributes(vec![("method", "claim_admin")]))
 }
@@ -50,7 +65,7 @@ pub(crate) fn transfer_admin(deps: DepsMut, new_admin: Addr) -> ContractResult<(
     Ok(())
 }
 
-pub(crate) fn cancel_transfer_admin(deps: DepsMut) -> ContractResult<()> {
+pub(crate) fn remove_admin_transfer(deps: DepsMut) -> ContractResult<()> {
     ADMIN_OFFER.remove(deps.storage);
     Ok(())
 }

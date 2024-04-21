@@ -5,7 +5,7 @@ use cosmwasm_std::{
 
 use crate::{
     auth::{
-        dispatch_cancel_transfer_admin, dispatch_claim_admin, dispatch_transfer_admin, ADMIN,
+        dispatch_cancel_admin_transfer, dispatch_claim_admin, dispatch_transfer_admin, ADMIN,
         ADMIN_OFFER,
     },
     ContractError,
@@ -77,7 +77,7 @@ fn test_transfer_admin() {
     }
 }
 
-struct CancelTransferAdminTestCase {
+struct CancelAdminTransferTestCase {
     name: &'static str,
     current_admin: &'static str,
     new_admin: &'static str,
@@ -85,17 +85,17 @@ struct CancelTransferAdminTestCase {
 }
 
 #[test]
-fn test_cancel_transfer_admin() {
+fn test_cancel_admin_transfer() {
     let sender = "sender";
     let new_admin = "new_admin";
     let test_cases = vec![
-        CancelTransferAdminTestCase {
+        CancelAdminTransferTestCase {
             name: "valid transfer",
             current_admin: sender,
             new_admin,
             expected_error: None,
         },
-        CancelTransferAdminTestCase {
+        CancelAdminTransferTestCase {
             name: "unauthorized",
             current_admin: "notthesender",
             new_admin,
@@ -118,7 +118,7 @@ fn test_cancel_transfer_admin() {
             .unwrap();
 
         // -- System under test --
-        let res = dispatch_cancel_transfer_admin(deps.as_mut(), info);
+        let res = dispatch_cancel_admin_transfer(deps.as_mut(), info);
 
         // Assert expected error
         if let Some(err) = test.expected_error {

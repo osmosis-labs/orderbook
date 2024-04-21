@@ -71,16 +71,6 @@ pub enum QueryMsg {
 }
 
 #[cw_serde]
-pub struct Pagination<K> {
-    /// The key to start after for pagination (inclusive)
-    pub start_after: Option<K>,
-    /// A max key to end at if limit is not reached/provided (inclusive)
-    pub end_at: Option<K>,
-    /// The limit for amount of items to return
-    pub limit: Option<usize>,
-}
-
-#[cw_serde]
 pub struct SpotPriceResponse {
     pub spot_price: Decimal,
 }
@@ -101,8 +91,14 @@ pub struct GetTotalPoolLiquidityResponse {
 }
 
 #[cw_serde]
+pub struct TickIdAndState {
+    pub tick_id: i64,
+    pub tick_state: TickState,
+}
+
+#[cw_serde]
 pub struct AllTicksResponse {
-    pub ticks: Vec<TickState>,
+    pub ticks: Vec<TickIdAndState>,
 }
 
 #[cw_serde]

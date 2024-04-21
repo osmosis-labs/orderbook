@@ -1115,7 +1115,11 @@ fn test_all_ticks() {
             test.name
         );
         assert_eq!(
-            res.ticks, test.expected_output,
+            res.ticks
+                .iter()
+                .map(|t| t.tick_state.clone())
+                .collect::<Vec<TickState>>(),
+            test.expected_output,
             "{}: output did not match",
             test.name
         );

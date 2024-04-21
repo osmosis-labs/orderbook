@@ -8,13 +8,13 @@ use crate::{
     error::ContractResult,
     msg::{
         AllTicksResponse, CalcOutAmtGivenInResponse, GetTotalPoolLiquidityResponse,
-        SpotPriceResponse,
+        SpotPriceResponse, TickIdAndState,
     },
     order,
     state::{ORDERBOOK, TICK_STATE},
     sudo::ensure_swap_fee,
     tick_math::tick_to_price,
-    types::{MarketOrder, OrderDirection, TickState},
+    types::{MarketOrder, OrderDirection},
     ContractError,
 };
 
@@ -158,8 +158,15 @@ pub(crate) fn all_ticks(
         );
 
     // Map tick IDs to tick states
-    let all_tick_states: Vec<TickState> = all_ticks
-        .map(|tick_id| TICK_STATE.load(deps.storage, tick_id.unwrap()).unwrap())
+    let all_tick_states: Vec<TickIdAndState> = all_ticks
+        .map(|tick_id| {
+            let tick_id = tick_id.unwrap();
+            let tick_state = TICK_STATE.load(deps.storage, tick_id).unwrap();
+            TickIdAndState {
+                tick_id,
+                tick_state,
+            }
+        })
         .collect();
 
     Ok(AllTicksResponse {

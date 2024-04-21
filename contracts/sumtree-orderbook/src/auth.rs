@@ -31,6 +31,19 @@ pub(crate) fn dispatch_cancel_transfer_admin(
     Ok(Response::default().add_attributes(vec![("method", "cancel_transfer_admin")]))
 }
 
+pub(crate) fn dispatch_claim_admin(deps: DepsMut, info: MessageInfo) -> ContractResult<Response> {
+    let offer = ADMIN_OFFER.may_load(deps.storage)?;
+    ensure!(
+        Some(info.sender.clone()) == offer,
+        ContractError::Unauthorized {}
+    );
+
+    ADMIN.save(deps.storage, &info.sender)?;
+    ADMIN_OFFER.remove(deps.storage);
+
+    Ok(Response::default().add_attributes(vec![("method", "claim_admin")]))
+}
+
 pub(crate) fn transfer_admin(deps: DepsMut, new_admin: Addr) -> ContractResult<()> {
     deps.api.addr_validate(new_admin.as_str())?;
     ADMIN_OFFER.save(deps.storage, &new_admin)?;

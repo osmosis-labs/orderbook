@@ -6,6 +6,7 @@ use cosmwasm_std::{
 };
 use cw2::set_contract_version;
 
+use crate::auth::ADMIN;
 use crate::error::{ContractError, ContractResult};
 use crate::msg::{ExecuteMsg, InstantiateMsg, MigrateMsg, QueryMsg};
 
@@ -27,6 +28,8 @@ pub fn instantiate(
     msg: InstantiateMsg,
 ) -> Result<Response, ContractError> {
     set_contract_version(deps.storage, CONTRACT_NAME, CONTRACT_VERSION)?;
+    let admin = deps.api.addr_validate(msg.admin.as_str())?;
+    ADMIN.save(deps.storage, &admin)?;
 
     create_orderbook(deps, msg.quote_denom.clone(), msg.base_denom.clone())?;
 

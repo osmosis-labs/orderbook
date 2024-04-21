@@ -7,6 +7,7 @@ use cosmwasm_std::{Addr, Coin, Decimal, Uint128};
 pub struct InstantiateMsg {
     pub base_denom: String,
     pub quote_denom: String,
+    pub admin: Addr,
 }
 
 /// Message type for `execute` entry_point

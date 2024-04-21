@@ -143,30 +143,26 @@ pub(crate) fn all_ticks(
     end_at: Option<i64>,
     limit: Option<usize>,
 ) -> ContractResult<AllTicksResponse> {
-    // Fetch all tick IDs
+    // Fetch all ticks using pagination
     let all_ticks = TICK_STATE
-        .keys(
+        .range(
             deps.storage,
-            // Start after provided tick ID if it exists
             start_after.map(Bound::inclusive),
-            // End at provided tick ID if it exists
             end_at.map(Bound::inclusive),
             Order::Ascending,
         )
         .take(
             // Restrict how many items can be returned based on provided limit
             limit
-                // If none provied, set to default
+                // If none provided, set to default
                 .unwrap_or(ALL_TICKS_DEFAULT_LIMIT)
                 // If limit is too high, set to max
                 .min(ALL_TICKS_MAX_LIMIT),
         );
-
     // Map tick IDs to tick states
     let all_tick_states: Vec<TickIdAndState> = all_ticks
-        .map(|tick_id| {
-            let tick_id = tick_id.unwrap();
-            let tick_state = TICK_STATE.load(deps.storage, tick_id).unwrap();
+        .map(|maybe_tick| {
+            let (tick_id, tick_state) = maybe_tick.unwrap();
             TickIdAndState {
                 tick_id,
                 tick_state,

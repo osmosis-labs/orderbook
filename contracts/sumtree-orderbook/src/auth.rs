@@ -5,6 +5,9 @@ use cw_storage_plus::Item;
 pub const ADMIN: Item<Addr> = Item::new("admin");
 pub const ADMIN_OFFER: Item<Addr> = Item::new("admin_offer");
 
+/// Offers admin rights to a new address.
+///
+/// Only callable by the current admin.
 pub(crate) fn dispatch_transfer_admin(
     deps: DepsMut,
     info: MessageInfo,
@@ -20,6 +23,9 @@ pub(crate) fn dispatch_transfer_admin(
     ]))
 }
 
+/// Cancels any ongoing admin transfer offer.
+///
+/// Only callable by the current admin.
 pub(crate) fn dispatch_cancel_admin_transfer(
     deps: DepsMut,
     info: MessageInfo,
@@ -31,6 +37,9 @@ pub(crate) fn dispatch_cancel_admin_transfer(
     Ok(Response::default().add_attributes(vec![("method", "cancel_transfer_admin")]))
 }
 
+/// Accepts an admin transfer offer, claiming admin rights to the contract
+///
+/// Only callable by the address offered admin rights.
 pub(crate) fn dispatch_claim_admin(deps: DepsMut, info: MessageInfo) -> ContractResult<Response> {
     let offer = ADMIN_OFFER.may_load(deps.storage)?;
     ensure!(
@@ -44,6 +53,9 @@ pub(crate) fn dispatch_claim_admin(deps: DepsMut, info: MessageInfo) -> Contract
     Ok(Response::default().add_attributes(vec![("method", "claim_admin")]))
 }
 
+/// Rejects an admin transfer offer.
+///
+/// Only callable by the address offered admin rights.
 pub(crate) fn dispatch_reject_admin_transfer(
     deps: DepsMut,
     info: MessageInfo,
@@ -59,6 +71,9 @@ pub(crate) fn dispatch_reject_admin_transfer(
     Ok(Response::default().add_attributes(vec![("method", "reject_admin_transfer")]))
 }
 
+/// Renounces adminship of the contract.
+///
+/// Only callable by the current admin.
 pub(crate) fn dispatch_renounce_adminship(
     deps: DepsMut,
     info: MessageInfo,
@@ -71,6 +86,7 @@ pub(crate) fn dispatch_renounce_adminship(
 }
 
 pub(crate) fn transfer_admin(deps: DepsMut, new_admin: Addr) -> ContractResult<()> {
+    // Ensure provided address is valid
     deps.api.addr_validate(new_admin.as_str())?;
     ADMIN_OFFER.save(deps.storage, &new_admin)?;
     Ok(())
@@ -94,12 +110,17 @@ pub(crate) fn get_admin_offer(deps: Deps) -> ContractResult<Option<Addr>> {
     Ok(ADMIN_OFFER.may_load(deps.storage)?)
 }
 
+/// Validates that the provided address is the current contract admin.
+///
+/// Errors if:
+/// - The provided address is not the current contract admin
+/// - The contract does not have an admin
 pub(crate) fn ensure_is_admin(deps: Deps, sender: &Addr) -> ContractResult<()> {
-    let admin = ADMIN
-        .load(deps.storage)
-        .ok()
-        .ok_or(ContractError::Unauthorized {})?;
-    ensure!(admin == sender, ContractError::Unauthorized {});
+    let admin = ADMIN.may_load(deps.storage)?;
+    ensure!(
+        admin == Some(sender.clone()),
+        ContractError::Unauthorized {}
+    );
 
     Ok(())
 }

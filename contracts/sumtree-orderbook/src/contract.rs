@@ -144,6 +144,8 @@ pub fn query(deps: Deps, _env: Env, msg: QueryMsg) -> ContractResult<Binary> {
             Ok(to_json_binary(&query::total_pool_liquidity(deps)?)?)
         }
         QueryMsg::CalcInAmtGivenOut {} => unimplemented!(),
+
+        // -- Admin Queries --
         QueryMsg::Admin {} => Ok(to_json_binary(&auth::get_admin(deps)?)?),
         QueryMsg::AdminOffer {} => Ok(to_json_binary(&auth::get_admin_offer(deps)?)?),
     }

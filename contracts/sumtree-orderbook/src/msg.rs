@@ -59,6 +59,15 @@ pub enum QueryMsg {
     /// NO-OP QUERY
     #[returns(CalcInAmtGivenOutResponse)]
     CalcInAmtGivenOut {},
+    #[returns(AllTicksResponse)]
+    AllTicks {
+        /// The key to start after for pagination (inclusive)
+        start_after: Option<i64>,
+        /// A max key to end at if limit is not reached/provided (inclusive)
+        end_at: Option<i64>,
+        /// The limit for amount of items to return
+        limit: Option<usize>,
+    },
 }
 
 #[cw_serde]

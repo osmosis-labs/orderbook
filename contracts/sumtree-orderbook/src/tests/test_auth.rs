@@ -6,7 +6,7 @@ use cosmwasm_std::{
 use crate::{
     auth::{
         dispatch_cancel_admin_transfer, dispatch_claim_admin, dispatch_reject_admin_transfer,
-        dispatch_transfer_admin, ADMIN, ADMIN_OFFER,
+        dispatch_renounce_adminship, dispatch_transfer_admin, ADMIN, ADMIN_OFFER,
     },
     ContractError,
 };
@@ -320,6 +320,74 @@ fn test_reject_admin_transfer() {
                 .unwrap()
                 .is_none(),
             "{}: admin offer not correctly removed",
+            test.name
+        );
+    }
+}
+
+struct RenounceAdminshipTestCase {
+    name: &'static str,
+    sender: &'static str,
+    expected_error: Option<ContractError>,
+}
+
+#[test]
+fn test_renounce_adminship() {
+    let current_admin = "current_admin";
+    let test_cases = vec![
+        RenounceAdminshipTestCase {
+            name: "valid renouncement",
+            sender: current_admin,
+            expected_error: None,
+        },
+        RenounceAdminshipTestCase {
+            name: "unauthorized",
+            sender: "notthenewadmin",
+            expected_error: Some(ContractError::Unauthorized {}),
+        },
+    ];
+
+    for test in test_cases {
+        // -- Test Setup --
+        let mut deps = mock_dependencies();
+        let info = mock_info(test.sender, &[]);
+
+        // Store current admin for post check
+        ADMIN
+            .save(deps.as_mut().storage, &Addr::unchecked(current_admin))
+            .unwrap();
+
+        // Save admin offer if one is required
+        ADMIN
+            .save(deps.as_mut().storage, &Addr::unchecked(current_admin))
+            .unwrap();
+
+        // -- System under test --
+        let res = dispatch_renounce_adminship(deps.as_mut(), info);
+
+        // Assert expected error
+        if let Some(err) = test.expected_error {
+            assert_eq!(
+                res.unwrap_err(),
+                err,
+                "{}: did not receive expected error",
+                test.name
+            );
+
+            // Ensure state remains unchanged
+            assert_eq!(
+                ADMIN.load(deps.as_ref().storage).unwrap(),
+                Addr::unchecked(current_admin),
+                "{}: invalid admin stored",
+                test.name
+            );
+            continue;
+        }
+
+        // Assert the admin has been removed
+        assert!(
+            ADMIN.may_load(deps.as_ref().storage).unwrap().is_none(),
+            "{}: admin was not correctly removed",
             test.name
         );
     }

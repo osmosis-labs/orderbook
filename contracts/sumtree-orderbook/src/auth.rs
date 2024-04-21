@@ -56,7 +56,18 @@ pub(crate) fn dispatch_reject_admin_transfer(
 
     remove_admin_transfer(deps)?;
 
-    Ok(Response::default().add_attributes(vec![("method", "claim_admin")]))
+    Ok(Response::default().add_attributes(vec![("method", "reject_admin_transfer")]))
+}
+
+pub(crate) fn dispatch_renounce_adminship(
+    deps: DepsMut,
+    info: MessageInfo,
+) -> ContractResult<Response> {
+    ensure_is_admin(deps.as_ref(), &info.sender)?;
+
+    remove_admin(deps)?;
+
+    Ok(Response::default().add_attributes(vec![("method", "renounce_adminship")]))
 }
 
 pub(crate) fn transfer_admin(deps: DepsMut, new_admin: Addr) -> ContractResult<()> {

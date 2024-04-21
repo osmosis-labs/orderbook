@@ -86,6 +86,14 @@ pub(crate) fn remove_admin(deps: DepsMut) -> ContractResult<()> {
     Ok(())
 }
 
+pub(crate) fn get_admin(deps: Deps) -> ContractResult<Addr> {
+    Ok(ADMIN.load(deps.storage)?)
+}
+
+pub(crate) fn get_admin_offer(deps: Deps) -> ContractResult<Option<Addr>> {
+    Ok(ADMIN_OFFER.may_load(deps.storage)?)
+}
+
 pub(crate) fn ensure_is_admin(deps: Deps, sender: &Addr) -> ContractResult<()> {
     let admin = ADMIN
         .load(deps.storage)

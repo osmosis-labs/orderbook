@@ -66,11 +66,13 @@ pub enum QueryMsg {
     /// NO-OP QUERY
     #[returns(CalcInAmtGivenOutResponse)]
     CalcInAmtGivenOut {},
-}
 
-// We define a custom struct for each query response
-// #[cw_serde]
-// pub struct YourQueryResponse {}
+    #[returns(Addr)]
+    Admin {},
+
+    #[returns(Option<Addr>)]
+    AdminOffer {},
+}
 
 #[cw_serde]
 pub struct SpotPriceResponse {

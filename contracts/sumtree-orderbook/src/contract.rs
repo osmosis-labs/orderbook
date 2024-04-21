@@ -122,11 +122,6 @@ pub fn execute(
 #[cfg_attr(not(feature = "library"), entry_point)]
 pub fn query(deps: Deps, _env: Env, msg: QueryMsg) -> ContractResult<Binary> {
     match msg {
-        // Find matched incoming message variant and query them your custom logic
-        // and then construct your query response with the type usually defined
-        // `msg.rs` alongside with the query message itself.
-        //
-        // use `cosmwasm_std::to_binary` to serialize query response to json binary.
         QueryMsg::SpotPrice {
             quote_asset_denom,
             base_asset_denom,
@@ -149,6 +144,8 @@ pub fn query(deps: Deps, _env: Env, msg: QueryMsg) -> ContractResult<Binary> {
             Ok(to_json_binary(&query::total_pool_liquidity(deps)?)?)
         }
         QueryMsg::CalcInAmtGivenOut {} => unimplemented!(),
+        QueryMsg::Admin {} => Ok(to_json_binary(&auth::get_admin(deps)?)?),
+        QueryMsg::AdminOffer {} => Ok(to_json_binary(&auth::get_admin_offer(deps)?)?),
     }
 }
 

@@ -159,7 +159,7 @@ pub(crate) fn all_ticks(
                 // If limit is too high, set to max
                 .min(ALL_TICKS_MAX_LIMIT),
         );
-    // Map tick IDs to tick states
+    // Map (tick id, tick state) to return struct
     let all_tick_states: Vec<TickIdAndState> = all_ticks
         .map(|maybe_tick| {
             let (tick_id, tick_state) = maybe_tick.unwrap();

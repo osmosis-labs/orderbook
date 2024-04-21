@@ -1084,6 +1084,28 @@ fn test_all_ticks() {
             end_at: None,
             limit: None,
         },
+        AllTicksTestCase {
+            name: "single tick paginated",
+            pre_operations: vec![OrderOperation::PlaceLimitMulti((
+                generate_tick_ids(200),
+                10,
+                Uint128::from(100u128),
+                OrderDirection::Bid,
+            ))],
+            expected_output: vec![TickState {
+                ask_values: TickValues::default(),
+                bid_values: TickValues {
+                    total_amount_of_liquidity: decimal256_from_u128(1000u128),
+                    cumulative_total_value: decimal256_from_u128(1000u128),
+                    effective_total_amount_swapped: Decimal256::zero(),
+                    cumulative_realized_cancels: Decimal256::zero(),
+                    last_tick_sync_etas: Decimal256::zero(),
+                },
+            }],
+            start_after: Some(11),
+            end_at: Some(11),
+            limit: None,
+        },
     ];
 
     for test in test_cases {

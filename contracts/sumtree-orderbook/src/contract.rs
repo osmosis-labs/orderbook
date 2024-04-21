@@ -112,6 +112,9 @@ pub fn execute(
 
         // Accept an ongoing admin transfer offer
         ExecuteMsg::ClaimAdmin {} => auth::dispatch_claim_admin(deps, info),
+
+        // Renounces adminship of the contract
+        ExecuteMsg::RenounceAdminship {} => auth::dispatch_renounce_adminship(deps, info),
     }
 }
 

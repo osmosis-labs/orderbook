@@ -39,6 +39,7 @@ pub enum ExecuteMsg {
     CancelAdminTransfer {},
     RejectAdminTransfer {},
     ClaimAdmin {},
+    RenounceAdminship {},
 }
 
 /// Message type for `migrate` entry_point

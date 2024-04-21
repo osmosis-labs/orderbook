@@ -147,13 +147,18 @@ pub(crate) fn all_ticks(
     let all_ticks = TICK_STATE
         .keys(
             deps.storage,
+            // Start after provided tick ID if it exists
             start_after.map(Bound::inclusive),
+            // End at provided tick ID if it exists
             end_at.map(Bound::inclusive),
             Order::Ascending,
         )
         .take(
+            // Restrict how many items can be returned based on provided limit
             limit
+                // If none provied, set to default
                 .unwrap_or(ALL_TICKS_DEFAULT_LIMIT)
+                // If limit is too high, set to max
                 .min(ALL_TICKS_MAX_LIMIT),
         );
 

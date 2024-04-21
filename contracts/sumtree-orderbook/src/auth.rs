@@ -70,6 +70,11 @@ pub(crate) fn remove_admin_transfer(deps: DepsMut) -> ContractResult<()> {
     Ok(())
 }
 
+pub(crate) fn remove_admin(deps: DepsMut) -> ContractResult<()> {
+    ADMIN.remove(deps.storage);
+    Ok(())
+}
+
 pub(crate) fn ensure_is_admin(deps: Deps, sender: &Addr) -> ContractResult<()> {
     let admin = ADMIN
         .load(deps.storage)

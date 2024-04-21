@@ -121,6 +121,7 @@ pub enum SudoMsg {
         new_admin: Addr,
     },
     CancelAdminTransfer {},
+    RemoveAdmin {},
 }
 
 #[cw_serde]

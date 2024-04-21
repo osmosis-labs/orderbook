@@ -5,7 +5,7 @@ use cosmwasm_std::{
 };
 
 use crate::{
-    auth::ADMIN_OFFER,
+    auth::{ADMIN, ADMIN_OFFER},
     constants::EXPECTED_SWAP_FEE,
     msg::{SudoMsg, SwapExactAmountInResponseData},
     orderbook::create_orderbook,
@@ -397,4 +397,25 @@ fn test_sudo_cancel_admin_transfer() {
         .may_load(deps.as_ref().storage)
         .unwrap()
         .is_none());
+}
+
+#[test]
+fn test_sudo_remove_admin() {
+    let mut deps = mock_dependencies();
+    let env = mock_env();
+    let admin = "admin";
+
+    // Store admin in state to be removed
+    ADMIN
+        .save(deps.as_mut().storage, &Addr::unchecked(admin))
+        .unwrap();
+
+    // Create sudo message for test
+    let msg = SudoMsg::RemoveAdmin {};
+
+    // -- System under test --
+    sudo(deps.as_mut(), env.clone(), msg).unwrap();
+
+    // -- Post test assertions --
+    assert!(ADMIN.may_load(deps.as_ref().storage).unwrap().is_none());
 }

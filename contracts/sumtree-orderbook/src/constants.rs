@@ -8,6 +8,10 @@ pub const GEOMETRIC_EXPONENT_INCREMENT_DISTANCE_IN_TICKS: i64 = 9_000_000;
 // The swap fee expected by this contract
 pub const EXPECTED_SWAP_FEE: Decimal = Decimal::zero();
 pub const MAX_BATCH_CLAIM: u32 = 100;
+/// Default pagination limit for all ticks query
+pub const ALL_TICKS_DEFAULT_LIMIT: usize = 100;
+/// Max pagination limit for all ticks query
+pub const ALL_TICKS_MAX_LIMIT: usize = 1000;
 
 // TODO: optimize this using lazy_static
 pub fn max_spot_price() -> Decimal256 {

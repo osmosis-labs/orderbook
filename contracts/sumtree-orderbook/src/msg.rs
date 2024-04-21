@@ -1,4 +1,4 @@
-use crate::types::OrderDirection;
+use crate::types::{OrderDirection, TickState};
 use cosmwasm_schema::{cw_serde, QueryResponses};
 use cosmwasm_std::{Coin, Decimal, Uint128};
 
@@ -61,9 +61,15 @@ pub enum QueryMsg {
     CalcInAmtGivenOut {},
 }
 
-// We define a custom struct for each query response
-// #[cw_serde]
-// pub struct YourQueryResponse {}
+#[cw_serde]
+pub struct Pagination<K> {
+    /// The key to start after for pagination (inclusive)
+    pub start_after: Option<K>,
+    /// A max key to end at if limit is not reached/provided (inclusive)
+    pub end_at: Option<K>,
+    /// The limit for amount of items to return
+    pub limit: Option<usize>,
+}
 
 #[cw_serde]
 pub struct SpotPriceResponse {
@@ -83,6 +89,11 @@ pub struct CalcInAmtGivenOutResponse {
 #[cw_serde]
 pub struct GetTotalPoolLiquidityResponse {
     pub total_pool_liquidity: Vec<Coin>,
+}
+
+#[cw_serde]
+pub struct AllTicksResponse {
+    pub ticks: Vec<TickState>,
 }
 
 #[cw_serde]

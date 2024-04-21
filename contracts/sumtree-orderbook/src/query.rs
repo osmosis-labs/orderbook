@@ -1,16 +1,20 @@
 use std::str::FromStr;
 
 use cosmwasm_std::{coin, ensure, Addr, Coin, Decimal, Deps, Order, Uint128};
+use cw_storage_plus::Bound;
 
 use crate::{
-    constants::{MAX_TICK, MIN_TICK},
+    constants::{ALL_TICKS_DEFAULT_LIMIT, ALL_TICKS_MAX_LIMIT, MAX_TICK, MIN_TICK},
     error::ContractResult,
-    msg::{CalcOutAmtGivenInResponse, GetTotalPoolLiquidityResponse, SpotPriceResponse},
+    msg::{
+        AllTicksResponse, CalcOutAmtGivenInResponse, GetTotalPoolLiquidityResponse,
+        SpotPriceResponse,
+    },
     order,
     state::{ORDERBOOK, TICK_STATE},
     sudo::ensure_swap_fee,
     tick_math::tick_to_price,
-    types::{MarketOrder, OrderDirection},
+    types::{MarketOrder, OrderDirection, TickState},
     ContractError,
 };
 
@@ -129,5 +133,36 @@ pub(crate) fn total_pool_liquidity(deps: Deps) -> ContractResult<GetTotalPoolLiq
     // May return 0 amounts if there is no liquidity in the orderbook
     Ok(GetTotalPoolLiquidityResponse {
         total_pool_liquidity: vec![ask_amount, bid_amount],
+    })
+}
+
+/// Returns all active ticks in the orderbook.
+pub(crate) fn all_ticks(
+    deps: Deps,
+    start_after: Option<i64>,
+    end_at: Option<i64>,
+    limit: Option<usize>,
+) -> ContractResult<AllTicksResponse> {
+    // Fetch all tick IDs
+    let all_ticks = TICK_STATE
+        .keys(
+            deps.storage,
+            start_after.map(Bound::inclusive),
+            end_at.map(Bound::inclusive),
+            Order::Ascending,
+        )
+        .take(
+            limit
+                .unwrap_or(ALL_TICKS_DEFAULT_LIMIT)
+                .min(ALL_TICKS_MAX_LIMIT),
+        );
+
+    // Map tick IDs to tick states
+    let all_tick_states: Vec<TickState> = all_ticks
+        .map(|tick_id| TICK_STATE.load(deps.storage, tick_id.unwrap()).unwrap())
+        .collect();
+
+    Ok(AllTicksResponse {
+        ticks: all_tick_states,
     })
 }

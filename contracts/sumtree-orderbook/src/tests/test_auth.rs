@@ -1,5 +1,6 @@
 use cosmwasm_std::{
-    testing::{mock_dependencies, mock_info},
+    from_json,
+    testing::{mock_dependencies, mock_env, mock_info},
     Addr,
 };
 
@@ -8,6 +9,8 @@ use crate::{
         dispatch_cancel_admin_transfer, dispatch_claim_admin, dispatch_reject_admin_transfer,
         dispatch_renounce_adminship, dispatch_transfer_admin, ADMIN, ADMIN_OFFER,
     },
+    contract::query,
+    msg::QueryMsg,
     ContractError,
 };
 
@@ -391,4 +394,47 @@ fn test_renounce_adminship() {
             test.name
         );
     }
+}
+
+#[test]
+fn test_get_admin() {
+    let admin = "admin";
+    let mut deps = mock_dependencies();
+    let env = mock_env();
+
+    ADMIN
+        .save(deps.as_mut().storage, &Addr::unchecked(admin))
+        .unwrap();
+
+    let msg = QueryMsg::Admin {};
+    let res = query(deps.as_ref(), env, msg).unwrap();
+
+    let admin_res: Addr = from_json(res).unwrap();
+
+    assert_eq!(admin, admin_res);
+}
+
+#[test]
+fn test_get_admin_offer() {
+    let admin = "admin";
+    let mut deps = mock_dependencies();
+    let env = mock_env();
+
+    let msg = QueryMsg::AdminOffer {};
+    let res = query(deps.as_ref(), env.clone(), msg).unwrap();
+
+    let admin_res: Option<Addr> = from_json(res).unwrap();
+
+    assert!(admin_res.is_none());
+
+    ADMIN_OFFER
+        .save(deps.as_mut().storage, &Addr::unchecked(admin))
+        .unwrap();
+
+    let msg = QueryMsg::AdminOffer {};
+    let res = query(deps.as_ref(), env, msg).unwrap();
+
+    let admin_res: Option<Addr> = from_json(res).unwrap();
+
+    assert_eq!(admin_res, Some(Addr::unchecked(admin)));
 }

@@ -9,10 +9,10 @@ use cw2::set_contract_version;
 use crate::error::{ContractError, ContractResult};
 use crate::msg::{ExecuteMsg, InstantiateMsg, MigrateMsg, QueryMsg};
 
-use crate::order;
 use crate::orderbook::create_orderbook;
 use crate::query;
 use crate::types::OrderDirection;
+use crate::{auth, order};
 
 // version info for migration info
 const CONTRACT_NAME: &str = "crates.io:sumtree-orderbook";
@@ -96,6 +96,22 @@ pub fn execute(
         }
 
         ExecuteMsg::BatchClaim { orders } => order::batch_claim_limits(deps, info, orders),
+
+        // -- Admin Messages --
+
+        // Offer admin permissions to a new address
+        ExecuteMsg::TransferAdmin { new_admin } => {
+            auth::dispatch_transfer_admin(deps, info, new_admin)
+        }
+
+        // Cancel an ongoing admin transfer offer
+        ExecuteMsg::CancelAdminTransfer {} => auth::dispatch_cancel_admin_transfer(deps, info),
+
+        // Reject an ongoing admin transfer offer
+        ExecuteMsg::RejectAdminTransfer {} => auth::dispatch_reject_admin_transfer(deps, info),
+
+        // Accept an ongoing admin transfer offer
+        ExecuteMsg::ClaimAdmin {} => auth::dispatch_claim_admin(deps, info),
     }
 }
 

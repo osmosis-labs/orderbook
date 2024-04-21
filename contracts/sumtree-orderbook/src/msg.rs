@@ -1,6 +1,6 @@
 use crate::types::OrderDirection;
 use cosmwasm_schema::{cw_serde, QueryResponses};
-use cosmwasm_std::{Coin, Decimal, Uint128};
+use cosmwasm_std::{Addr, Coin, Decimal, Uint128};
 
 /// Message type for `instantiate` entry_point
 #[cw_serde]
@@ -33,6 +33,12 @@ pub enum ExecuteMsg {
     BatchClaim {
         orders: Vec<(i64, u64)>,
     },
+    TransferAdmin {
+        new_admin: Addr,
+    },
+    CancelAdminTransfer {},
+    RejectAdminTransfer {},
+    ClaimAdmin {},
 }
 
 /// Message type for `migrate` entry_point
@@ -111,6 +117,10 @@ pub enum SudoMsg {
         token_out: Coin,
         swap_fee: Decimal,
     },
+    TransferAdmin {
+        new_admin: Addr,
+    },
+    CancelAdminTransfer {},
 }
 
 #[cw_serde]

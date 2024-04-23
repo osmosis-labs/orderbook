@@ -8,6 +8,7 @@ pub struct InstantiateMsg {
     pub base_denom: String,
     pub quote_denom: String,
     pub admin: Addr,
+    pub moderator: Addr,
 }
 
 /// Message type for `execute` entry_point

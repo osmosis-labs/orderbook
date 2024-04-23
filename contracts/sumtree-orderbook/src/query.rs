@@ -139,14 +139,14 @@ pub(crate) fn total_pool_liquidity(deps: Deps) -> ContractResult<GetTotalPoolLiq
 /// Returns all active ticks in the orderbook.
 pub(crate) fn all_ticks(
     deps: Deps,
-    start_after: Option<i64>,
+    start_from: Option<i64>,
     end_at: Option<i64>,
     limit: Option<usize>,
 ) -> ContractResult<AllTicksResponse> {
     // Fetch all ticks using pagination
     let all_ticks = TICK_STATE.range(
         deps.storage,
-        start_after.map(Bound::inclusive),
+        start_from.map(Bound::inclusive),
         end_at.map(Bound::inclusive),
         Order::Ascending,
     );

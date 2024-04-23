@@ -131,14 +131,11 @@ pub fn query(deps: Deps, _env: Env, msg: QueryMsg) -> ContractResult<Binary> {
         }
         QueryMsg::CalcInAmtGivenOut {} => unimplemented!(),
         QueryMsg::AllTicks {
-            start_after,
+            start_from,
             end_at,
             limit,
         } => Ok(to_json_binary(&query::all_ticks(
-            deps,
-            start_after,
-            end_at,
-            limit,
+            deps, start_from, end_at, limit,
         )?)?),
     }
 }

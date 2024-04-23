@@ -62,7 +62,7 @@ pub enum QueryMsg {
     #[returns(AllTicksResponse)]
     AllTicks {
         /// The tick id to start after for pagination (inclusive)
-        start_after: Option<i64>,
+        start_from: Option<i64>,
         /// A max tick id to end at if limit is not reached/provided (inclusive)
         end_at: Option<i64>,
         /// The limit for amount of items to return

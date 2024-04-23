@@ -5,7 +5,7 @@ use cosmwasm_std::{
 };
 
 use crate::{
-    auth::{ADMIN, ADMIN_OFFER},
+    auth::ADMIN,
     constants::EXPECTED_SWAP_FEE,
     msg::{SudoMsg, SwapExactAmountInResponseData},
     orderbook::create_orderbook,

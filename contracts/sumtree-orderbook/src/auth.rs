@@ -1,4 +1,8 @@
-use crate::{error::ContractResult, ContractError};
+use crate::{
+    error::ContractResult,
+    msg::{AuthExecuteMsg, AuthQueryMsg},
+    ContractError,
+};
 use cosmwasm_std::{ensure, Addr, Api, Deps, DepsMut, MessageInfo, Response, Storage};
 use cw_storage_plus::Item;
 
@@ -6,6 +10,61 @@ pub const ADMIN: Item<Addr> = Item::new("admin");
 pub const ADMIN_OFFER: Item<Addr> = Item::new("admin_offer");
 pub const MODERATOR: Item<Addr> = Item::new("moderator");
 pub const MODERATOR_OFFER: Item<Addr> = Item::new("moderator_offer");
+
+pub(crate) fn dispatch(
+    deps: DepsMut,
+    info: MessageInfo,
+    msg: AuthExecuteMsg,
+) -> ContractResult<Response> {
+    match msg {
+        // -- Admin Messages --
+
+        // Offer admin permissions to a new address
+        AuthExecuteMsg::TransferAdmin { new_admin } => {
+            dispatch_transfer_admin(deps, info, new_admin)
+        }
+
+        // Cancel an ongoing admin transfer offer
+        AuthExecuteMsg::CancelAdminTransfer {} => dispatch_cancel_admin_transfer(deps, info),
+
+        // Reject an ongoing admin transfer offer
+        AuthExecuteMsg::RejectAdminTransfer {} => dispatch_reject_admin_transfer(deps, info),
+
+        // Accept an ongoing admin transfer offer
+        AuthExecuteMsg::ClaimAdmin {} => dispatch_claim_admin(deps, info),
+
+        // Renounces adminship of the contract
+        AuthExecuteMsg::RenounceAdminship {} => dispatch_renounce_adminship(deps, info),
+
+        // -- Moderator Messages --
+
+        // Offer moderator permissions to a new address
+        AuthExecuteMsg::OfferModerator { new_moderator } => {
+            dispatch_offer_moderator(deps, info, new_moderator)
+        }
+
+        // Cancel an ongoing moderator offer
+        AuthExecuteMsg::CancelModeratorOffer {} => dispatch_cancel_moderator_offer(deps, info),
+
+        // Reject an ongoing moderator offer
+        AuthExecuteMsg::RejectModeratorOffer {} => dispatch_reject_moderator_offer(deps, info),
+
+        // Accept an ongoing moderator offer
+        AuthExecuteMsg::ClaimModerator {} => dispatch_claim_moderator(deps, info),
+
+        // Renounces moderator role of the contract
+        AuthExecuteMsg::RenounceModeratorRole {} => dispatch_renounce_moderator_role(deps, info),
+    }
+}
+
+pub(crate) fn query(deps: Deps, msg: AuthQueryMsg) -> ContractResult<Option<Addr>> {
+    match msg {
+        AuthQueryMsg::Admin {} => get_admin(deps.storage),
+        AuthQueryMsg::AdminOffer {} => get_admin_offer(deps.storage),
+        AuthQueryMsg::Moderator {} => get_moderator(deps.storage),
+        AuthQueryMsg::ModeratorOffer {} => get_moderator_offer(deps.storage),
+    }
+}
 
 // -- Admin Methods --
 
@@ -121,8 +180,8 @@ pub(crate) fn remove_admin(storage: &mut dyn Storage) -> ContractResult<()> {
     Ok(())
 }
 
-pub(crate) fn get_admin(storage: &dyn Storage) -> ContractResult<Addr> {
-    Ok(ADMIN.load(storage)?)
+pub(crate) fn get_admin(storage: &dyn Storage) -> ContractResult<Option<Addr>> {
+    Ok(ADMIN.may_load(storage)?)
 }
 
 pub(crate) fn get_admin_offer(storage: &dyn Storage) -> ContractResult<Option<Addr>> {
@@ -246,8 +305,8 @@ pub(crate) fn remove_moderator(storage: &mut dyn Storage) -> ContractResult<()> 
     Ok(())
 }
 
-pub(crate) fn get_moderator(storage: &dyn Storage) -> ContractResult<Addr> {
-    Ok(MODERATOR.load(storage)?)
+pub(crate) fn get_moderator(storage: &dyn Storage) -> ContractResult<Option<Addr>> {
+    Ok(MODERATOR.may_load(storage)?)
 }
 
 pub(crate) fn get_moderator_offer(storage: &dyn Storage) -> ContractResult<Option<Addr>> {

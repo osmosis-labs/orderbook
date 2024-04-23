@@ -34,13 +34,24 @@ pub enum ExecuteMsg {
     BatchClaim {
         orders: Vec<(i64, u64)>,
     },
-    TransferAdmin {
-        new_admin: Addr,
-    },
+    Auth(AuthExecuteMsg),
+}
+
+#[cw_serde]
+pub enum AuthExecuteMsg {
+    // -- Admin Messages --
+    TransferAdmin { new_admin: Addr },
     CancelAdminTransfer {},
     RejectAdminTransfer {},
     ClaimAdmin {},
     RenounceAdminship {},
+
+    // -- Moderator Messages --
+    OfferModerator { new_moderator: Addr },
+    CancelModeratorOffer {},
+    RejectModeratorOffer {},
+    ClaimModerator {},
+    RenounceModeratorRole {},
 }
 
 /// Message type for `migrate` entry_point
@@ -68,11 +79,17 @@ pub enum QueryMsg {
     #[returns(CalcInAmtGivenOutResponse)]
     CalcInAmtGivenOut {},
 
-    #[returns(Addr)]
-    Admin {},
-
     #[returns(Option<Addr>)]
+    Auth(AuthQueryMsg),
+}
+
+#[cw_serde]
+pub enum AuthQueryMsg {
+    Admin {},
     AdminOffer {},
+
+    Moderator {},
+    ModeratorOffer {},
 }
 
 #[cw_serde]

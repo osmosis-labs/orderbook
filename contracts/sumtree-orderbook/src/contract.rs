@@ -87,24 +87,8 @@ pub fn execute(
 
         ExecuteMsg::BatchClaim { orders } => order::batch_claim_limits(deps, info, orders),
 
-        // -- Admin Messages --
-
-        // Offer admin permissions to a new address
-        ExecuteMsg::TransferAdmin { new_admin } => {
-            auth::dispatch_transfer_admin(deps, info, new_admin)
-        }
-
-        // Cancel an ongoing admin transfer offer
-        ExecuteMsg::CancelAdminTransfer {} => auth::dispatch_cancel_admin_transfer(deps, info),
-
-        // Reject an ongoing admin transfer offer
-        ExecuteMsg::RejectAdminTransfer {} => auth::dispatch_reject_admin_transfer(deps, info),
-
-        // Accept an ongoing admin transfer offer
-        ExecuteMsg::ClaimAdmin {} => auth::dispatch_claim_admin(deps, info),
-
-        // Renounces adminship of the contract
-        ExecuteMsg::RenounceAdminship {} => auth::dispatch_renounce_adminship(deps, info),
+        // Handles all authorisation messages
+        ExecuteMsg::Auth(auth_msg) => auth::dispatch(deps, info, auth_msg),
     }
 }
 
@@ -135,9 +119,8 @@ pub fn query(deps: Deps, _env: Env, msg: QueryMsg) -> ContractResult<Binary> {
         }
         QueryMsg::CalcInAmtGivenOut {} => unimplemented!(),
 
-        // -- Admin Queries --
-        QueryMsg::Admin {} => Ok(to_json_binary(&auth::get_admin(deps.storage)?)?),
-        QueryMsg::AdminOffer {} => Ok(to_json_binary(&auth::get_admin_offer(deps.storage)?)?),
+        // -- Auth Queries --
+        QueryMsg::Auth(msg) => Ok(to_json_binary(&auth::query(deps, msg)?)?),
     }
 }
 

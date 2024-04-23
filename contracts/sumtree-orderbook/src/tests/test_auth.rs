@@ -7,10 +7,11 @@ use cosmwasm_std::{
 use crate::{
     auth::{
         dispatch_cancel_admin_transfer, dispatch_claim_admin, dispatch_reject_admin_transfer,
-        dispatch_renounce_adminship, dispatch_transfer_admin, ADMIN, ADMIN_OFFER,
+        dispatch_renounce_adminship, dispatch_transfer_admin, ADMIN, ADMIN_OFFER, MODERATOR,
+        MODERATOR_OFFER,
     },
     contract::query,
-    msg::QueryMsg,
+    msg::{AuthQueryMsg, QueryMsg},
     ContractError,
 };
 
@@ -406,12 +407,12 @@ fn test_get_admin() {
         .save(deps.as_mut().storage, &Addr::unchecked(admin))
         .unwrap();
 
-    let msg = QueryMsg::Admin {};
+    let msg = QueryMsg::Auth(AuthQueryMsg::Admin {});
     let res = query(deps.as_ref(), env, msg).unwrap();
 
-    let admin_res: Addr = from_json(res).unwrap();
+    let admin_res: Option<Addr> = from_json(res).unwrap();
 
-    assert_eq!(admin, admin_res);
+    assert_eq!(Some(Addr::unchecked(admin)), admin_res);
 }
 
 #[test]
@@ -420,7 +421,7 @@ fn test_get_admin_offer() {
     let mut deps = mock_dependencies();
     let env = mock_env();
 
-    let msg = QueryMsg::AdminOffer {};
+    let msg = QueryMsg::Auth(AuthQueryMsg::AdminOffer {});
     let res = query(deps.as_ref(), env.clone(), msg).unwrap();
 
     let admin_res: Option<Addr> = from_json(res).unwrap();
@@ -431,7 +432,7 @@ fn test_get_admin_offer() {
         .save(deps.as_mut().storage, &Addr::unchecked(admin))
         .unwrap();
 
-    let msg = QueryMsg::AdminOffer {};
+    let msg = QueryMsg::Auth(AuthQueryMsg::AdminOffer {});
     let res = query(deps.as_ref(), env, msg).unwrap();
 
     let admin_res: Option<Addr> = from_json(res).unwrap();

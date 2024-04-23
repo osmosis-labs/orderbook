@@ -49,7 +49,7 @@ pub fn sudo(deps: DepsMut, _env: Env, msg: SudoMsg) -> ContractResult<Response> 
 
         // Offer admin rights to a new address
         SudoMsg::TransferAdmin { new_admin } => {
-            auth::transfer_admin(deps, new_admin.clone())?;
+            auth::update_admin(deps.storage, new_admin.clone())?;
             Ok(Response::default().add_attributes(vec![
                 ("method", "sudo_transfer_admin"),
                 ("new_admin", new_admin.as_str()),
@@ -58,13 +58,13 @@ pub fn sudo(deps: DepsMut, _env: Env, msg: SudoMsg) -> ContractResult<Response> 
 
         // Cancel an ongoing admin offer
         SudoMsg::CancelAdminTransfer {} => {
-            auth::remove_admin_transfer(deps)?;
+            auth::remove_admin_transfer(deps.storage)?;
             Ok(Response::default().add_attributes(vec![("method", "sudo_cancel_admin_transfer")]))
         }
 
         // Remove the current admin
         SudoMsg::RemoveAdmin {} => {
-            auth::remove_admin(deps)?;
+            auth::remove_admin(deps.storage)?;
             Ok(Response::default().add_attributes(vec![("method", "sudo_remove_admin")]))
         }
     }

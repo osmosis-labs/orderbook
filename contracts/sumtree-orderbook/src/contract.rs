@@ -136,8 +136,8 @@ pub fn query(deps: Deps, _env: Env, msg: QueryMsg) -> ContractResult<Binary> {
         QueryMsg::CalcInAmtGivenOut {} => unimplemented!(),
 
         // -- Admin Queries --
-        QueryMsg::Admin {} => Ok(to_json_binary(&auth::get_admin(deps)?)?),
-        QueryMsg::AdminOffer {} => Ok(to_json_binary(&auth::get_admin_offer(deps)?)?),
+        QueryMsg::Admin {} => Ok(to_json_binary(&auth::get_admin(deps.storage)?)?),
+        QueryMsg::AdminOffer {} => Ok(to_json_binary(&auth::get_admin_offer(deps.storage)?)?),
     }
 }
 

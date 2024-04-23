@@ -1,5 +1,5 @@
 use crate::{error::ContractResult, ContractError};
-use cosmwasm_std::{ensure, Addr, Deps, DepsMut, MessageInfo, Response};
+use cosmwasm_std::{ensure, Addr, Api, Deps, DepsMut, MessageInfo, Response, Storage};
 use cw_storage_plus::Item;
 
 pub const ADMIN: Item<Addr> = Item::new("admin");
@@ -15,7 +15,7 @@ pub(crate) fn dispatch_transfer_admin(
 ) -> ContractResult<Response> {
     ensure_is_admin(deps.as_ref(), &info.sender)?;
 
-    transfer_admin(deps, new_admin.clone())?;
+    offer_admin(deps.storage, deps.api, new_admin.clone())?;
 
     Ok(Response::default().add_attributes(vec![
         ("method", "transfer_admin"),
@@ -32,7 +32,7 @@ pub(crate) fn dispatch_cancel_admin_transfer(
 ) -> ContractResult<Response> {
     ensure_is_admin(deps.as_ref(), &info.sender)?;
 
-    remove_admin_transfer(deps)?;
+    remove_admin_transfer(deps.storage)?;
 
     Ok(Response::default().add_attributes(vec![("method", "cancel_transfer_admin")]))
 }
@@ -47,8 +47,8 @@ pub(crate) fn dispatch_claim_admin(deps: DepsMut, info: MessageInfo) -> Contract
         ContractError::Unauthorized {}
     );
 
-    ADMIN.save(deps.storage, &info.sender)?;
-    remove_admin_transfer(deps)?;
+    update_admin(deps.storage, info.sender)?;
+    remove_admin_transfer(deps.storage)?;
 
     Ok(Response::default().add_attributes(vec![("method", "claim_admin")]))
 }
@@ -66,7 +66,7 @@ pub(crate) fn dispatch_reject_admin_transfer(
         ContractError::Unauthorized {}
     );
 
-    remove_admin_transfer(deps)?;
+    remove_admin_transfer(deps.storage)?;
 
     Ok(Response::default().add_attributes(vec![("method", "reject_admin_transfer")]))
 }
@@ -80,34 +80,43 @@ pub(crate) fn dispatch_renounce_adminship(
 ) -> ContractResult<Response> {
     ensure_is_admin(deps.as_ref(), &info.sender)?;
 
-    remove_admin(deps)?;
+    remove_admin(deps.storage)?;
 
     Ok(Response::default().add_attributes(vec![("method", "renounce_adminship")]))
 }
 
-pub(crate) fn transfer_admin(deps: DepsMut, new_admin: Addr) -> ContractResult<()> {
+pub(crate) fn offer_admin(
+    storage: &mut dyn Storage,
+    api: &dyn Api,
+    new_admin: Addr,
+) -> ContractResult<()> {
     // Ensure provided address is valid
-    deps.api.addr_validate(new_admin.as_str())?;
-    ADMIN_OFFER.save(deps.storage, &new_admin)?;
+    api.addr_validate(new_admin.as_str())?;
+    ADMIN_OFFER.save(storage, &new_admin)?;
     Ok(())
 }
 
-pub(crate) fn remove_admin_transfer(deps: DepsMut) -> ContractResult<()> {
-    ADMIN_OFFER.remove(deps.storage);
+pub(crate) fn remove_admin_transfer(storage: &mut dyn Storage) -> ContractResult<()> {
+    ADMIN_OFFER.remove(storage);
     Ok(())
 }
 
-pub(crate) fn remove_admin(deps: DepsMut) -> ContractResult<()> {
-    ADMIN.remove(deps.storage);
+pub(crate) fn update_admin(storage: &mut dyn Storage, new_admin: Addr) -> ContractResult<()> {
+    ADMIN.save(storage, &new_admin)?;
     Ok(())
 }
 
-pub(crate) fn get_admin(deps: Deps) -> ContractResult<Addr> {
-    Ok(ADMIN.load(deps.storage)?)
+pub(crate) fn remove_admin(storage: &mut dyn Storage) -> ContractResult<()> {
+    ADMIN.remove(storage);
+    Ok(())
 }
 
-pub(crate) fn get_admin_offer(deps: Deps) -> ContractResult<Option<Addr>> {
-    Ok(ADMIN_OFFER.may_load(deps.storage)?)
+pub(crate) fn get_admin(storage: &dyn Storage) -> ContractResult<Addr> {
+    Ok(ADMIN.load(storage)?)
+}
+
+pub(crate) fn get_admin_offer(storage: &dyn Storage) -> ContractResult<Option<Addr>> {
+    Ok(ADMIN_OFFER.may_load(storage)?)
 }
 
 /// Validates that the provided address is the current contract admin.

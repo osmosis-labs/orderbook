@@ -73,7 +73,6 @@ pub enum QueryMsg {
 
     #[returns(Option<Addr>)]
     AdminOffer {},
-}
 
     #[returns(AllTicksResponse)]
     AllTicks {

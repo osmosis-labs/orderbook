@@ -1,4 +1,4 @@
-use crate::types::OrderDirection;
+use crate::types::{OrderDirection, TickState};
 use cosmwasm_schema::{cw_serde, QueryResponses};
 use cosmwasm_std::{Addr, Coin, Decimal, Uint128};
 
@@ -75,6 +75,17 @@ pub enum QueryMsg {
     AdminOffer {},
 }
 
+    #[returns(AllTicksResponse)]
+    AllTicks {
+        /// The tick id to start after for pagination (inclusive)
+        start_from: Option<i64>,
+        /// A max tick id to end at if limit is not reached/provided (inclusive)
+        end_at: Option<i64>,
+        /// The limit for amount of items to return
+        limit: Option<usize>,
+    },
+}
+
 #[cw_serde]
 pub struct SpotPriceResponse {
     pub spot_price: Decimal,
@@ -93,6 +104,17 @@ pub struct CalcInAmtGivenOutResponse {
 #[cw_serde]
 pub struct GetTotalPoolLiquidityResponse {
     pub total_pool_liquidity: Vec<Coin>,
+}
+
+#[cw_serde]
+pub struct TickIdAndState {
+    pub tick_id: i64,
+    pub tick_state: TickState,
+}
+
+#[cw_serde]
+pub struct AllTicksResponse {
+    pub ticks: Vec<TickIdAndState>,
 }
 
 #[cw_serde]

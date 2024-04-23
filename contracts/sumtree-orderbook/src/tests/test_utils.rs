@@ -22,7 +22,7 @@ pub(crate) fn decimal256_from_u128(input: impl Into<u128>) -> Decimal256 {
 #[derive(Clone)]
 pub(crate) enum OrderOperation {
     RunMarket(MarketOrder),
-    PlaceLimitMulti((&'static [i64], usize, Uint128, OrderDirection)),
+    PlaceLimitMulti((Vec<i64>, usize, Uint128, OrderDirection)),
     PlaceLimit(LimitOrder),
     Claim((i64, u64)),
     Cancel((i64, u64)),
@@ -45,8 +45,12 @@ impl OrderOperation {
                 quantity_per_order,
                 direction,
             )) => {
-                let orders =
-                    generate_limit_orders(tick_ids, orders_per_tick, quantity_per_order, direction);
+                let orders = generate_limit_orders(
+                    tick_ids.as_slice(),
+                    orders_per_tick,
+                    quantity_per_order,
+                    direction,
+                );
                 place_multiple_limit_orders(&mut deps, env, info.sender.as_str(), orders).unwrap();
                 Ok(())
             }
@@ -150,4 +154,8 @@ pub(crate) fn place_multiple_limit_orders(
 #[allow(clippy::uninlined_format_args)]
 pub(crate) fn format_test_name(name: &str) -> String {
     format!("\n\nTest case failed: {}\n", name)
+}
+
+pub(crate) fn generate_tick_ids(amount: u64) -> Vec<i64> {
+    (0..amount as i64).collect::<Vec<i64>>()
 }

@@ -6,13 +6,14 @@ use cosmwasm_std::{
 };
 use cw2::set_contract_version;
 
+use crate::auth::ADMIN;
 use crate::error::{ContractError, ContractResult};
 use crate::msg::{ExecuteMsg, InstantiateMsg, MigrateMsg, QueryMsg};
 
-use crate::order;
 use crate::orderbook::create_orderbook;
 use crate::query;
 use crate::types::OrderDirection;
+use crate::{auth, order};
 
 // version info for migration info
 const CONTRACT_NAME: &str = "crates.io:sumtree-orderbook";
@@ -27,11 +28,11 @@ pub fn instantiate(
     msg: InstantiateMsg,
 ) -> Result<Response, ContractError> {
     set_contract_version(deps.storage, CONTRACT_NAME, CONTRACT_VERSION)?;
+    let admin = deps.api.addr_validate(msg.admin.as_str())?;
+    ADMIN.save(deps.storage, &admin)?;
 
     create_orderbook(deps, msg.quote_denom.clone(), msg.base_denom.clone())?;
 
-    // With `Response` type, it is possible to dispatch message to invoke external logic.
-    // See: https://github.com/CosmWasm/cosmwasm/blob/main/SEMANTICS.md#dispatching-messages
     Ok(Response::new().add_attributes(vec![
         ("method", "instantiate"),
         ("quote_denom", &msg.quote_denom),
@@ -39,22 +40,11 @@ pub fn instantiate(
     ]))
 }
 
-/// Handling contract migration
-/// To make a contract migratable, you need
-/// - this entry_point implemented
-/// - only contract admin can migrate, so admin has to be set at contract initiation time
-/// Handling contract execution
 #[cfg_attr(not(feature = "library"), entry_point)]
 pub fn migrate(_deps: DepsMut, _env: Env, msg: MigrateMsg) -> Result<Response, ContractError> {
-    match msg {
-        // Find matched incoming message variant and execute them with your custom logic.
-        //
-        // With `Response` type, it is possible to dispatch message to invoke external logic.
-        // See: https://github.com/CosmWasm/cosmwasm/blob/main/SEMANTICS.md#dispatching-messages
-    }
+    match msg {}
 }
 
-/// Handling contract execution
 #[cfg_attr(not(feature = "library"), entry_point)]
 pub fn execute(
     deps: DepsMut,
@@ -96,6 +86,25 @@ pub fn execute(
         }
 
         ExecuteMsg::BatchClaim { orders } => order::batch_claim_limits(deps, info, orders),
+
+        // -- Admin Messages --
+
+        // Offer admin permissions to a new address
+        ExecuteMsg::TransferAdmin { new_admin } => {
+            auth::dispatch_transfer_admin(deps, info, new_admin)
+        }
+
+        // Cancel an ongoing admin transfer offer
+        ExecuteMsg::CancelAdminTransfer {} => auth::dispatch_cancel_admin_transfer(deps, info),
+
+        // Reject an ongoing admin transfer offer
+        ExecuteMsg::RejectAdminTransfer {} => auth::dispatch_reject_admin_transfer(deps, info),
+
+        // Accept an ongoing admin transfer offer
+        ExecuteMsg::ClaimAdmin {} => auth::dispatch_claim_admin(deps, info),
+
+        // Renounces adminship of the contract
+        ExecuteMsg::RenounceAdminship {} => auth::dispatch_renounce_adminship(deps, info),
     }
 }
 
@@ -103,11 +112,6 @@ pub fn execute(
 #[cfg_attr(not(feature = "library"), entry_point)]
 pub fn query(deps: Deps, _env: Env, msg: QueryMsg) -> ContractResult<Binary> {
     match msg {
-        // Find matched incoming message variant and query them your custom logic
-        // and then construct your query response with the type usually defined
-        // `msg.rs` alongside with the query message itself.
-        //
-        // use `cosmwasm_std::to_binary` to serialize query response to json binary.
         QueryMsg::SpotPrice {
             quote_asset_denom,
             base_asset_denom,
@@ -131,21 +135,21 @@ pub fn query(deps: Deps, _env: Env, msg: QueryMsg) -> ContractResult<Binary> {
         }
         QueryMsg::CalcInAmtGivenOut {} => unimplemented!(),
         QueryMsg::AllTicks {
-            start_from,
-            end_at,
-            limit,
-        } => Ok(to_json_binary(&query::all_ticks(
-            deps, start_from, end_at, limit,
-        )?)?),
+              start_from,
+              end_at,
+              limit,
+          } => Ok(to_json_binary(&query::all_ticks(
+              deps, start_from, end_at, limit,
+          )?)?),
+
+        // -- Admin Queries --
+        QueryMsg::Admin {} => Ok(to_json_binary(&auth::get_admin(deps.storage)?)?),
+        QueryMsg::AdminOffer {} => Ok(to_json_binary(&auth::get_admin_offer(deps.storage)?)?),
     }
 }
 
-/// Handling submessage reply.
-/// For more info on submessage and reply, see https://github.com/CosmWasm/cosmwasm/blob/main/SEMANTICS.md#submessages
 #[cfg_attr(not(feature = "library"), entry_point)]
 pub fn reply(_deps: DepsMut, _env: Env, msg: Reply) -> Result<Response, ContractError> {
-    // With `Response` type, it is still possible to dispatch message to invoke external logic.
-    // See: https://github.com/CosmWasm/cosmwasm/blob/main/SEMANTICS.md#dispatching-messages
     ensure!(
         msg.result.is_ok(),
         ContractError::ReplyError {

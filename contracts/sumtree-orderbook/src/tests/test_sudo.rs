@@ -1,14 +1,15 @@
 use cosmwasm_std::{
     coin,
     testing::{mock_dependencies, mock_env, mock_info},
-    to_json_binary, Addr, BankMsg, Coin, Decimal, Decimal256, SubMsg, Uint128,
+    to_json_binary, Addr, BankMsg, Coin, Decimal, Decimal256, StdError, SubMsg, Uint128,
 };
 
 use crate::{
+    auth::{ADMIN, ADMIN_OFFER},
     constants::EXPECTED_SWAP_FEE,
-    msg::SwapExactAmountInResponseData,
+    msg::{SudoMsg, SwapExactAmountInResponseData},
     orderbook::create_orderbook,
-    sudo::{dispatch_swap_exact_amount_in, validate_output_amount},
+    sudo::{dispatch_swap_exact_amount_in, sudo, validate_output_amount},
     types::{LimitOrder, OrderDirection, REPLY_ID_SUDO_SWAP_EXACT_IN},
     ContractError,
 };
@@ -335,4 +336,86 @@ fn test_swap_exact_amount_in() {
 
         assert_eq!(response.data, Some(expected_data))
     }
+}
+
+#[test]
+fn test_sudo_transfer_admin() {
+    let mut deps = mock_dependencies();
+    let env = mock_env();
+    let new_admin = "newadmin";
+
+    // Create sudo message for test
+    let msg = SudoMsg::TransferAdmin {
+        new_admin: Addr::unchecked(new_admin),
+    };
+
+    // -- System under test --
+    sudo(deps.as_mut(), env.clone(), msg).unwrap();
+
+    // -- Post test assertions --
+    assert_eq!(
+        ADMIN.load(deps.as_ref().storage).unwrap(),
+        Addr::unchecked(new_admin)
+    );
+
+    // -- Invalid address check --
+
+    // Create sudo message for invalid address test
+    let msg = SudoMsg::TransferAdmin {
+        new_admin: Addr::unchecked("ab"),
+    };
+
+    // -- System under test --
+    let res = sudo(deps.as_mut(), env, msg).unwrap_err();
+
+    // -- Post test assertions --
+    assert!(matches!(
+        res,
+        ContractError::Std(StdError::GenericErr { msg: _ })
+    ));
+}
+
+#[test]
+fn test_sudo_cancel_admin_transfer() {
+    let mut deps = mock_dependencies();
+    let env = mock_env();
+    let new_admin = "newadmin";
+
+    // Store offer in state to be removed
+    ADMIN_OFFER
+        .save(deps.as_mut().storage, &Addr::unchecked(new_admin))
+        .unwrap();
+
+    // Create sudo message for test
+    let msg = SudoMsg::CancelAdminTransfer {};
+
+    // -- System under test --
+    sudo(deps.as_mut(), env.clone(), msg).unwrap();
+
+    // -- Post test assertions --
+    assert!(ADMIN_OFFER
+        .may_load(deps.as_ref().storage)
+        .unwrap()
+        .is_none());
+}
+
+#[test]
+fn test_sudo_remove_admin() {
+    let mut deps = mock_dependencies();
+    let env = mock_env();
+    let admin = "admin";
+
+    // Store admin in state to be removed
+    ADMIN
+        .save(deps.as_mut().storage, &Addr::unchecked(admin))
+        .unwrap();
+
+    // Create sudo message for test
+    let msg = SudoMsg::RemoveAdmin {};
+
+    // -- System under test --
+    sudo(deps.as_mut(), env.clone(), msg).unwrap();
+
+    // -- Post test assertions --
+    assert!(ADMIN.may_load(deps.as_ref().storage).unwrap().is_none());
 }

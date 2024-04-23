@@ -4,6 +4,7 @@ use cosmwasm_std::{
 };
 
 use crate::{
+    auth,
     constants::{EXPECTED_SWAP_FEE, MAX_TICK, MIN_TICK},
     error::ContractResult,
     msg::{SudoMsg, SwapExactAmountInResponseData},
@@ -44,6 +45,28 @@ pub fn sudo(deps: DepsMut, _env: Env, msg: SudoMsg) -> ContractResult<Response> 
             token_out,
             swap_fee,
         ),
+        // -- Sudo admin actions --
+
+        // Offer admin rights to a new address
+        SudoMsg::TransferAdmin { new_admin } => {
+            auth::update_admin(deps.storage, deps.api, new_admin.clone())?;
+            Ok(Response::default().add_attributes(vec![
+                ("method", "sudo_transfer_admin"),
+                ("new_admin", new_admin.as_str()),
+            ]))
+        }
+
+        // Cancel an ongoing admin offer
+        SudoMsg::CancelAdminTransfer {} => {
+            auth::remove_admin_transfer(deps.storage)?;
+            Ok(Response::default().add_attributes(vec![("method", "sudo_cancel_admin_transfer")]))
+        }
+
+        // Remove the current admin
+        SudoMsg::RemoveAdmin {} => {
+            auth::remove_admin(deps.storage)?;
+            Ok(Response::default().add_attributes(vec![("method", "sudo_remove_admin")]))
+        }
     }
 }
 

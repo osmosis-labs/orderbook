@@ -43,17 +43,11 @@ pub(crate) fn dispatch(
             dispatch_offer_moderator(deps, info, new_moderator)
         }
 
-        // Cancel an ongoing moderator offer
-        AuthExecuteMsg::CancelModeratorOffer {} => dispatch_cancel_moderator_offer(deps, info),
-
         // Reject an ongoing moderator offer
         AuthExecuteMsg::RejectModeratorOffer {} => dispatch_reject_moderator_offer(deps, info),
 
         // Accept an ongoing moderator offer
         AuthExecuteMsg::ClaimModerator {} => dispatch_claim_moderator(deps, info),
-
-        // Renounces moderator role of the contract
-        AuthExecuteMsg::RenounceModeratorRole {} => dispatch_renounce_moderator_role(deps, info),
     }
 }
 
@@ -208,20 +202,6 @@ pub(crate) fn dispatch_offer_moderator(
     ]))
 }
 
-/// Cancels any ongoing moderator offer.
-///
-/// Only callable by the current admin.
-pub(crate) fn dispatch_cancel_moderator_offer(
-    deps: DepsMut,
-    info: MessageInfo,
-) -> ContractResult<Response> {
-    ensure_is_admin(deps.as_ref(), &info.sender)?;
-
-    remove_moderator_offer(deps.storage)?;
-
-    Ok(Response::default().add_attributes(vec![("method", "cancel_moderator_offer")]))
-}
-
 /// Accepts a moderator offer, claiming moderator rights to the contract
 ///
 /// Only callable by the address offered moderator rights.
@@ -259,20 +239,6 @@ pub(crate) fn dispatch_reject_moderator_offer(
     Ok(Response::default().add_attributes(vec![("method", "reject_moderator_offer")]))
 }
 
-/// Renounces adminship of the contract.
-///
-/// Only callable by the current admin.
-pub(crate) fn dispatch_renounce_moderator_role(
-    deps: DepsMut,
-    info: MessageInfo,
-) -> ContractResult<Response> {
-    ensure_is_admin(deps.as_ref(), &info.sender)?;
-
-    remove_moderator(deps.storage)?;
-
-    Ok(Response::default().add_attributes(vec![("method", "renounce_adminship")]))
-}
-
 pub(crate) fn offer_moderator(
     storage: &mut dyn Storage,
     api: &dyn Api,
@@ -297,11 +263,6 @@ pub(crate) fn update_moderator(
     // Ensure provided address is valid
     api.addr_validate(new_admin.as_str())?;
     MODERATOR.save(storage, &new_admin)?;
-    Ok(())
-}
-
-pub(crate) fn remove_moderator(storage: &mut dyn Storage) -> ContractResult<()> {
-    MODERATOR.remove(storage);
     Ok(())
 }
 

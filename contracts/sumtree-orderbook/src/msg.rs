@@ -48,10 +48,8 @@ pub enum AuthExecuteMsg {
 
     // -- Moderator Messages --
     OfferModerator { new_moderator: Addr },
-    CancelModeratorOffer {},
     RejectModeratorOffer {},
     ClaimModerator {},
-    RenounceModeratorRole {},
 }
 
 /// Message type for `migrate` entry_point

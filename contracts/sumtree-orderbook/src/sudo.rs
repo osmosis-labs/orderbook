@@ -49,7 +49,7 @@ pub fn sudo(deps: DepsMut, _env: Env, msg: SudoMsg) -> ContractResult<Response> 
 
         // Offer admin rights to a new address
         SudoMsg::TransferAdmin { new_admin } => {
-            auth::update_admin(deps.storage, new_admin.clone())?;
+            auth::update_admin(deps.storage, deps.api, new_admin.clone())?;
             Ok(Response::default().add_attributes(vec![
                 ("method", "sudo_transfer_admin"),
                 ("new_admin", new_admin.as_str()),

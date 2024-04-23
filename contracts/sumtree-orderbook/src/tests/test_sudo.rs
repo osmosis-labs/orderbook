@@ -354,7 +354,7 @@ fn test_sudo_transfer_admin() {
 
     // -- Post test assertions --
     assert_eq!(
-        ADMIN_OFFER.load(deps.as_ref().storage).unwrap(),
+        ADMIN.load(deps.as_ref().storage).unwrap(),
         Addr::unchecked(new_admin)
     );
 

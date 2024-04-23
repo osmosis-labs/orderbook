@@ -47,7 +47,7 @@ pub(crate) fn dispatch_claim_admin(deps: DepsMut, info: MessageInfo) -> Contract
         ContractError::Unauthorized {}
     );
 
-    update_admin(deps.storage, info.sender)?;
+    update_admin(deps.storage, deps.api, info.sender)?;
     remove_admin_transfer(deps.storage)?;
 
     Ok(Response::default().add_attributes(vec![("method", "claim_admin")]))
@@ -101,7 +101,13 @@ pub(crate) fn remove_admin_transfer(storage: &mut dyn Storage) -> ContractResult
     Ok(())
 }
 
-pub(crate) fn update_admin(storage: &mut dyn Storage, new_admin: Addr) -> ContractResult<()> {
+pub(crate) fn update_admin(
+    storage: &mut dyn Storage,
+    api: &dyn Api,
+    new_admin: Addr,
+) -> ContractResult<()> {
+    // Ensure provided address is valid
+    api.addr_validate(new_admin.as_str())?;
     ADMIN.save(storage, &new_admin)?;
     Ok(())
 }

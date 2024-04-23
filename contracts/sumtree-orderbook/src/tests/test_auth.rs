@@ -6,11 +6,13 @@ use cosmwasm_std::{
 
 use crate::{
     auth::{
-        dispatch_cancel_admin_transfer, dispatch_claim_admin, dispatch_reject_admin_transfer,
-        dispatch_renounce_adminship, dispatch_transfer_admin, ADMIN, ADMIN_OFFER,
+        dispatch_cancel_admin_transfer, dispatch_claim_admin, dispatch_claim_moderator,
+        dispatch_offer_moderator, dispatch_reject_admin_transfer, dispatch_reject_moderator_offer,
+        dispatch_renounce_adminship, dispatch_transfer_admin, ADMIN, ADMIN_OFFER, MODERATOR,
+        MODERATOR_OFFER,
     },
     contract::query,
-    msg::QueryMsg,
+    msg::{AuthQueryMsg, QueryMsg},
     ContractError,
 };
 
@@ -213,7 +215,7 @@ fn test_claim_admin() {
             continue;
         }
 
-        // Assert the admin has been claimed
+        // Assert the admin role has been claimed
         assert_eq!(
             ADMIN.may_load(deps.as_ref().storage).unwrap(),
             test.new_admin.map(Addr::unchecked),
@@ -309,7 +311,7 @@ fn test_reject_admin_transfer() {
             continue;
         }
 
-        // Assert the admin has been claimed
+        // Assert the admin role has been claimed
         assert_eq!(
             ADMIN.load(deps.as_ref().storage).unwrap(),
             Addr::unchecked(current_admin),
@@ -387,10 +389,282 @@ fn test_renounce_adminship() {
             continue;
         }
 
-        // Assert the admin has been removed
+        // Assert the admin role has been removed
         assert!(
             ADMIN.may_load(deps.as_ref().storage).unwrap().is_none(),
             "{}: admin was not correctly removed",
+            test.name
+        );
+    }
+}
+
+// -- Moderator Execute Tests --
+
+struct OfferModeratorTestCase {
+    name: &'static str,
+    sender: &'static str,
+    new_moderator: &'static str,
+    expected_error: Option<ContractError>,
+}
+
+#[test]
+fn test_offer_moderator() {
+    let current_admin = "current_admin";
+    let current_moderator = "current_moderator";
+    let new_moderator = "new_admin";
+    let test_cases = vec![
+        OfferModeratorTestCase {
+            name: "valid offer",
+            sender: current_admin,
+            new_moderator,
+            expected_error: None,
+        },
+        OfferModeratorTestCase {
+            name: "unauthorized",
+            sender: "nottheadmin",
+            new_moderator,
+            expected_error: Some(ContractError::Unauthorized {}),
+        },
+        OfferModeratorTestCase {
+            name: "unauthorized current moderator",
+            sender: current_moderator,
+            new_moderator,
+            expected_error: Some(ContractError::Unauthorized {}),
+        },
+    ];
+
+    for test in test_cases {
+        // -- Test Setup --
+        let mut deps = mock_dependencies();
+        let info = mock_info(test.sender, &[]);
+
+        // Store current admin
+        ADMIN
+            .save(deps.as_mut().storage, &Addr::unchecked(current_admin))
+            .unwrap();
+        // Store current moderator
+        MODERATOR
+            .save(deps.as_mut().storage, &Addr::unchecked(current_moderator))
+            .unwrap();
+
+        // -- System under test --
+        let res =
+            dispatch_offer_moderator(deps.as_mut(), info, Addr::unchecked(test.new_moderator));
+
+        // Assert expected error
+        if let Some(err) = test.expected_error {
+            assert_eq!(
+                res.unwrap_err(),
+                err,
+                "{}: did not receive expected error",
+                test.name
+            );
+
+            // Ensure nothing is stored in state
+            assert!(MODERATOR_OFFER
+                .may_load(deps.as_ref().storage)
+                .unwrap()
+                .is_none());
+            continue;
+        }
+
+        // Assert the offer to the new moderator is stored
+        let new_moderator_offer = MODERATOR_OFFER.load(deps.as_ref().storage).unwrap();
+        assert_eq!(
+            new_moderator_offer, test.new_moderator,
+            "{}: moderator offer was not correctly set",
+            test.name
+        );
+    }
+}
+
+struct RejectModeratorOfferTestCase {
+    name: &'static str,
+    sender: &'static str,
+    new_moderator: Option<&'static str>,
+    expected_error: Option<ContractError>,
+}
+
+#[test]
+fn test_reject_moderator_offer() {
+    let new_moderator = "new_moderator";
+    let current_moderator = "current_moderator";
+    let test_cases = vec![
+        RejectModeratorOfferTestCase {
+            name: "valid rejection",
+            sender: new_moderator,
+            new_moderator: Some(new_moderator),
+            expected_error: None,
+        },
+        RejectModeratorOfferTestCase {
+            name: "no offer",
+            sender: new_moderator,
+            new_moderator: None,
+            expected_error: Some(ContractError::Unauthorized {}),
+        },
+        RejectModeratorOfferTestCase {
+            name: "unauthorized",
+            sender: "notthenewmoderator",
+            new_moderator: Some(new_moderator),
+            expected_error: Some(ContractError::Unauthorized {}),
+        },
+    ];
+
+    for test in test_cases {
+        // -- Test Setup --
+        let mut deps = mock_dependencies();
+        let info = mock_info(test.sender, &[]);
+
+        // Store current moderator for post check
+        MODERATOR
+            .save(deps.as_mut().storage, &Addr::unchecked(current_moderator))
+            .unwrap();
+
+        // Save moderator offer if one is required
+        if let Some(new_admin) = test.new_moderator {
+            MODERATOR_OFFER
+                .save(deps.as_mut().storage, &Addr::unchecked(new_admin))
+                .unwrap();
+        }
+
+        // -- System under test --
+        let res = dispatch_reject_moderator_offer(deps.as_mut(), info);
+
+        // Assert expected error
+        if let Some(err) = test.expected_error {
+            assert_eq!(
+                res.unwrap_err(),
+                err,
+                "{}: did not receive expected error",
+                test.name
+            );
+
+            // Ensure state remains unchanged
+            assert_eq!(
+                MODERATOR.load(deps.as_ref().storage).unwrap(),
+                Addr::unchecked(current_moderator),
+                "{}: invalid admin stored",
+                test.name
+            );
+            assert_eq!(
+                MODERATOR_OFFER.may_load(deps.as_ref().storage).unwrap(),
+                test.new_moderator.map(Addr::unchecked),
+                "{}: admin offer was unexpectedly altered",
+                test.name
+            );
+            continue;
+        }
+
+        // Assert the moderator role has been claimed
+        assert_eq!(
+            MODERATOR.load(deps.as_ref().storage).unwrap(),
+            Addr::unchecked(current_moderator),
+            "{}: admin was not correctly claimed",
+            test.name
+        );
+        // Assert the offer has been removed
+        assert!(
+            MODERATOR_OFFER
+                .may_load(deps.as_ref().storage)
+                .unwrap()
+                .is_none(),
+            "{}: admin offer not correctly removed",
+            test.name
+        );
+    }
+}
+
+struct ClaimModeratorTestCase {
+    name: &'static str,
+    sender: &'static str,
+    new_moderator: Option<&'static str>,
+    expected_error: Option<ContractError>,
+}
+
+#[test]
+fn test_claim_moderator() {
+    let new_moderator = "new_moderator";
+    let current_moderator = "current_moderator";
+    let test_cases = vec![
+        ClaimModeratorTestCase {
+            name: "valid rejection",
+            sender: new_moderator,
+            new_moderator: Some(new_moderator),
+            expected_error: None,
+        },
+        ClaimModeratorTestCase {
+            name: "no offer",
+            sender: new_moderator,
+            new_moderator: None,
+            expected_error: Some(ContractError::Unauthorized {}),
+        },
+        ClaimModeratorTestCase {
+            name: "unauthorized",
+            sender: "notthenewmoderator",
+            new_moderator: Some(new_moderator),
+            expected_error: Some(ContractError::Unauthorized {}),
+        },
+    ];
+
+    for test in test_cases {
+        // -- Test Setup --
+        let mut deps = mock_dependencies();
+        let info = mock_info(test.sender, &[]);
+
+        // Store current moderator for post check
+        MODERATOR
+            .save(deps.as_mut().storage, &Addr::unchecked(current_moderator))
+            .unwrap();
+
+        // Save moderator offer if one is required
+        if let Some(new_admin) = test.new_moderator {
+            MODERATOR_OFFER
+                .save(deps.as_mut().storage, &Addr::unchecked(new_admin))
+                .unwrap();
+        }
+
+        // -- System under test --
+        let res = dispatch_claim_moderator(deps.as_mut(), info);
+
+        // Assert expected error
+        if let Some(err) = test.expected_error {
+            assert_eq!(
+                res.unwrap_err(),
+                err,
+                "{}: did not receive expected error",
+                test.name
+            );
+
+            // Ensure state remains unchanged
+            assert_eq!(
+                MODERATOR.load(deps.as_ref().storage).unwrap(),
+                Addr::unchecked(current_moderator),
+                "{}: invalid admin stored",
+                test.name
+            );
+            assert_eq!(
+                MODERATOR_OFFER.may_load(deps.as_ref().storage).unwrap(),
+                test.new_moderator.map(Addr::unchecked),
+                "{}: admin offer was unexpectedly altered",
+                test.name
+            );
+            continue;
+        }
+
+        // Assert the moderator role has been claimed
+        assert_eq!(
+            MODERATOR.load(deps.as_ref().storage).unwrap(),
+            Addr::unchecked(test.new_moderator.unwrap()),
+            "{}: admin was not correctly claimed",
+            test.name
+        );
+        // Assert the offer has been removed
+        assert!(
+            MODERATOR_OFFER
+                .may_load(deps.as_ref().storage)
+                .unwrap()
+                .is_none(),
+            "{}: admin offer not correctly removed",
             test.name
         );
     }
@@ -406,12 +680,12 @@ fn test_get_admin() {
         .save(deps.as_mut().storage, &Addr::unchecked(admin))
         .unwrap();
 
-    let msg = QueryMsg::Admin {};
+    let msg = QueryMsg::Auth(AuthQueryMsg::Admin {});
     let res = query(deps.as_ref(), env, msg).unwrap();
 
-    let admin_res: Addr = from_json(res).unwrap();
+    let admin_res: Option<Addr> = from_json(res).unwrap();
 
-    assert_eq!(admin, admin_res);
+    assert_eq!(Some(Addr::unchecked(admin)), admin_res);
 }
 
 #[test]
@@ -420,7 +694,7 @@ fn test_get_admin_offer() {
     let mut deps = mock_dependencies();
     let env = mock_env();
 
-    let msg = QueryMsg::AdminOffer {};
+    let msg = QueryMsg::Auth(AuthQueryMsg::AdminOffer {});
     let res = query(deps.as_ref(), env.clone(), msg).unwrap();
 
     let admin_res: Option<Addr> = from_json(res).unwrap();
@@ -431,10 +705,53 @@ fn test_get_admin_offer() {
         .save(deps.as_mut().storage, &Addr::unchecked(admin))
         .unwrap();
 
-    let msg = QueryMsg::AdminOffer {};
+    let msg = QueryMsg::Auth(AuthQueryMsg::AdminOffer {});
     let res = query(deps.as_ref(), env, msg).unwrap();
 
     let admin_res: Option<Addr> = from_json(res).unwrap();
 
     assert_eq!(admin_res, Some(Addr::unchecked(admin)));
+}
+
+#[test]
+fn test_get_moderator() {
+    let moderator: &str = "mod";
+    let mut deps = mock_dependencies();
+    let env = mock_env();
+
+    MODERATOR
+        .save(deps.as_mut().storage, &Addr::unchecked(moderator))
+        .unwrap();
+
+    let msg = QueryMsg::Auth(AuthQueryMsg::Moderator {});
+    let res = query(deps.as_ref(), env, msg).unwrap();
+
+    let admin_res: Option<Addr> = from_json(res).unwrap();
+
+    assert_eq!(Some(Addr::unchecked(moderator)), admin_res);
+}
+
+#[test]
+fn test_get_moderator_offer() {
+    let moderator = "moderator";
+    let mut deps = mock_dependencies();
+    let env = mock_env();
+
+    let msg = QueryMsg::Auth(AuthQueryMsg::AdminOffer {});
+    let res = query(deps.as_ref(), env.clone(), msg).unwrap();
+
+    let admin_res: Option<Addr> = from_json(res).unwrap();
+
+    assert!(admin_res.is_none());
+
+    MODERATOR_OFFER
+        .save(deps.as_mut().storage, &Addr::unchecked(moderator))
+        .unwrap();
+
+    let msg = QueryMsg::Auth(AuthQueryMsg::ModeratorOffer {});
+    let res = query(deps.as_ref(), env, msg).unwrap();
+
+    let admin_res: Option<Addr> = from_json(res).unwrap();
+
+    assert_eq!(admin_res, Some(Addr::unchecked(moderator)));
 }

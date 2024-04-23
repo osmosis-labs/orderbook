@@ -8,6 +8,7 @@ pub struct InstantiateMsg {
     pub base_denom: String,
     pub quote_denom: String,
     pub admin: Addr,
+    pub moderator: Addr,
 }
 
 /// Message type for `execute` entry_point
@@ -34,13 +35,22 @@ pub enum ExecuteMsg {
     BatchClaim {
         orders: Vec<(i64, u64)>,
     },
-    TransferAdmin {
-        new_admin: Addr,
-    },
+    Auth(AuthExecuteMsg),
+}
+
+#[cw_serde]
+pub enum AuthExecuteMsg {
+    // -- Admin Messages --
+    TransferAdmin { new_admin: Addr },
     CancelAdminTransfer {},
     RejectAdminTransfer {},
     ClaimAdmin {},
     RenounceAdminship {},
+
+    // -- Moderator Messages --
+    OfferModerator { new_moderator: Addr },
+    RejectModeratorOffer {},
+    ClaimModerator {},
 }
 
 /// Message type for `migrate` entry_point
@@ -51,6 +61,7 @@ pub enum MigrateMsg {}
 #[cw_serde]
 #[derive(QueryResponses)]
 pub enum QueryMsg {
+    // -- CW Pool Queries --
     #[returns(SpotPriceResponse)]
     SpotPrice {
         quote_asset_denom: String,
@@ -68,12 +79,7 @@ pub enum QueryMsg {
     #[returns(CalcInAmtGivenOutResponse)]
     CalcInAmtGivenOut {},
 
-    #[returns(Addr)]
-    Admin {},
-
-    #[returns(Option<Addr>)]
-    AdminOffer {},
-
+    // -- SQS Queries --
     #[returns(AllTicksResponse)]
     AllTicks {
         /// The tick id to start after for pagination (inclusive)
@@ -83,6 +89,19 @@ pub enum QueryMsg {
         /// The limit for amount of items to return
         limit: Option<usize>,
     },
+
+    // -- Auth Queries --
+    #[returns(Option<Addr>)]
+    Auth(AuthQueryMsg),
+}
+
+#[cw_serde]
+pub enum AuthQueryMsg {
+    Admin {},
+    AdminOffer {},
+
+    Moderator {},
+    ModeratorOffer {},
 }
 
 #[cw_serde]
@@ -145,7 +164,6 @@ pub enum SudoMsg {
     TransferAdmin {
         new_admin: Addr,
     },
-    CancelAdminTransfer {},
     RemoveAdmin {},
 }
 

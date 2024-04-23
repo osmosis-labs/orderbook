@@ -5,16 +5,16 @@ use cosmwasm_std::{
 };
 
 use crate::{
-    constants::EXPECTED_SWAP_FEE,
-    constants::{MAX_TICK, MIN_TICK},
+    constants::{EXPECTED_SWAP_FEE, MAX_TICK, MIN_TICK},
     orderbook::create_orderbook,
     query,
-    types::{LimitOrder, MarketOrder, OrderDirection},
+    types::{LimitOrder, MarketOrder, OrderDirection, TickState, TickValues},
     ContractError,
 };
 
 use super::test_utils::{
-    format_test_name, OrderOperation, LARGE_NEGATIVE_TICK, LARGE_POSITIVE_TICK,
+    decimal256_from_u128, format_test_name, generate_tick_ids, OrderOperation, LARGE_NEGATIVE_TICK,
+    LARGE_POSITIVE_TICK,
 };
 
 struct SpotPriceTestCase {
@@ -667,7 +667,7 @@ fn test_total_pool_liquidity() {
             pre_operations: vec![
                 OrderOperation::PlaceLimitMulti((
                     // Increasingly spread ticks
-                    &[
+                    vec![
                         -1,
                         -2,
                         -3,
@@ -686,7 +686,7 @@ fn test_total_pool_liquidity() {
                 )),
                 OrderOperation::PlaceLimitMulti((
                     // Increasingly spread ticks
-                    &[1, 2, 3, 5, 8, 13, 21, 34, 55, LARGE_POSITIVE_TICK, MAX_TICK],
+                    vec![1, 2, 3, 5, 8, 13, 21, 34, 55, LARGE_POSITIVE_TICK, MAX_TICK],
                     100,
                     Uint128::from(110u128),
                     OrderDirection::Ask,
@@ -736,6 +736,387 @@ fn test_total_pool_liquidity() {
         let res = res.unwrap();
         assert_eq!(
             res.total_pool_liquidity, test.expected_output,
+            "{}: output did not match",
+            test.name
+        );
+    }
+}
+
+struct AllTicksTestCase {
+    name: &'static str,
+    pre_operations: Vec<OrderOperation>,
+    expected_output: Vec<TickState>,
+    start_after: Option<i64>,
+    end_at: Option<i64>,
+    limit: Option<usize>,
+}
+
+#[test]
+fn test_all_ticks() {
+    let sender = Addr::unchecked("sender");
+    let quote_denom = "quote".to_string();
+    let base_denom = "base".to_string();
+
+    let test_cases: Vec<AllTicksTestCase> = vec![
+        AllTicksTestCase {
+            name: "Test all ticks",
+            pre_operations: vec![],
+            expected_output: vec![],
+            start_after: None,
+            end_at: None,
+            limit: None,
+        },
+        AllTicksTestCase {
+            name: "Single order, single tick",
+            pre_operations: vec![OrderOperation::PlaceLimit(LimitOrder::new(
+                0,
+                0,
+                OrderDirection::Ask,
+                sender.clone(),
+                Uint128::one(),
+                Decimal256::zero(),
+                None,
+            ))],
+            expected_output: vec![TickState {
+                ask_values: TickValues {
+                    total_amount_of_liquidity: Decimal256::one(),
+                    cumulative_total_value: Decimal256::one(),
+                    effective_total_amount_swapped: Decimal256::zero(),
+                    cumulative_realized_cancels: Decimal256::zero(),
+                    last_tick_sync_etas: Decimal256::zero(),
+                },
+                bid_values: TickValues::default(),
+            }],
+            start_after: None,
+            end_at: None,
+            limit: None,
+        },
+        AllTicksTestCase {
+            name: "Multiple directions, single tick",
+            pre_operations: vec![
+                OrderOperation::PlaceLimit(LimitOrder::new(
+                    0,
+                    0,
+                    OrderDirection::Ask,
+                    sender.clone(),
+                    Uint128::one(),
+                    Decimal256::zero(),
+                    None,
+                )),
+                OrderOperation::PlaceLimit(LimitOrder::new(
+                    0,
+                    0,
+                    OrderDirection::Bid,
+                    sender.clone(),
+                    Uint128::one(),
+                    Decimal256::zero(),
+                    None,
+                )),
+            ],
+            expected_output: vec![TickState {
+                ask_values: TickValues {
+                    total_amount_of_liquidity: Decimal256::one(),
+                    cumulative_total_value: Decimal256::one(),
+                    effective_total_amount_swapped: Decimal256::zero(),
+                    cumulative_realized_cancels: Decimal256::zero(),
+                    last_tick_sync_etas: Decimal256::zero(),
+                },
+                bid_values: TickValues {
+                    total_amount_of_liquidity: Decimal256::one(),
+                    cumulative_total_value: Decimal256::one(),
+                    effective_total_amount_swapped: Decimal256::zero(),
+                    cumulative_realized_cancels: Decimal256::zero(),
+                    last_tick_sync_etas: Decimal256::zero(),
+                },
+            }],
+            start_after: None,
+            end_at: None,
+            limit: None,
+        },
+        AllTicksTestCase {
+            name: "Multiple directions, many ticks",
+            pre_operations: vec![
+                OrderOperation::PlaceLimitMulti((
+                    generate_tick_ids(100),
+                    10,
+                    Uint128::from(10u128),
+                    OrderDirection::Ask,
+                )),
+                OrderOperation::PlaceLimitMulti((
+                    generate_tick_ids(100),
+                    10,
+                    Uint128::from(100u128),
+                    OrderDirection::Bid,
+                )),
+            ],
+            expected_output: generate_tick_ids(100)
+                .iter()
+                .map(|_| TickState {
+                    ask_values: TickValues {
+                        total_amount_of_liquidity: decimal256_from_u128(100u128),
+                        cumulative_total_value: decimal256_from_u128(100u128),
+                        effective_total_amount_swapped: Decimal256::zero(),
+                        cumulative_realized_cancels: Decimal256::zero(),
+                        last_tick_sync_etas: Decimal256::zero(),
+                    },
+                    bid_values: TickValues {
+                        total_amount_of_liquidity: decimal256_from_u128(1000u128),
+                        cumulative_total_value: decimal256_from_u128(1000u128),
+                        effective_total_amount_swapped: Decimal256::zero(),
+                        cumulative_realized_cancels: Decimal256::zero(),
+                        last_tick_sync_etas: Decimal256::zero(),
+                    },
+                })
+                .collect(),
+            start_after: None,
+            end_at: None,
+            limit: None,
+        },
+        AllTicksTestCase {
+            name: "Multiple directions, many ticks w/ limit",
+            pre_operations: vec![
+                OrderOperation::PlaceLimitMulti((
+                    generate_tick_ids(100),
+                    10,
+                    Uint128::from(10u128),
+                    OrderDirection::Ask,
+                )),
+                OrderOperation::PlaceLimitMulti((
+                    generate_tick_ids(100),
+                    10,
+                    Uint128::from(100u128),
+                    OrderDirection::Bid,
+                )),
+            ],
+            expected_output: generate_tick_ids(50)
+                .iter()
+                .map(|_| TickState {
+                    ask_values: TickValues {
+                        total_amount_of_liquidity: decimal256_from_u128(100u128),
+                        cumulative_total_value: decimal256_from_u128(100u128),
+                        effective_total_amount_swapped: Decimal256::zero(),
+                        cumulative_realized_cancels: Decimal256::zero(),
+                        last_tick_sync_etas: Decimal256::zero(),
+                    },
+                    bid_values: TickValues {
+                        total_amount_of_liquidity: decimal256_from_u128(1000u128),
+                        cumulative_total_value: decimal256_from_u128(1000u128),
+                        effective_total_amount_swapped: Decimal256::zero(),
+                        cumulative_realized_cancels: Decimal256::zero(),
+                        last_tick_sync_etas: Decimal256::zero(),
+                    },
+                })
+                .collect(),
+            start_after: None,
+            end_at: None,
+            limit: Some(50),
+        },
+        AllTicksTestCase {
+            name: "Multiple directions, many ticks w/ start after",
+            pre_operations: vec![
+                OrderOperation::PlaceLimitMulti((
+                    generate_tick_ids(100),
+                    10,
+                    Uint128::from(10u128),
+                    OrderDirection::Ask,
+                )),
+                OrderOperation::PlaceLimitMulti((
+                    generate_tick_ids(100),
+                    10,
+                    Uint128::from(100u128),
+                    OrderDirection::Bid,
+                )),
+            ],
+            expected_output: generate_tick_ids(100)
+                .iter()
+                .enumerate()
+                .filter(|(id, _)| *id >= 90)
+                .map(|_| TickState {
+                    ask_values: TickValues {
+                        total_amount_of_liquidity: decimal256_from_u128(100u128),
+                        cumulative_total_value: decimal256_from_u128(100u128),
+                        effective_total_amount_swapped: Decimal256::zero(),
+                        cumulative_realized_cancels: Decimal256::zero(),
+                        last_tick_sync_etas: Decimal256::zero(),
+                    },
+                    bid_values: TickValues {
+                        total_amount_of_liquidity: decimal256_from_u128(1000u128),
+                        cumulative_total_value: decimal256_from_u128(1000u128),
+                        effective_total_amount_swapped: Decimal256::zero(),
+                        cumulative_realized_cancels: Decimal256::zero(),
+                        last_tick_sync_etas: Decimal256::zero(),
+                    },
+                })
+                .collect(),
+            start_after: Some(90i64),
+            end_at: None,
+            limit: None,
+        },
+        AllTicksTestCase {
+            name: "Multiple directions, many ticks w/ end at",
+            pre_operations: vec![
+                OrderOperation::PlaceLimitMulti((
+                    generate_tick_ids(100),
+                    10,
+                    Uint128::from(10u128),
+                    OrderDirection::Ask,
+                )),
+                OrderOperation::PlaceLimitMulti((
+                    generate_tick_ids(100),
+                    10,
+                    Uint128::from(100u128),
+                    OrderDirection::Bid,
+                )),
+            ],
+            expected_output: generate_tick_ids(100)
+                .iter()
+                .enumerate()
+                .filter(|(id, _)| *id <= 44)
+                .map(|_| TickState {
+                    ask_values: TickValues {
+                        total_amount_of_liquidity: decimal256_from_u128(100u128),
+                        cumulative_total_value: decimal256_from_u128(100u128),
+                        effective_total_amount_swapped: Decimal256::zero(),
+                        cumulative_realized_cancels: Decimal256::zero(),
+                        last_tick_sync_etas: Decimal256::zero(),
+                    },
+                    bid_values: TickValues {
+                        total_amount_of_liquidity: decimal256_from_u128(1000u128),
+                        cumulative_total_value: decimal256_from_u128(1000u128),
+                        effective_total_amount_swapped: Decimal256::zero(),
+                        cumulative_realized_cancels: Decimal256::zero(),
+                        last_tick_sync_etas: Decimal256::zero(),
+                    },
+                })
+                .collect(),
+            start_after: None,
+            end_at: Some(44i64),
+            limit: None,
+        },
+        AllTicksTestCase {
+            name: "Multiple directions, many ticks w/ start after & end at",
+            pre_operations: vec![
+                OrderOperation::PlaceLimitMulti((
+                    generate_tick_ids(100),
+                    10,
+                    Uint128::from(10u128),
+                    OrderDirection::Ask,
+                )),
+                OrderOperation::PlaceLimitMulti((
+                    generate_tick_ids(100),
+                    10,
+                    Uint128::from(100u128),
+                    OrderDirection::Bid,
+                )),
+            ],
+            expected_output: generate_tick_ids(100)
+                .iter()
+                .enumerate()
+                .filter(|(id, _)| *id <= 44 && *id >= 21)
+                .map(|_| TickState {
+                    ask_values: TickValues {
+                        total_amount_of_liquidity: decimal256_from_u128(100u128),
+                        cumulative_total_value: decimal256_from_u128(100u128),
+                        effective_total_amount_swapped: Decimal256::zero(),
+                        cumulative_realized_cancels: Decimal256::zero(),
+                        last_tick_sync_etas: Decimal256::zero(),
+                    },
+                    bid_values: TickValues {
+                        total_amount_of_liquidity: decimal256_from_u128(1000u128),
+                        cumulative_total_value: decimal256_from_u128(1000u128),
+                        effective_total_amount_swapped: Decimal256::zero(),
+                        cumulative_realized_cancels: Decimal256::zero(),
+                        last_tick_sync_etas: Decimal256::zero(),
+                    },
+                })
+                .collect(),
+            start_after: Some(21i64),
+            end_at: Some(44i64),
+            limit: None,
+        },
+        AllTicksTestCase {
+            name: "large number of ticks",
+            pre_operations: vec![OrderOperation::PlaceLimitMulti((
+                generate_tick_ids(1010),
+                10,
+                Uint128::from(100u128),
+                OrderDirection::Bid,
+            ))],
+            expected_output: generate_tick_ids(1010)
+                .iter()
+                .map(|_| TickState {
+                    ask_values: TickValues::default(),
+                    bid_values: TickValues {
+                        total_amount_of_liquidity: decimal256_from_u128(1000u128),
+                        cumulative_total_value: decimal256_from_u128(1000u128),
+                        effective_total_amount_swapped: Decimal256::zero(),
+                        cumulative_realized_cancels: Decimal256::zero(),
+                        last_tick_sync_etas: Decimal256::zero(),
+                    },
+                })
+                .collect(),
+            start_after: None,
+            end_at: None,
+            limit: None,
+        },
+        AllTicksTestCase {
+            name: "single tick paginated",
+            pre_operations: vec![OrderOperation::PlaceLimitMulti((
+                generate_tick_ids(200),
+                10,
+                Uint128::from(100u128),
+                OrderDirection::Bid,
+            ))],
+            expected_output: vec![TickState {
+                ask_values: TickValues::default(),
+                bid_values: TickValues {
+                    total_amount_of_liquidity: decimal256_from_u128(1000u128),
+                    cumulative_total_value: decimal256_from_u128(1000u128),
+                    effective_total_amount_swapped: Decimal256::zero(),
+                    cumulative_realized_cancels: Decimal256::zero(),
+                    last_tick_sync_etas: Decimal256::zero(),
+                },
+            }],
+            start_after: Some(11),
+            end_at: Some(11),
+            limit: None,
+        },
+    ];
+
+    for test in test_cases {
+        // -- Test Setup --
+        let mut deps = mock_dependencies();
+        let env = mock_env();
+        let info = mock_info(sender.as_str(), &[]);
+
+        create_orderbook(
+            deps.as_mut(),
+            quote_denom.to_string(),
+            base_denom.to_string(),
+        )
+        .unwrap();
+
+        // Perform any setup market operations
+        for op in test.pre_operations {
+            op.run(deps.as_mut(), env.clone(), info.clone()).unwrap();
+        }
+
+        // -- System under test --
+
+        let res =
+            query::all_ticks(deps.as_ref(), test.start_after, test.end_at, test.limit).unwrap();
+        assert_eq!(
+            res.ticks.len(),
+            test.expected_output.len(),
+            "{}: output lengths did not match",
+            test.name
+        );
+        assert_eq!(
+            res.ticks
+                .iter()
+                .map(|t| t.tick_state.clone())
+                .collect::<Vec<TickState>>(),
+            test.expected_output,
             "{}: output did not match",
             test.name
         );

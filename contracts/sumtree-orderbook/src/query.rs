@@ -1,11 +1,15 @@
 use std::str::FromStr;
 
 use cosmwasm_std::{coin, ensure, Addr, Coin, Decimal, Deps, Order, Uint128};
+use cw_storage_plus::Bound;
 
 use crate::{
     constants::{MAX_TICK, MIN_TICK},
     error::ContractResult,
-    msg::{CalcOutAmtGivenInResponse, GetTotalPoolLiquidityResponse, SpotPriceResponse},
+    msg::{
+        AllTicksResponse, CalcOutAmtGivenInResponse, GetTotalPoolLiquidityResponse,
+        SpotPriceResponse, TickIdAndState,
+    },
     order,
     state::{ORDERBOOK, TICK_STATE},
     sudo::ensure_swap_fee,
@@ -129,5 +133,50 @@ pub(crate) fn total_pool_liquidity(deps: Deps) -> ContractResult<GetTotalPoolLiq
     // May return 0 amounts if there is no liquidity in the orderbook
     Ok(GetTotalPoolLiquidityResponse {
         total_pool_liquidity: vec![ask_amount, bid_amount],
+    })
+}
+
+/// Returns all active ticks in the orderbook.
+pub(crate) fn all_ticks(
+    deps: Deps,
+    start_from: Option<i64>,
+    end_at: Option<i64>,
+    limit: Option<usize>,
+) -> ContractResult<AllTicksResponse> {
+    // Fetch all ticks using pagination
+    let all_ticks = TICK_STATE.range(
+        deps.storage,
+        start_from.map(Bound::inclusive),
+        end_at.map(Bound::inclusive),
+        Order::Ascending,
+    );
+
+    // Map (tick id, tick state) to return struct
+    let all_tick_states: Vec<TickIdAndState> = if let Some(limit) = limit {
+        // Due to separate typing for a `.take` call this must be done in a if/else
+        all_ticks
+            .take(limit)
+            .map(|maybe_tick| {
+                let (tick_id, tick_state) = maybe_tick.unwrap();
+                TickIdAndState {
+                    tick_id,
+                    tick_state,
+                }
+            })
+            .collect()
+    } else {
+        all_ticks
+            .map(|maybe_tick| {
+                let (tick_id, tick_state) = maybe_tick.unwrap();
+                TickIdAndState {
+                    tick_id,
+                    tick_state,
+                }
+            })
+            .collect()
+    };
+
+    Ok(AllTicksResponse {
+        ticks: all_tick_states,
     })
 }

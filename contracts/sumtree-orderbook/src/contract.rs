@@ -120,6 +120,13 @@ pub fn query(deps: Deps, _env: Env, msg: QueryMsg) -> ContractResult<Binary> {
             Ok(to_json_binary(&query::total_pool_liquidity(deps)?)?)
         }
         QueryMsg::CalcInAmtGivenOut {} => unimplemented!(),
+        QueryMsg::AllTicks {
+              start_from,
+              end_at,
+              limit,
+          } => Ok(to_json_binary(&query::all_ticks(
+              deps, start_from, end_at, limit,
+          )?)?),
 
         // -- Auth Queries --
         QueryMsg::Auth(msg) => Ok(to_json_binary(&auth::query(deps, msg)?)?),

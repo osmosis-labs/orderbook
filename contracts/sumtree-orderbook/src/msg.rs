@@ -139,7 +139,6 @@ pub enum SudoMsg {
     TransferAdmin {
         new_admin: Addr,
     },
-    CancelAdminTransfer {},
     RemoveAdmin {},
 }
 

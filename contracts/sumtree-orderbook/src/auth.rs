@@ -11,6 +11,7 @@ pub const ADMIN_OFFER: Item<Addr> = Item::new("admin_offer");
 pub const MODERATOR: Item<Addr> = Item::new("moderator");
 pub const MODERATOR_OFFER: Item<Addr> = Item::new("moderator_offer");
 
+/// Handles incoming Auth messages
 pub(crate) fn dispatch(
     deps: DepsMut,
     info: MessageInfo,
@@ -51,11 +52,16 @@ pub(crate) fn dispatch(
     }
 }
 
+/// Handles incoming Auth queries
 pub(crate) fn query(deps: Deps, msg: AuthQueryMsg) -> ContractResult<Option<Addr>> {
     match msg {
+        // Current Admin Query
         AuthQueryMsg::Admin {} => get_admin(deps.storage),
+        // Current Admin Offer Query
         AuthQueryMsg::AdminOffer {} => get_admin_offer(deps.storage),
+        // Current Moderator Query
         AuthQueryMsg::Moderator {} => get_moderator(deps.storage),
+        // Current Moderator Offer Query
         AuthQueryMsg::ModeratorOffer {} => get_moderator_offer(deps.storage),
     }
 }

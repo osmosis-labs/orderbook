@@ -56,12 +56,6 @@ pub fn sudo(deps: DepsMut, _env: Env, msg: SudoMsg) -> ContractResult<Response> 
             ]))
         }
 
-        // Cancel an ongoing admin offer
-        SudoMsg::CancelAdminTransfer {} => {
-            auth::remove_admin_transfer(deps.storage)?;
-            Ok(Response::default().add_attributes(vec![("method", "sudo_cancel_admin_transfer")]))
-        }
-
         // Remove the current admin
         SudoMsg::RemoveAdmin {} => {
             auth::remove_admin(deps.storage)?;

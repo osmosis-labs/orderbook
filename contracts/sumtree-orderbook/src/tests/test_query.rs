@@ -1035,39 +1035,14 @@ fn test_all_ticks() {
             limit: None,
         },
         AllTicksTestCase {
-            name: "total ticks above max limit",
+            name: "large number of ticks",
             pre_operations: vec![OrderOperation::PlaceLimitMulti((
                 generate_tick_ids(1010),
                 10,
                 Uint128::from(100u128),
                 OrderDirection::Bid,
             ))],
-            expected_output: generate_tick_ids(1000)
-                .iter()
-                .map(|_| TickState {
-                    ask_values: TickValues::default(),
-                    bid_values: TickValues {
-                        total_amount_of_liquidity: decimal256_from_u128(1000u128),
-                        cumulative_total_value: decimal256_from_u128(1000u128),
-                        effective_total_amount_swapped: Decimal256::zero(),
-                        cumulative_realized_cancels: Decimal256::zero(),
-                        last_tick_sync_etas: Decimal256::zero(),
-                    },
-                })
-                .collect(),
-            start_after: None,
-            end_at: None,
-            limit: Some(1010),
-        },
-        AllTicksTestCase {
-            name: "default limit",
-            pre_operations: vec![OrderOperation::PlaceLimitMulti((
-                generate_tick_ids(200),
-                10,
-                Uint128::from(100u128),
-                OrderDirection::Bid,
-            ))],
-            expected_output: generate_tick_ids(100)
+            expected_output: generate_tick_ids(1010)
                 .iter()
                 .map(|_| TickState {
                     ask_values: TickValues::default(),

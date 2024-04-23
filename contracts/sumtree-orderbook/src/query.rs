@@ -4,7 +4,7 @@ use cosmwasm_std::{coin, ensure, Addr, Coin, Decimal, Deps, Order, Uint128};
 use cw_storage_plus::Bound;
 
 use crate::{
-    constants::{ALL_TICKS_DEFAULT_LIMIT, ALL_TICKS_MAX_LIMIT, MAX_TICK, MIN_TICK},
+    constants::{MAX_TICK, MIN_TICK},
     error::ContractResult,
     msg::{
         AllTicksResponse, CalcOutAmtGivenInResponse, GetTotalPoolLiquidityResponse,
@@ -144,31 +144,37 @@ pub(crate) fn all_ticks(
     limit: Option<usize>,
 ) -> ContractResult<AllTicksResponse> {
     // Fetch all ticks using pagination
-    let all_ticks = TICK_STATE
-        .range(
-            deps.storage,
-            start_after.map(Bound::inclusive),
-            end_at.map(Bound::inclusive),
-            Order::Ascending,
-        )
-        .take(
-            // Restrict how many items can be returned based on provided limit
-            limit
-                // If none provided, set to default
-                .unwrap_or(ALL_TICKS_DEFAULT_LIMIT)
-                // If limit is too high, set to max
-                .min(ALL_TICKS_MAX_LIMIT),
-        );
+    let all_ticks = TICK_STATE.range(
+        deps.storage,
+        start_after.map(Bound::inclusive),
+        end_at.map(Bound::inclusive),
+        Order::Ascending,
+    );
+
     // Map (tick id, tick state) to return struct
-    let all_tick_states: Vec<TickIdAndState> = all_ticks
-        .map(|maybe_tick| {
-            let (tick_id, tick_state) = maybe_tick.unwrap();
-            TickIdAndState {
-                tick_id,
-                tick_state,
-            }
-        })
-        .collect();
+    let all_tick_states: Vec<TickIdAndState> = if let Some(limit) = limit {
+        // Due to separate typing for a `.take` call this must be done in a if/else
+        all_ticks
+            .take(limit)
+            .map(|maybe_tick| {
+                let (tick_id, tick_state) = maybe_tick.unwrap();
+                TickIdAndState {
+                    tick_id,
+                    tick_state,
+                }
+            })
+            .collect()
+    } else {
+        all_ticks
+            .map(|maybe_tick| {
+                let (tick_id, tick_state) = maybe_tick.unwrap();
+                TickIdAndState {
+                    tick_id,
+                    tick_state,
+                }
+            })
+            .collect()
+    };
 
     Ok(AllTicksResponse {
         ticks: all_tick_states,

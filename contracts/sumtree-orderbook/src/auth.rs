@@ -124,10 +124,7 @@ pub(crate) fn dispatch_reject_admin_transfer(
     info: MessageInfo,
 ) -> ContractResult<Response> {
     let offer = ADMIN_OFFER.may_load(deps.storage)?;
-    ensure!(
-        Some(info.sender.clone()) == offer,
-        ContractError::Unauthorized {}
-    );
+    ensure!(Some(info.sender) == offer, ContractError::Unauthorized {});
 
     remove_admin_transfer(deps.storage)?;
 
@@ -235,10 +232,7 @@ pub(crate) fn dispatch_reject_moderator_offer(
     info: MessageInfo,
 ) -> ContractResult<Response> {
     let offer = MODERATOR_OFFER.may_load(deps.storage)?;
-    ensure!(
-        Some(info.sender.clone()) == offer,
-        ContractError::Unauthorized {}
-    );
+    ensure!(Some(info.sender) == offer, ContractError::Unauthorized {});
 
     remove_moderator_offer(deps.storage)?;
 

@@ -390,7 +390,7 @@ fn test_sudo_remove_admin() {
     let msg = SudoMsg::RemoveAdmin {};
 
     // -- System under test --
-    sudo(deps.as_mut(), env.clone(), msg).unwrap();
+    sudo(deps.as_mut(), env, msg).unwrap();
 
     // -- Post test assertions --
     assert!(ADMIN.may_load(deps.as_ref().storage).unwrap().is_none());

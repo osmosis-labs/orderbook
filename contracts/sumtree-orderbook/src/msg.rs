@@ -96,6 +96,9 @@ pub enum QueryMsg {
     // -- Auth Queries --
     #[returns(Option<Addr>)]
     Auth(AuthQueryMsg),
+
+    #[returns(bool)]
+    IsActive {},
 }
 
 #[cw_serde]

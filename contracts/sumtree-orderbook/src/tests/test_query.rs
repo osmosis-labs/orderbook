@@ -8,6 +8,7 @@ use crate::{
     constants::{EXPECTED_SWAP_FEE, MAX_TICK, MIN_TICK},
     orderbook::create_orderbook,
     query,
+    state::IS_ACTIVE,
     types::{LimitOrder, MarketOrder, OrderDirection, TickState, TickValues},
     ContractError,
 };
@@ -1118,6 +1119,50 @@ fn test_all_ticks() {
                 .collect::<Vec<TickState>>(),
             test.expected_output,
             "{}: output did not match",
+            test.name
+        );
+    }
+}
+
+pub struct IsActiveTestCase {
+    name: &'static str,
+    is_active: Option<bool>,
+}
+
+#[test]
+fn test_is_active() {
+    let test_cases = vec![
+        IsActiveTestCase {
+            name: "active status",
+            is_active: Some(true),
+        },
+        IsActiveTestCase {
+            name: "inactive status",
+            is_active: Some(false),
+        },
+        IsActiveTestCase {
+            name: "no active status (active)",
+            is_active: None,
+        },
+    ];
+
+    for test in test_cases {
+        // -- Test Setup --
+        let mut deps = mock_dependencies();
+
+        // Setup state variables
+        if let Some(active) = test.is_active {
+            IS_ACTIVE.save(deps.as_mut().storage, &active).unwrap();
+        }
+
+        // -- System under test --
+        let res = query::is_active(deps.as_ref()).unwrap();
+
+        // -- Test Assertions --
+        assert_eq!(
+            res,
+            test.is_active.unwrap_or(true),
+            "{}: active state did not match",
             test.name
         );
     }

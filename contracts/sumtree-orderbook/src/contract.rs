@@ -134,6 +134,7 @@ pub fn query(deps: Deps, _env: Env, msg: QueryMsg) -> ContractResult<Binary> {
         } => Ok(to_json_binary(&query::all_ticks(
             deps, start_from, end_at, limit,
         )?)?),
+        QueryMsg::IsActive {} => Ok(to_json_binary(&query::is_active(deps)?)?),
 
         // -- Auth Queries --
         QueryMsg::Auth(msg) => Ok(to_json_binary(&auth::query(deps, msg)?)?),

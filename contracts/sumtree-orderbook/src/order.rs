@@ -331,6 +331,7 @@ pub fn run_market_order(
         TICK_STATE.save(storage, tick_id, &tick_state)?;
     }
 
+    // Reduce the amount of liquidity in the opposite direction of the order by the output amount
     subtract_directional_liquidity(
         storage,
         order.order_direction.opposite(),
@@ -340,10 +341,6 @@ pub fn run_market_order(
     // Update tick pointers in orderbook
     ORDERBOOK.save(storage, &updated_orderbook)?;
 
-    // TODO: If we intend to support refunds for partial fills, we will need to return
-    // the consumed input here as well. If we choose not to, we should error in this case.
-    //
-    // Tracked in issue https://github.com/osmosis-labs/orderbook/issues/86
     Ok((
         output.amount,
         BankMsg::Send {

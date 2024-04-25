@@ -128,7 +128,7 @@ pub fn place_limit(
         .add_attribute("owner", info.sender.to_string())
         .add_attribute("tick_id", tick_id.to_string())
         .add_attribute("order_id", order_id.to_string())
-        .add_attribute("order_direction", format!("{order_direction:?}"))
+        .add_attribute("order_direction", order_direction.to_string())
         .add_attribute("quantity", quantity.to_string()))
 }
 

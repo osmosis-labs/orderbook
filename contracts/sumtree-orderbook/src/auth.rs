@@ -312,21 +312,6 @@ pub(crate) fn ensure_is_admin(deps: Deps, sender: &Addr) -> ContractResult<()> {
     Ok(())
 }
 
-/// Validates that the provided address is the current contract moderator.
-///
-/// Errors if:
-/// - The provided address is not the current contract moderator
-/// - The contract does not have a moderator
-pub(crate) fn ensure_is_moderator(deps: Deps, sender: &Addr) -> ContractResult<()> {
-    let moderator = MODERATOR.may_load(deps.storage)?;
-    ensure!(
-        moderator == Some(sender.clone()),
-        ContractError::Unauthorized {}
-    );
-
-    Ok(())
-}
-
 /// Validates that the provided address is either the current contract moderator or admin.
 ///
 /// Errors if:

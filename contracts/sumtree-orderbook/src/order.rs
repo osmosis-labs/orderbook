@@ -234,32 +234,6 @@ pub fn claim_limit(
         .add_submessages(bank_msgs))
 }
 
-pub fn place_market(
-    deps: DepsMut,
-    _env: Env,
-    info: MessageInfo,
-    order_direction: OrderDirection,
-    quantity: Uint128,
-) -> Result<Response, ContractError> {
-    // Build market order from inputs
-    let mut market_order = MarketOrder::new(quantity, order_direction, info.sender.clone());
-
-    // Market orders always run until either the input is filled or the orderbook is exhausted.
-    let tick_bound = match order_direction {
-        OrderDirection::Bid => MAX_TICK,
-        OrderDirection::Ask => MIN_TICK,
-    };
-
-    // Process the market order
-    let (output, bank_msg) = run_market_order(deps.storage, &mut market_order, tick_bound)?;
-
-    Ok(Response::new()
-        .add_attribute("method", "placeMarket")
-        .add_attribute("owner", info.sender)
-        .add_attribute("output_quantity", output.to_string())
-        .add_message(bank_msg))
-}
-
 // batch_claim_limits allows for multiple limit orders to be claimed in a single transaction.
 pub fn batch_claim_limits(
     deps: DepsMut,

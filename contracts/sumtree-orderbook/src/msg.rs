@@ -24,10 +24,6 @@ pub enum ExecuteMsg {
         tick_id: i64,
         order_id: u64,
     },
-    PlaceMarket {
-        order_direction: OrderDirection,
-        quantity: Uint128,
-    },
     ClaimLimit {
         tick_id: i64,
         order_id: u64,

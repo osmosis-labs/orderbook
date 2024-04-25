@@ -1,7 +1,7 @@
 use crate::{
     error::ContractResult,
     msg::{AuthExecuteMsg, AuthQueryMsg},
-    ContractError,
+    sudo, ContractError,
 };
 use cosmwasm_std::{ensure, Addr, Api, Deps, DepsMut, MessageInfo, Response, Storage};
 use cw_storage_plus::Item;
@@ -49,6 +49,8 @@ pub(crate) fn dispatch(
 
         // Accept an ongoing moderator offer
         AuthExecuteMsg::ClaimModerator {} => dispatch_claim_moderator(deps, info),
+
+        AuthExecuteMsg::SetActive { active } => dispatch_set_active(deps, info, active),
     }
 }
 
@@ -272,6 +274,25 @@ pub(crate) fn get_moderator(storage: &dyn Storage) -> ContractResult<Option<Addr
 
 pub(crate) fn get_moderator_offer(storage: &dyn Storage) -> ContractResult<Option<Addr>> {
     Ok(MODERATOR_OFFER.may_load(storage)?)
+}
+
+// -- Shared Methods --
+
+/// Asserts that the orderbook is currently active.
+///
+/// Errors if the `IS_ACTIVE` switch is false.
+///
+/// If `IS_ACTIVE` is empty then it defaults to true.
+///
+/// Callable by either moderator or admin.
+pub(crate) fn dispatch_set_active(
+    deps: DepsMut,
+    info: MessageInfo,
+    active: bool,
+) -> ContractResult<Response> {
+    ensure_is_admin_or_moderator(deps.as_ref(), &info.sender)?;
+
+    sudo::set_active(deps, active)
 }
 
 // -- Ensure Methods --

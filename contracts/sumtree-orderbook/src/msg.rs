@@ -51,6 +51,9 @@ pub enum AuthExecuteMsg {
     OfferModerator { new_moderator: Addr },
     RejectModeratorOffer {},
     ClaimModerator {},
+
+    // -- Shared messages --
+    SetActive { active: bool },
 }
 
 /// Message type for `migrate` entry_point

@@ -165,6 +165,11 @@ pub enum SudoMsg {
         new_admin: Addr,
     },
     RemoveAdmin {},
+
+    // -- Active Switch
+    SetActive {
+        active: bool,
+    },
 }
 
 #[cw_serde]

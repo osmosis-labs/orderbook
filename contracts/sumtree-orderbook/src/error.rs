@@ -100,6 +100,9 @@ pub enum ContractError {
         "Exceeded the maximum number of claims in a batch. Maximum allowed: {max_batch_claim:?}"
     )]
     BatchClaimLimitExceeded { max_batch_claim: u32 },
+
+    #[error("Orderbook is inactive")]
+    Inactive,
 }
 
 pub type ContractResult<T> = Result<T, ContractError>;

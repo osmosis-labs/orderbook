@@ -1,6 +1,9 @@
 use crate::constants::{MAX_BATCH_CLAIM, MAX_TICK, MIN_TICK};
 use crate::error::{ContractError, ContractResult};
-use crate::state::{new_order_id, orders, ORDERBOOK, TICK_STATE};
+use crate::state::{
+    add_directional_liquidity, new_order_id, orders, subtract_directional_liquidity, ORDERBOOK,
+    TICK_STATE,
+};
 use crate::sumtree::node::{generate_node_id, NodeType, TreeNode};
 use crate::sumtree::tree::get_or_init_root_node;
 use crate::tick::sync_tick;
@@ -100,6 +103,7 @@ pub fn place_limit(
         claim_bounty,
     );
 
+    let quant_dec256 = Decimal256::from_ratio(limit_order.quantity.u128(), Uint256::one());
     // Only save the order if not fully filled
     if limit_order.quantity > Uint128::zero() {
         // Save the order to the orderbook
@@ -107,10 +111,7 @@ pub fn place_limit(
 
         tick_values.total_amount_of_liquidity = tick_values
             .total_amount_of_liquidity
-            .checked_add(Decimal256::from_ratio(
-                limit_order.quantity.u128(),
-                Uint256::one(),
-            ))
+            .checked_add(quant_dec256)
             .unwrap();
     }
 
@@ -120,13 +121,14 @@ pub fn place_limit(
 
     tick_state.set_values(order_direction, tick_values);
     TICK_STATE.save(deps.storage, tick_id, &tick_state)?;
+    add_directional_liquidity(deps.storage, order_direction, quant_dec256)?;
 
     Ok(Response::default()
         .add_attribute("method", "placeLimit")
         .add_attribute("owner", info.sender.to_string())
         .add_attribute("tick_id", tick_id.to_string())
         .add_attribute("order_id", order_id.to_string())
-        .add_attribute("order_direction", format!("{order_direction:?}"))
+        .add_attribute("order_direction", order_direction.to_string())
         .add_attribute("quantity", quantity.to_string()))
 }
 
@@ -168,15 +170,13 @@ pub fn cancel_limit(
                 tick_id: order.tick_id,
             })?;
     let mut curr_tick_values = curr_tick_state.get_values(order.order_direction);
-
+    let quant_dec256 =
+        Decimal256::from_ratio(Uint256::from_uint128(order.quantity), Uint256::one());
     let mut new_node = TreeNode::new(
         order.tick_id,
         order.order_direction,
         node_id,
-        NodeType::leaf(
-            order.etas,
-            Decimal256::from_ratio(Uint256::from_uint128(order.quantity), Uint256::one()),
-        ),
+        NodeType::leaf(order.etas, quant_dec256),
     );
 
     // Insert new node
@@ -202,6 +202,7 @@ pub fn cancel_limit(
         .checked_sub(Decimal256::from_ratio(order.quantity, Uint256::one()))?;
     curr_tick_state.set_values(order.order_direction, curr_tick_values);
     TICK_STATE.save(deps.storage, order.tick_id, &curr_tick_state)?;
+    subtract_directional_liquidity(deps.storage, order.order_direction, quant_dec256)?;
 
     tree.save(deps.storage)?;
 
@@ -304,13 +305,16 @@ pub fn run_market_order(
         TICK_STATE.save(storage, tick_id, &tick_state)?;
     }
 
+    // Reduce the amount of liquidity in the opposite direction of the order by the output amount
+    subtract_directional_liquidity(
+        storage,
+        order.order_direction.opposite(),
+        Decimal256::from_ratio(Uint256::from_uint128(output.amount), Uint256::one()),
+    )?;
+
     // Update tick pointers in orderbook
     ORDERBOOK.save(storage, &updated_orderbook)?;
 
-    // TODO: If we intend to support refunds for partial fills, we will need to return
-    // the consumed input here as well. If we choose not to, we should error in this case.
-    //
-    // Tracked in issue https://github.com/osmosis-labs/orderbook/issues/86
     Ok((
         output.amount,
         BankMsg::Send {

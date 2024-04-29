@@ -11,7 +11,7 @@ use crate::{
         SpotPriceResponse, TickIdAndState,
     },
     order,
-    state::{IS_ACTIVE, ORDERBOOK, TICK_STATE},
+    state::{get_directional_liquidity, IS_ACTIVE, ORDERBOOK, TICK_STATE},
     sudo::ensure_swap_fee,
     tick_math::tick_to_price,
     types::{MarketOrder, OrderDirection},
@@ -107,32 +107,25 @@ pub(crate) fn total_pool_liquidity(deps: Deps) -> ContractResult<GetTotalPoolLiq
     let orderbook = ORDERBOOK.load(deps.storage)?;
 
     // Create tracking variables for both denoms
-    let mut ask_amount = coin(0u128, orderbook.base_denom);
-    let mut bid_amount = coin(0u128, orderbook.quote_denom);
-    // Fetch all ticks from state
-    let all_ticks = TICK_STATE.keys(deps.storage, None, None, Order::Ascending);
+    let ask_amount = get_directional_liquidity(deps.storage, OrderDirection::Ask)?;
+    let bid_amount = get_directional_liquidity(deps.storage, OrderDirection::Bid)?;
 
-    // Iterate over each tick
-    for maybe_tick_id in all_ticks {
-        let tick_id = maybe_tick_id?;
-        let tick = TICK_STATE.load(deps.storage, tick_id)?;
-
-        // Increment the ask amount by the total ask liquidity in this tick
-        let ask_values = tick.get_values(OrderDirection::Ask);
-        ask_amount.amount = ask_amount.amount.checked_add(Uint128::try_from(
-            ask_values.total_amount_of_liquidity.to_uint_floor(),
-        )?)?;
-
-        // Increment the bid amount by the total bid liquidity in this tick
-        let bid_values = tick.get_values(OrderDirection::Bid);
-        bid_amount.amount = bid_amount.amount.checked_add(Uint128::try_from(
-            bid_values.total_amount_of_liquidity.to_uint_floor(),
-        )?)?;
-    }
+    let ask_amount_coin = coin(
+        Uint128::try_from(ask_amount.to_uint_floor())
+            .unwrap()
+            .u128(),
+        orderbook.get_expected_denom(&OrderDirection::Ask),
+    );
+    let bid_amount_coin = coin(
+        Uint128::try_from(bid_amount.to_uint_floor())
+            .unwrap()
+            .u128(),
+        orderbook.get_expected_denom(&OrderDirection::Bid),
+    );
 
     // May return 0 amounts if there is no liquidity in the orderbook
     Ok(GetTotalPoolLiquidityResponse {
-        total_pool_liquidity: vec![ask_amount, bid_amount],
+        total_pool_liquidity: vec![ask_amount_coin, bid_amount_coin],
     })
 }
 

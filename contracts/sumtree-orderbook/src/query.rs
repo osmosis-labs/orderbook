@@ -11,7 +11,7 @@ use crate::{
         SpotPriceResponse, TickIdAndState,
     },
     order,
-    state::{ORDERBOOK, TICK_STATE},
+    state::{IS_ACTIVE, ORDERBOOK, TICK_STATE},
     sudo::ensure_swap_fee,
     tick_math::tick_to_price,
     types::{MarketOrder, OrderDirection},
@@ -179,4 +179,10 @@ pub(crate) fn all_ticks(
     Ok(AllTicksResponse {
         ticks: all_tick_states,
     })
+}
+
+/// Returns the current active status of the orderbook
+pub(crate) fn is_active(deps: Deps) -> ContractResult<bool> {
+    let is_active = IS_ACTIVE.may_load(deps.storage)?;
+    Ok(is_active.unwrap_or(true))
 }

@@ -1,6 +1,6 @@
 use cosmwasm_std::{
-    ensure, entry_point, to_json_binary, BankMsg, Coin, Decimal, DepsMut, Env, Response, SubMsg,
-    Uint128,
+    ensure, entry_point, to_json_binary, BankMsg, Coin, Decimal, Deps, DepsMut, Env, Response,
+    SubMsg, Uint128,
 };
 
 use crate::{
@@ -9,7 +9,7 @@ use crate::{
     error::ContractResult,
     msg::{SudoMsg, SwapExactAmountInResponseData},
     order::run_market_order,
-    state::ORDERBOOK,
+    state::{IS_ACTIVE, ORDERBOOK},
     types::{MarketOrder, OrderDirection, REPLY_ID_SUDO_SWAP_EXACT_IN},
     ContractError,
 };
@@ -61,6 +61,9 @@ pub fn sudo(deps: DepsMut, _env: Env, msg: SudoMsg) -> ContractResult<Response> 
             auth::remove_admin(deps.storage)?;
             Ok(Response::default().add_attributes(vec![("method", "sudo_remove_admin")]))
         }
+
+        // -- Active Switch --
+        SudoMsg::SetActive { active } => set_active(deps, active),
     }
 }
 
@@ -205,5 +208,30 @@ pub(crate) fn ensure_swap_fee(fee: Decimal) -> ContractResult<()> {
             )
         }
     );
+    Ok(())
+}
+
+/// Sets the active state of the orderbook.
+///
+/// If set to false the orderbook will not accept orders, claims or cancellations.
+pub(crate) fn set_active(deps: DepsMut, active: bool) -> ContractResult<Response> {
+    IS_ACTIVE.save(deps.storage, &active)?;
+
+    Ok(Response::default().add_attributes(vec![
+        ("method", "set_active"),
+        ("active", &active.to_string()),
+    ]))
+}
+
+/// Asserts that the orderbook is currently active.
+///
+/// Errors if the `IS_ACTIVE` switch is false.
+///
+/// If `IS_ACTIVE` is empty then it defaults to true.
+pub(crate) fn ensure_is_active(deps: Deps) -> ContractResult<()> {
+    let is_active = IS_ACTIVE.may_load(deps.storage)?.unwrap_or(true);
+
+    ensure!(is_active, ContractError::Inactive);
+
     Ok(())
 }

@@ -1,7 +1,7 @@
 use crate::{
     error::ContractResult,
     msg::{AuthExecuteMsg, AuthQueryMsg},
-    ContractError,
+    sudo, ContractError,
 };
 use cosmwasm_std::{ensure, Addr, Api, Deps, DepsMut, MessageInfo, Response, Storage};
 use cw_storage_plus::Item;
@@ -49,6 +49,8 @@ pub(crate) fn dispatch(
 
         // Accept an ongoing moderator offer
         AuthExecuteMsg::ClaimModerator {} => dispatch_claim_moderator(deps, info),
+
+        AuthExecuteMsg::SetActive { active } => dispatch_set_active(deps, info, active),
     }
 }
 
@@ -124,10 +126,7 @@ pub(crate) fn dispatch_reject_admin_transfer(
     info: MessageInfo,
 ) -> ContractResult<Response> {
     let offer = ADMIN_OFFER.may_load(deps.storage)?;
-    ensure!(
-        Some(info.sender.clone()) == offer,
-        ContractError::Unauthorized {}
-    );
+    ensure!(Some(info.sender) == offer, ContractError::Unauthorized {});
 
     remove_admin_transfer(deps.storage)?;
 
@@ -235,10 +234,7 @@ pub(crate) fn dispatch_reject_moderator_offer(
     info: MessageInfo,
 ) -> ContractResult<Response> {
     let offer = MODERATOR_OFFER.may_load(deps.storage)?;
-    ensure!(
-        Some(info.sender.clone()) == offer,
-        ContractError::Unauthorized {}
-    );
+    ensure!(Some(info.sender) == offer, ContractError::Unauthorized {});
 
     remove_moderator_offer(deps.storage)?;
 
@@ -280,6 +276,25 @@ pub(crate) fn get_moderator_offer(storage: &dyn Storage) -> ContractResult<Optio
     Ok(MODERATOR_OFFER.may_load(storage)?)
 }
 
+// -- Shared Methods --
+
+/// Asserts that the orderbook is currently active.
+///
+/// Errors if the `IS_ACTIVE` switch is false.
+///
+/// If `IS_ACTIVE` is empty then it defaults to true.
+///
+/// Callable by either moderator or admin.
+pub(crate) fn dispatch_set_active(
+    deps: DepsMut,
+    info: MessageInfo,
+    active: bool,
+) -> ContractResult<Response> {
+    ensure_is_admin_or_moderator(deps.as_ref(), &info.sender)?;
+
+    sudo::set_active(deps, active)
+}
+
 // -- Ensure Methods --
 
 /// Validates that the provided address is the current contract admin.
@@ -291,21 +306,6 @@ pub(crate) fn ensure_is_admin(deps: Deps, sender: &Addr) -> ContractResult<()> {
     let admin = ADMIN.may_load(deps.storage)?;
     ensure!(
         admin == Some(sender.clone()),
-        ContractError::Unauthorized {}
-    );
-
-    Ok(())
-}
-
-/// Validates that the provided address is the current contract moderator.
-///
-/// Errors if:
-/// - The provided address is not the current contract moderator
-/// - The contract does not have a moderator
-pub(crate) fn ensure_is_moderator(deps: Deps, sender: &Addr) -> ContractResult<()> {
-    let moderator = MODERATOR.may_load(deps.storage)?;
-    ensure!(
-        moderator == Some(sender.clone()),
         ContractError::Unauthorized {}
     );
 

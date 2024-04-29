@@ -11,8 +11,9 @@ use crate::{
         dispatch_renounce_adminship, dispatch_transfer_admin, ADMIN, ADMIN_OFFER, MODERATOR,
         MODERATOR_OFFER,
     },
-    contract::query,
-    msg::{AuthQueryMsg, QueryMsg},
+    contract::{execute, query},
+    msg::{AuthExecuteMsg, AuthQueryMsg, ExecuteMsg, QueryMsg},
+    state::IS_ACTIVE,
     ContractError,
 };
 
@@ -665,6 +666,109 @@ fn test_claim_moderator() {
                 .unwrap()
                 .is_none(),
             "{}: admin offer not correctly removed",
+            test.name
+        );
+    }
+}
+
+struct SetActiveTestCase {
+    name: &'static str,
+    sender: &'static str,
+    current_active_state: bool,
+    new_active_state: bool,
+    expected_error: Option<ContractError>,
+}
+
+#[test]
+fn test_set_active() {
+    let current_admin = "current_admin";
+    let current_moderator = "current_moderator";
+    let test_cases = vec![
+        SetActiveTestCase {
+            name: "valid admin set active: true -> false",
+            sender: current_admin,
+            current_active_state: true,
+            new_active_state: false,
+            expected_error: None,
+        },
+        SetActiveTestCase {
+            name: "valid admin set active: false -> true",
+            sender: current_admin,
+            current_active_state: false,
+            new_active_state: true,
+            expected_error: None,
+        },
+        SetActiveTestCase {
+            name: "valid moderator set active: true -> false",
+            sender: current_moderator,
+            current_active_state: true,
+            new_active_state: false,
+            expected_error: None,
+        },
+        SetActiveTestCase {
+            name: "valid moderator set active: false -> true",
+            sender: current_moderator,
+            current_active_state: false,
+            new_active_state: true,
+            expected_error: None,
+        },
+        SetActiveTestCase {
+            name: "unauthorized",
+            sender: "notadminormoderator",
+            current_active_state: true,
+            new_active_state: false,
+            expected_error: Some(ContractError::Unauthorized {}),
+        },
+    ];
+
+    for test in test_cases {
+        // -- Test Setup --
+        let mut deps = mock_dependencies();
+        let info = mock_info(test.sender, &[]);
+        let env = mock_env();
+
+        // Setup state variables
+        IS_ACTIVE
+            .save(deps.as_mut().storage, &test.current_active_state)
+            .unwrap();
+        ADMIN
+            .save(deps.as_mut().storage, &Addr::unchecked(current_admin))
+            .unwrap();
+        MODERATOR
+            .save(deps.as_mut().storage, &Addr::unchecked(current_moderator))
+            .unwrap();
+
+        let msg = AuthExecuteMsg::SetActive {
+            active: test.new_active_state,
+        };
+
+        // -- System under test --
+        let res = execute(deps.as_mut(), env, info, ExecuteMsg::Auth(msg));
+
+        // -- Test Assertions --
+        if let Some(err) = test.expected_error {
+            assert_eq!(
+                res.unwrap_err(),
+                err,
+                "{}: did not receive expected error",
+                test.name
+            );
+            continue;
+        }
+
+        assert!(
+            res.is_ok(),
+            "{}: message errored unexpectedly; {}",
+            test.name,
+            res.unwrap_err()
+        );
+
+        res.unwrap();
+
+        let is_active = IS_ACTIVE.load(deps.as_ref().storage).unwrap();
+        assert_eq!(
+            is_active, test.new_active_state,
+            "{}: active state did not update correctly",
             test.name
         );
     }

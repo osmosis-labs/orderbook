@@ -7,9 +7,13 @@ use cosmwasm_std::{
 use crate::{
     auth::ADMIN,
     constants::EXPECTED_SWAP_FEE,
-    msg::{SudoMsg, SwapExactAmountInResponseData},
+    contract::execute,
+    msg::{AuthExecuteMsg, ExecuteMsg, SudoMsg, SwapExactAmountInResponseData},
     orderbook::create_orderbook,
-    sudo::{dispatch_swap_exact_amount_in, sudo, validate_output_amount},
+    state::IS_ACTIVE,
+    sudo::{
+        dispatch_swap_exact_amount_in, ensure_is_active, set_active, sudo, validate_output_amount,
+    },
     types::{LimitOrder, OrderDirection, REPLY_ID_SUDO_SWAP_EXACT_IN},
     ContractError,
 };
@@ -390,8 +394,177 @@ fn test_sudo_remove_admin() {
     let msg = SudoMsg::RemoveAdmin {};
 
     // -- System under test --
-    sudo(deps.as_mut(), env.clone(), msg).unwrap();
+    sudo(deps.as_mut(), env, msg).unwrap();
 
     // -- Post test assertions --
     assert!(ADMIN.may_load(deps.as_ref().storage).unwrap().is_none());
+}
+
+struct SetActiveTestCase {
+    name: &'static str,
+    active_status: Option<bool>,
+    expected_error: Option<ContractError>,
+}
+
+#[test]
+fn test_set_active() {
+    let test_cases = vec![
+        SetActiveTestCase {
+            name: "active: true",
+            active_status: Some(true),
+            expected_error: None,
+        },
+        SetActiveTestCase {
+            name: "active: None",
+            active_status: None,
+            expected_error: None,
+        },
+        SetActiveTestCase {
+            name: "active: false",
+            active_status: Some(false),
+            expected_error: Some(ContractError::Inactive),
+        },
+    ];
+
+    for test in test_cases {
+        // -- Test Setup --
+        let mut deps = mock_dependencies();
+
+        if let Some(active) = test.active_status {
+            set_active(deps.as_mut(), active).unwrap();
+        }
+
+        // -- System under test --
+        let resp = ensure_is_active(deps.as_ref());
+
+        if let Some(expected_err) = test.expected_error {
+            assert_eq!(
+                resp.unwrap_err(),
+                expected_err,
+                "{}: did not receive expected error",
+                test.name
+            );
+            continue;
+        }
+
+        // -- Post test assertions --
+        let is_active = IS_ACTIVE.may_load(deps.as_ref().storage).unwrap();
+        assert_eq!(
+            is_active, test.active_status,
+            "{}: active status did not match expected",
+            test.name
+        );
+    }
+}
+
+struct SetActiveExecuteTestCase {
+    name: &'static str,
+    msg: ExecuteMsg,
+    active_status: Option<bool>,
+    expected_error: Option<ContractError>,
+}
+
+#[test]
+fn test_set_active_execute() {
+    let base_denom = "base";
+    let quote_denom = "quote";
+    let test_cases = vec![
+        SetActiveExecuteTestCase {
+            name: "active: true, message type: order",
+            msg: ExecuteMsg::PlaceLimit {
+                tick_id: 0,
+                order_direction: OrderDirection::Ask,
+                quantity: Uint128::from(100u128),
+                claim_bounty: None,
+            },
+            active_status: Some(true),
+            expected_error: None,
+        },
+        SetActiveExecuteTestCase {
+            name: "active: None, message type: order",
+            msg: ExecuteMsg::PlaceLimit {
+                tick_id: 0,
+                order_direction: OrderDirection::Ask,
+                quantity: Uint128::from(100u128),
+                claim_bounty: None,
+            },
+            active_status: None,
+            expected_error: None,
+        },
+        SetActiveExecuteTestCase {
+            name: "active: false, message type: order",
+            msg: ExecuteMsg::PlaceLimit {
+                tick_id: 0,
+                order_direction: OrderDirection::Ask,
+                quantity: Uint128::from(100u128),
+                claim_bounty: None,
+            },
+            active_status: Some(false),
+            expected_error: Some(ContractError::Inactive),
+        },
+        SetActiveExecuteTestCase {
+            name: "active: true, message type: auth",
+            msg: ExecuteMsg::Auth(AuthExecuteMsg::TransferAdmin {
+                new_admin: Addr::unchecked("new_admin"),
+            }),
+            active_status: Some(true),
+            expected_error: None,
+        },
+        SetActiveExecuteTestCase {
+            name: "active: true, message type: auth",
+            msg: ExecuteMsg::Auth(AuthExecuteMsg::TransferAdmin {
+                new_admin: Addr::unchecked("new_admin"),
+            }),
+            active_status: None,
+            expected_error: None,
+        },
+        SetActiveExecuteTestCase {
+            name: "active: true, message type: auth",
+            msg: ExecuteMsg::Auth(AuthExecuteMsg::TransferAdmin {
+                new_admin: Addr::unchecked("new_admin"),
+            }),
+            active_status: Some(false),
+            expected_error: None,
+        },
+    ];
+
+    for test in test_cases {
+        // -- Test Setup --
+        let mut deps = mock_dependencies();
+        let env = mock_env();
+        let info = mock_info("sender", &[coin(100u128, base_denom)]);
+
+        create_orderbook(
+            deps.as_mut(),
+            quote_denom.to_string(),
+            base_denom.to_string(),
+        )
+        .unwrap();
+
+        ADMIN
+            .save(deps.as_mut().storage, &Addr::unchecked("sender"))
+            .unwrap();
+        if let Some(active) = test.active_status {
+            set_active(deps.as_mut(), active).unwrap();
+        }
+
+        // -- System under test --
+        let resp = execute(deps.as_mut(), env, info, test.msg);
+        if let Some(expected_err) = test.expected_error {
+            assert_eq!(
+                resp.unwrap_err(),
+                expected_err,
+                "{}: did not receive expected error",
+                test.name
+            );
+            continue;
+        }
+
+        assert!(
+            resp.is_ok(),
+            "{}: execute message unexpectedly failed; {}",
+            test.name,
+            resp.unwrap_err()
+        );
+    }
 }

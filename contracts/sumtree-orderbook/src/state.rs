@@ -13,8 +13,8 @@ const DEFAULT_PAGE_SIZE: u8 = 50;
 
 pub const ORDERBOOK: Item<Orderbook> = Item::new("orderbook");
 pub const TICK_STATE: Map<i64, TickState> = Map::new("tick_state");
-
 pub const DIRECTION_TOTAL_LIQUIDITY: Map<&str, Decimal256> = Map::new("direction_liquidity");
+pub const IS_ACTIVE: Item<bool> = Item::new("is_active");
 
 pub struct OrderIndexes {
     // Index by owner; Generic types: MultiIndex<Index Key: owner, Input Data: LimitOrder, Map Key: ( tick, order_id)>

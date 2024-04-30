@@ -81,7 +81,7 @@ pub fn execute(
             order::claim_limit(deps, env, info, tick_id, order_id)
         }
 
-        ExecuteMsg::BatchClaim { orders } => order::batch_claim_limits(deps, info, orders),
+        ExecuteMsg::BatchClaim { orders } => order::batch_claim_limits(deps, info, env, orders),
 
         // Handles all authorisation messages
         ExecuteMsg::Auth(auth_msg) => auth::dispatch(deps, info, auth_msg),

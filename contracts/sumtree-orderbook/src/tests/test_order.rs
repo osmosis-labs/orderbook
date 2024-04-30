@@ -5,6 +5,7 @@ use crate::{
     error::ContractError,
     order::*,
     orderbook::*,
+    proto::MsgSend,
     state::*,
     sumtree::{
         node::{NodeType, TreeNode},
@@ -12,12 +13,12 @@ use crate::{
     },
     tests::test_utils::{decimal256_from_u128, place_multiple_limit_orders},
     types::{
-        FilterOwnerOrders, LimitOrder, MarketOrder, OrderDirection, TickValues, REPLY_ID_CLAIM,
-        REPLY_ID_CLAIM_BOUNTY, REPLY_ID_REFUND,
+        coin_u256, FilterOwnerOrders, LimitOrder, MarketOrder, OrderDirection, TickValues,
+        REPLY_ID_CLAIM, REPLY_ID_CLAIM_BOUNTY, REPLY_ID_REFUND,
     },
 };
 use cosmwasm_std::{
-    coin, testing::mock_dependencies, Addr, BankMsg, Coin, Decimal, Empty, SubMsg, Uint128,
+    coin, testing::mock_dependencies, Addr, BankMsg, Coin, Decimal, Empty, SubMsg, Uint128, Uint256,
 };
 use cosmwasm_std::{
     testing::{mock_dependencies_with_balances, mock_env, mock_info},
@@ -1429,9 +1430,10 @@ fn test_claim_order() {
 
             tick_id: valid_tick_id,
             expected_bank_msg: SubMsg::reply_on_error(
-                BankMsg::Send {
+                MsgSend {
+                    from_address: "cosmos2contract".to_string(),
                     to_address: sender.to_string(),
-                    amount: vec![coin(10u128, quote_denom)],
+                    amount: vec![coin_u256(Uint256::from(10u128), quote_denom)],
                 },
                 REPLY_ID_CLAIM,
             ),
@@ -1462,9 +1464,10 @@ fn test_claim_order() {
 
             tick_id: valid_tick_id,
             expected_bank_msg: SubMsg::reply_on_error(
-                BankMsg::Send {
+                MsgSend {
+                    from_address: "cosmos2contract".to_string(),
                     to_address: sender.to_string(),
-                    amount: vec![coin(10u128, quote_denom)],
+                    amount: vec![coin_u256(Uint256::from(10u128), quote_denom)],
                 },
                 REPLY_ID_CLAIM,
             ),
@@ -1492,12 +1495,12 @@ fn test_claim_order() {
                 )),
             ],
             order_id: 0,
-
             tick_id: valid_tick_id,
             expected_bank_msg: SubMsg::reply_on_error(
-                BankMsg::Send {
+                MsgSend {
+                    from_address: "cosmos2contract".to_string(),
                     to_address: sender.to_string(),
-                    amount: vec![coin(5u128, quote_denom)],
+                    amount: vec![coin_u256(Uint256::from(5u128), quote_denom)],
                 },
                 REPLY_ID_CLAIM,
             ),
@@ -1539,12 +1542,12 @@ fn test_claim_order() {
                 )),
             ],
             order_id: 0,
-
             tick_id: valid_tick_id,
             expected_bank_msg: SubMsg::reply_on_error(
-                BankMsg::Send {
+                MsgSend {
+                    from_address: "cosmos2contract".to_string(),
                     to_address: sender.to_string(),
-                    amount: vec![coin(3u128, quote_denom)],
+                    amount: vec![coin_u256(Uint256::from(3u128), quote_denom)],
                 },
                 REPLY_ID_CLAIM,
             ),
@@ -1572,23 +1575,21 @@ fn test_claim_order() {
                 )),
             ],
             order_id: 0,
-
             tick_id: valid_tick_id,
             expected_bank_msg: SubMsg::reply_on_error(
-                BankMsg::Send {
-                    // Ensure the order placer receives the claimed amount
+                MsgSend {
+                    from_address: "cosmos2contract".to_string(),
                     to_address: sender.to_string(),
                     // 1% of the claimed amount goes to the bounty
-                    amount: vec![coin(100u128 - 1u128, quote_denom)],
+                    amount: vec![coin_u256(Uint256::from(99u128), quote_denom)],
                 },
                 REPLY_ID_CLAIM,
             ),
             expected_bounty_msg: Some(SubMsg::reply_on_error(
-                BankMsg::Send {
-                    // Ensure the claimer receives the bounty
-                    to_address: Addr::unchecked("claimer").to_string(),
-                    // 10% of the claimed amount goes to the bounty
-                    amount: vec![coin(1u128, quote_denom)],
+                MsgSend {
+                    from_address: "cosmos2contract".to_string(),
+                    to_address: "claimer".to_string(),
+                    amount: vec![coin_u256(Uint256::from(1u128), quote_denom)],
                 },
                 REPLY_ID_CLAIM_BOUNTY,
             )),
@@ -1625,18 +1626,19 @@ fn test_claim_order() {
 
             tick_id: valid_tick_id,
             expected_bank_msg: SubMsg::reply_on_error(
-                BankMsg::Send {
+                MsgSend {
+                    from_address: "cosmos2contract".to_string(),
                     to_address: sender.to_string(),
-                    // 0.35% of most recent claim goes to bounty: 300*0.0035 = 1.05 -> 1 unit
-                    amount: vec![coin(300u128 - 1u128, quote_denom)],
+                    // 0.35% of the claim goes to bounty 300 * 0.35 -> 1
+                    amount: vec![coin_u256(Uint256::from(299u128), quote_denom)],
                 },
                 REPLY_ID_CLAIM,
             ),
             expected_bounty_msg: Some(SubMsg::reply_on_error(
-                BankMsg::Send {
-                    to_address: Addr::unchecked("claimer").to_string(),
-                    // 1 unit goes to claimer for bounty
-                    amount: vec![coin(1u128, quote_denom)],
+                MsgSend {
+                    from_address: "cosmos2contract".to_string(),
+                    to_address: "claimer".to_string(),
+                    amount: vec![coin_u256(Uint256::from(1u128), quote_denom)],
                 },
                 REPLY_ID_CLAIM_BOUNTY,
             )),
@@ -1665,13 +1667,12 @@ fn test_claim_order() {
                 )),
             ],
             order_id: 0,
-
             tick_id: LARGE_POSITIVE_TICK,
             expected_bank_msg: SubMsg::reply_on_error(
-                BankMsg::Send {
+                MsgSend {
+                    from_address: "cosmos2contract".to_string(),
                     to_address: sender.to_string(),
-                    // Tick price = 2, 10/2 = 5
-                    amount: vec![coin(5u128, quote_denom)],
+                    amount: vec![coin_u256(Uint256::from(5u128), quote_denom)],
                 },
                 REPLY_ID_CLAIM,
             ),
@@ -1703,10 +1704,10 @@ fn test_claim_order() {
 
             tick_id: LARGE_POSITIVE_TICK,
             expected_bank_msg: SubMsg::reply_on_error(
-                BankMsg::Send {
+                MsgSend {
+                    from_address: "cosmos2contract".to_string(),
                     to_address: sender.to_string(),
-                    // Tick price = 2, 4/2 = 2
-                    amount: vec![coin(2u128, quote_denom)],
+                    amount: vec![coin_u256(Uint256::from(2u128), quote_denom)],
                 },
                 REPLY_ID_CLAIM,
             ),
@@ -1753,10 +1754,10 @@ fn test_claim_order() {
 
             tick_id: LARGE_POSITIVE_TICK,
             expected_bank_msg: SubMsg::reply_on_error(
-                BankMsg::Send {
+                MsgSend {
+                    from_address: "cosmos2contract".to_string(),
                     to_address: sender.to_string(),
-                    // Tick price = 2, 6/2 = 3
-                    amount: vec![coin(3u128, quote_denom)],
+                    amount: vec![coin_u256(Uint256::from(3u128), quote_denom)],
                 },
                 REPLY_ID_CLAIM,
             ),
@@ -1788,9 +1789,10 @@ fn test_claim_order() {
 
             tick_id: LARGE_NEGATIVE_TICK,
             expected_bank_msg: SubMsg::reply_on_error(
-                BankMsg::Send {
+                MsgSend {
+                    from_address: "cosmos2contract".to_string(),
                     to_address: sender.to_string(),
-                    amount: vec![coin(200u128, quote_denom)],
+                    amount: vec![coin_u256(Uint256::from(200u128), quote_denom)],
                 },
                 REPLY_ID_CLAIM,
             ),
@@ -1821,9 +1823,10 @@ fn test_claim_order() {
 
             tick_id: LARGE_NEGATIVE_TICK,
             expected_bank_msg: SubMsg::reply_on_error(
-                BankMsg::Send {
+                MsgSend {
+                    from_address: "cosmos2contract".to_string(),
                     to_address: sender.to_string(),
-                    amount: vec![coin(100u128, quote_denom)],
+                    amount: vec![coin_u256(Uint256::from(100u128), quote_denom)],
                 },
                 REPLY_ID_CLAIM,
             ),
@@ -1869,9 +1872,10 @@ fn test_claim_order() {
 
             tick_id: LARGE_NEGATIVE_TICK,
             expected_bank_msg: SubMsg::reply_on_error(
-                BankMsg::Send {
+                MsgSend {
+                    from_address: "cosmos2contract".to_string(),
                     to_address: sender.to_string(),
-                    amount: vec![coin(100u128, quote_denom)],
+                    amount: vec![coin_u256(Uint256::from(100u128), quote_denom)],
                 },
                 REPLY_ID_CLAIM,
             ),
@@ -1912,9 +1916,10 @@ fn test_claim_order() {
 
             tick_id: valid_tick_id,
             expected_bank_msg: SubMsg::reply_on_error(
-                BankMsg::Send {
+                MsgSend {
+                    from_address: "cosmos2contract".to_string(),
                     to_address: sender.to_string(),
-                    amount: vec![coin(100u128, quote_denom)],
+                    amount: vec![coin_u256(Uint256::from(100u128), quote_denom)],
                 },
                 REPLY_ID_CLAIM,
             ),
@@ -1948,10 +1953,10 @@ fn test_claim_order() {
 
             tick_id: MIN_TICK,
             expected_bank_msg: SubMsg::reply_on_error(
-                BankMsg::Send {
+                MsgSend {
+                    from_address: "cosmos2contract".to_string(),
                     to_address: sender.to_string(),
-                    // Tick price = 0.000000000001, 3 / 0.000000000001 = 3_000_000_000_000
-                    amount: vec![coin(3_000_000_000_000u128, quote_denom)],
+                    amount: vec![coin_u256(Uint256::from(3_000_000_000_000u128), quote_denom)],
                 },
                 REPLY_ID_CLAIM,
             ),
@@ -1991,9 +1996,10 @@ fn test_claim_order() {
 
             tick_id: valid_tick_id,
             expected_bank_msg: SubMsg::reply_on_error(
-                BankMsg::Send {
+                MsgSend {
+                    from_address: "cosmos2contract".to_string(),
                     to_address: sender.to_string(),
-                    amount: vec![coin(10u128, base_denom)],
+                    amount: vec![coin_u256(Uint256::from(10u128), base_denom)],
                 },
                 REPLY_ID_CLAIM,
             ),
@@ -2024,9 +2030,10 @@ fn test_claim_order() {
 
             tick_id: valid_tick_id,
             expected_bank_msg: SubMsg::reply_on_error(
-                BankMsg::Send {
+                MsgSend {
+                    from_address: "cosmos2contract".to_string(),
                     to_address: sender.to_string(),
-                    amount: vec![coin(5u128, base_denom)],
+                    amount: vec![coin_u256(Uint256::from(5u128), base_denom)],
                 },
                 REPLY_ID_CLAIM,
             ),
@@ -2071,9 +2078,10 @@ fn test_claim_order() {
 
             tick_id: valid_tick_id,
             expected_bank_msg: SubMsg::reply_on_error(
-                BankMsg::Send {
+                MsgSend {
+                    from_address: "cosmos2contract".to_string(),
                     to_address: sender.to_string(),
-                    amount: vec![coin(3u128, base_denom)],
+                    amount: vec![coin_u256(Uint256::from(3u128), base_denom)],
                 },
                 REPLY_ID_CLAIM,
             ),
@@ -2106,10 +2114,10 @@ fn test_claim_order() {
 
             tick_id: LARGE_POSITIVE_TICK,
             expected_bank_msg: SubMsg::reply_on_error(
-                BankMsg::Send {
+                MsgSend {
+                    from_address: "cosmos2contract".to_string(),
                     to_address: sender.to_string(),
-                    // Tick price = 2, 10/2 = 5
-                    amount: vec![coin(20u128, base_denom)],
+                    amount: vec![coin_u256(Uint256::from(20u128), base_denom)],
                 },
                 REPLY_ID_CLAIM,
             ),
@@ -2140,10 +2148,10 @@ fn test_claim_order() {
 
             tick_id: LARGE_POSITIVE_TICK,
             expected_bank_msg: SubMsg::reply_on_error(
-                BankMsg::Send {
+                MsgSend {
+                    from_address: "cosmos2contract".to_string(),
                     to_address: sender.to_string(),
-                    // Tick price = 2, 5 * 2 = 10
-                    amount: vec![coin(10u128, base_denom)],
+                    amount: vec![coin_u256(Uint256::from(10u128), base_denom)],
                 },
                 REPLY_ID_CLAIM,
             ),
@@ -2189,10 +2197,10 @@ fn test_claim_order() {
 
             tick_id: LARGE_POSITIVE_TICK,
             expected_bank_msg: SubMsg::reply_on_error(
-                BankMsg::Send {
+                MsgSend {
+                    from_address: "cosmos2contract".to_string(),
                     to_address: sender.to_string(),
-                    // Tick price = 2, 5 * 2 = 10
-                    amount: vec![coin(10u128, base_denom)],
+                    amount: vec![coin_u256(Uint256::from(10u128), base_denom)],
                 },
                 REPLY_ID_CLAIM,
             ),
@@ -2224,9 +2232,10 @@ fn test_claim_order() {
 
             tick_id: LARGE_NEGATIVE_TICK,
             expected_bank_msg: SubMsg::reply_on_error(
-                BankMsg::Send {
+                MsgSend {
+                    from_address: "cosmos2contract".to_string(),
                     to_address: sender.to_string(),
-                    amount: vec![coin(50u128, base_denom)],
+                    amount: vec![coin_u256(Uint256::from(50u128), base_denom)],
                 },
                 REPLY_ID_CLAIM,
             ),
@@ -2257,9 +2266,10 @@ fn test_claim_order() {
 
             tick_id: LARGE_NEGATIVE_TICK,
             expected_bank_msg: SubMsg::reply_on_error(
-                BankMsg::Send {
+                MsgSend {
+                    from_address: "cosmos2contract".to_string(),
                     to_address: sender.to_string(),
-                    amount: vec![coin(25u128, base_denom)],
+                    amount: vec![coin_u256(Uint256::from(25u128), base_denom)],
                 },
                 REPLY_ID_CLAIM,
             ),
@@ -2305,9 +2315,10 @@ fn test_claim_order() {
 
             tick_id: LARGE_NEGATIVE_TICK,
             expected_bank_msg: SubMsg::reply_on_error(
-                BankMsg::Send {
+                MsgSend {
+                    from_address: "cosmos2contract".to_string(),
                     to_address: sender.to_string(),
-                    amount: vec![coin(25u128, base_denom)],
+                    amount: vec![coin_u256(Uint256::from(25u128), base_denom)],
                 },
                 REPLY_ID_CLAIM,
             ),
@@ -2348,9 +2359,10 @@ fn test_claim_order() {
 
             tick_id: valid_tick_id,
             expected_bank_msg: SubMsg::reply_on_error(
-                BankMsg::Send {
+                MsgSend {
+                    from_address: "cosmos2contract".to_string(),
                     to_address: sender.to_string(),
-                    amount: vec![coin(100u128, base_denom)],
+                    amount: vec![coin_u256(Uint256::from(100u128), base_denom)],
                 },
                 REPLY_ID_CLAIM,
             ),
@@ -2381,9 +2393,10 @@ fn test_claim_order() {
 
             tick_id: 1,
             expected_bank_msg: SubMsg::reply_on_error(
-                BankMsg::Send {
+                MsgSend {
+                    from_address: "cosmos2contract".to_string(),
                     to_address: sender.to_string(),
-                    amount: vec![coin(5u128, quote_denom)],
+                    amount: vec![coin_u256(Uint256::from(5u128), quote_denom)],
                 },
                 REPLY_ID_CLAIM,
             ),
@@ -2414,9 +2427,10 @@ fn test_claim_order() {
 
             tick_id: valid_tick_id,
             expected_bank_msg: SubMsg::reply_on_error(
-                BankMsg::Send {
+                MsgSend {
+                    from_address: "cosmos2contract".to_string(),
                     to_address: sender.to_string(),
-                    amount: vec![coin(5u128, quote_denom)],
+                    amount: vec![coin_u256(Uint256::from(5u128), quote_denom)],
                 },
                 REPLY_ID_CLAIM,
             ),
@@ -2446,9 +2460,10 @@ fn test_claim_order() {
 
             tick_id: valid_tick_id,
             expected_bank_msg: SubMsg::reply_on_error(
-                BankMsg::Send {
+                MsgSend {
+                    from_address: "cosmos2contract".to_string(),
                     to_address: sender.to_string(),
-                    amount: vec![coin(5u128, quote_denom)],
+                    amount: vec![coin_u256(Uint256::from(5u128), quote_denom)],
                 },
                 REPLY_ID_CLAIM,
             ),
@@ -2475,9 +2490,10 @@ fn test_claim_order() {
 
             tick_id: valid_tick_id,
             expected_bank_msg: SubMsg::reply_on_error(
-                BankMsg::Send {
+                MsgSend {
+                    from_address: "cosmos2contract".to_string(),
                     to_address: sender.to_string(),
-                    amount: vec![coin(5u128, quote_denom)],
+                    amount: vec![coin_u256(Uint256::from(5u128), quote_denom)],
                 },
                 REPLY_ID_CLAIM,
             ),
@@ -2512,9 +2528,10 @@ fn test_claim_order() {
 
             tick_id: valid_tick_id,
             expected_bank_msg: SubMsg::reply_on_error(
-                BankMsg::Send {
+                MsgSend {
+                    from_address: "cosmos2contract".to_string(),
                     to_address: sender.to_string(),
-                    amount: vec![coin(5u128, quote_denom)],
+                    amount: vec![coin_u256(Uint256::from(5u128), quote_denom)],
                 },
                 REPLY_ID_CLAIM,
             ),
@@ -2550,9 +2567,10 @@ fn test_claim_order() {
 
             tick_id: valid_tick_id,
             expected_bank_msg: SubMsg::reply_on_error(
-                BankMsg::Send {
+                MsgSend {
+                    from_address: "cosmos2contract".to_string(),
                     to_address: sender.to_string(),
-                    amount: vec![coin(5u128, quote_denom)],
+                    amount: vec![coin_u256(Uint256::from(5u128), quote_denom)],
                 },
                 REPLY_ID_CLAIM,
             ),
@@ -2584,6 +2602,7 @@ fn test_claim_order() {
         // Claim designated order
         let res = claim_order(
             deps.as_mut().storage,
+            env.contract.address,
             test.sender,
             test.tick_id,
             test.order_id,
@@ -2635,7 +2654,6 @@ struct MovingClaimOrderTestCase {
     name: &'static str,
     operations: Vec<OrderOperation>,
     sender: Addr,
-
     tick_id: i64,
     order_id: u64,
     expected_output: SubMsg,
@@ -2688,12 +2706,12 @@ fn test_claim_order_moving_tick() {
                 OrderOperation::Claim((valid_tick_id, 0)),
             ],
             order_id: 1,
-
             tick_id: valid_tick_id,
             expected_output: SubMsg::reply_on_error(
-                BankMsg::Send {
+                MsgSend {
+                    from_address: "cosmos2contract".to_string(),
                     to_address: sender.to_string(),
-                    amount: vec![coin(50u128, quote_denom)],
+                    amount: vec![coin_u256(Uint256::from(50u128), quote_denom)],
                 },
                 REPLY_ID_CLAIM,
             ),
@@ -2741,9 +2759,10 @@ fn test_claim_order_moving_tick() {
 
             tick_id: valid_tick_id,
             expected_output: SubMsg::reply_on_error(
-                BankMsg::Send {
+                MsgSend {
+                    from_address: "cosmos2contract".to_string(),
                     to_address: sender.to_string(),
-                    amount: vec![coin(25u128, quote_denom)],
+                    amount: vec![coin_u256(Uint256::from(25u128), quote_denom)],
                 },
                 REPLY_ID_CLAIM,
             ),
@@ -2812,9 +2831,10 @@ fn test_claim_order_moving_tick() {
 
             tick_id: valid_tick_id,
             expected_output: SubMsg::reply_on_error(
-                BankMsg::Send {
+                MsgSend {
+                    from_address: "cosmos2contract".to_string(),
                     to_address: sender.to_string(),
-                    amount: vec![coin(25u128, quote_denom)],
+                    amount: vec![coin_u256(Uint256::from(25u128), quote_denom)],
                 },
                 REPLY_ID_CLAIM,
             ),
@@ -2867,9 +2887,10 @@ fn test_claim_order_moving_tick() {
 
             tick_id: valid_tick_id,
             expected_output: SubMsg::reply_on_error(
-                BankMsg::Send {
+                MsgSend {
+                    from_address: "cosmos2contract".to_string(),
                     to_address: sender.to_string(),
-                    amount: vec![coin(25u128, quote_denom)],
+                    amount: vec![coin_u256(Uint256::from(25u128), quote_denom)],
                 },
                 REPLY_ID_CLAIM,
             ),
@@ -2944,9 +2965,10 @@ fn test_claim_order_moving_tick() {
 
             tick_id: valid_tick_id,
             expected_output: SubMsg::reply_on_error(
-                BankMsg::Send {
+                MsgSend {
+                    from_address: "cosmos2contract".to_string(),
                     to_address: sender.to_string(),
-                    amount: vec![coin(50u128, quote_denom)],
+                    amount: vec![coin_u256(Uint256::from(50u128), quote_denom)],
                 },
                 REPLY_ID_CLAIM,
             ),
@@ -2994,9 +3016,10 @@ fn test_claim_order_moving_tick() {
 
             tick_id: valid_tick_id,
             expected_output: SubMsg::reply_on_error(
-                BankMsg::Send {
+                MsgSend {
+                    from_address: "cosmos2contract".to_string(),
                     to_address: sender.to_string(),
-                    amount: vec![coin(50u128, base_denom)],
+                    amount: vec![coin_u256(Uint256::from(50u128), base_denom)],
                 },
                 REPLY_ID_CLAIM,
             ),
@@ -3044,9 +3067,10 @@ fn test_claim_order_moving_tick() {
 
             tick_id: valid_tick_id,
             expected_output: SubMsg::reply_on_error(
-                BankMsg::Send {
+                MsgSend {
+                    from_address: "cosmos2contract".to_string(),
                     to_address: sender.to_string(),
-                    amount: vec![coin(25u128, base_denom)],
+                    amount: vec![coin_u256(Uint256::from(25u128), base_denom)],
                 },
                 REPLY_ID_CLAIM,
             ),
@@ -3115,9 +3139,10 @@ fn test_claim_order_moving_tick() {
 
             tick_id: valid_tick_id,
             expected_output: SubMsg::reply_on_error(
-                BankMsg::Send {
+                MsgSend {
+                    from_address: "cosmos2contract".to_string(),
                     to_address: sender.to_string(),
-                    amount: vec![coin(25u128, base_denom)],
+                    amount: vec![coin_u256(Uint256::from(25u128), base_denom)],
                 },
                 REPLY_ID_CLAIM,
             ),
@@ -3170,9 +3195,10 @@ fn test_claim_order_moving_tick() {
 
             tick_id: valid_tick_id,
             expected_output: SubMsg::reply_on_error(
-                BankMsg::Send {
+                MsgSend {
+                    from_address: "cosmos2contract".to_string(),
                     to_address: sender.to_string(),
-                    amount: vec![coin(25u128, base_denom)],
+                    amount: vec![coin_u256(Uint256::from(25u128), base_denom)],
                 },
                 REPLY_ID_CLAIM,
             ),
@@ -3244,9 +3270,10 @@ fn test_claim_order_moving_tick() {
 
             tick_id: valid_tick_id,
             expected_output: SubMsg::reply_on_error(
-                BankMsg::Send {
+                MsgSend {
+                    from_address: "cosmos2contract".to_string(),
                     to_address: sender.to_string(),
-                    amount: vec![coin(50u128, base_denom)],
+                    amount: vec![coin_u256(Uint256::from(50u128), base_denom)],
                 },
                 REPLY_ID_CLAIM,
             ),
@@ -3277,6 +3304,7 @@ fn test_claim_order_moving_tick() {
         // Claim designated order
         let res = claim_order(
             deps.as_mut().storage,
+            env.contract.address,
             test.sender,
             test.tick_id,
             test.order_id,
@@ -3365,27 +3393,26 @@ fn test_batch_claim_order() {
             orders: vec![(0, 0), (1, 1)],
             expected_messages: vec![
                 SubMsg::reply_on_error(
-                    BankMsg::Send {
+                    MsgSend {
+                        from_address: "cosmos2contract".to_string(),
                         to_address: owner.to_string(),
-                        // 1% bounty on 100 base tokens
-                        amount: vec![coin(99u128, base_denom)],
+                        amount: vec![coin_u256(99u128, base_denom)],
                     },
                     REPLY_ID_CLAIM,
                 ),
                 SubMsg::reply_on_error(
-                    BankMsg::Send {
+                    MsgSend {
+                        from_address: "cosmos2contract".to_string(),
                         to_address: sender.to_string(),
-                        // 1% bounty on 100 base tokens
-                        amount: vec![coin(1u128, base_denom)],
+                        amount: vec![coin_u256(1u128, base_denom)],
                     },
                     REPLY_ID_CLAIM_BOUNTY,
                 ),
                 SubMsg::reply_on_error(
-                    BankMsg::Send {
+                    MsgSend {
+                        from_address: "cosmos2contract".to_string(),
                         to_address: owner.to_string(),
-                        // Since tick 1 corresponds to a price slightly higher than 1.0,
-                        // this ends up getting rounded to 49
-                        amount: vec![coin(49u128, quote_denom)],
+                        amount: vec![coin_u256(49u128, quote_denom)],
                     },
                     REPLY_ID_CLAIM,
                 ),
@@ -3442,16 +3469,18 @@ fn test_batch_claim_order() {
             orders: vec![(0, 0), (1, 1), (-1, 2)],
             expected_messages: vec![
                 SubMsg::reply_on_error(
-                    BankMsg::Send {
+                    MsgSend {
+                        from_address: "cosmos2contract".to_string(),
                         to_address: owner.to_string(),
-                        amount: vec![coin(100u128, base_denom)],
+                        amount: vec![coin_u256(100u128, base_denom)],
                     },
                     REPLY_ID_CLAIM,
                 ),
                 SubMsg::reply_on_error(
-                    BankMsg::Send {
+                    MsgSend {
+                        from_address: "cosmos2contract".to_string(),
                         to_address: owner.to_string(),
-                        amount: vec![coin(49u128, quote_denom)],
+                        amount: vec![coin_u256(49u128, quote_denom)],
                     },
                     REPLY_ID_CLAIM,
                 ),
@@ -3494,7 +3523,7 @@ fn test_batch_claim_order() {
         let info = mock_info(sender.as_str(), &[]);
 
         // Batch claim orders
-        let res = batch_claim_limits(deps.as_mut(), info.clone(), test.orders.clone());
+        let res = batch_claim_limits(deps.as_mut(), info.clone(), env, test.orders.clone());
 
         if let Some(err) = test.expected_error {
             assert_eq!(res, Err(err), "{}", format_test_name(test.name));

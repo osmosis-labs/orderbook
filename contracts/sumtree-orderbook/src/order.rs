@@ -1,12 +1,13 @@
 use crate::constants::{MAX_BATCH_CLAIM, MAX_TICK, MIN_TICK};
 use crate::error::{ContractError, ContractResult};
+use crate::proto::MsgSend;
 use crate::state::{new_order_id, orders, ORDERBOOK, TICK_STATE};
 use crate::sumtree::node::{generate_node_id, NodeType, TreeNode};
 use crate::sumtree::tree::get_or_init_root_node;
 use crate::tick::sync_tick;
 use crate::tick_math::{amount_to_value, tick_to_price, RoundingDirection};
 use crate::types::{
-    LimitOrder, MarketOrder, OrderDirection, Orderbook, TickState, REPLY_ID_CLAIM,
+    coin_u256, LimitOrder, MarketOrder, OrderDirection, Orderbook, TickState, REPLY_ID_CLAIM,
     REPLY_ID_CLAIM_BOUNTY, REPLY_ID_REFUND,
 };
 use cosmwasm_std::{
@@ -214,16 +215,21 @@ pub fn cancel_limit(
 }
 
 pub fn claim_limit(
-    _deps: DepsMut,
-    _env: Env,
+    deps: DepsMut,
+    env: Env,
     info: MessageInfo,
     tick_id: i64,
     order_id: u64,
 ) -> Result<Response, ContractError> {
     nonpayable(&info)?;
 
-    let (amount_claimed, bank_msgs) =
-        claim_order(_deps.storage, info.sender.clone(), tick_id, order_id)?;
+    let (amount_claimed, bank_msgs) = claim_order(
+        deps.storage,
+        info.sender.clone(),
+        env.contract.address,
+        tick_id,
+        order_id,
+    )?;
 
     Ok(Response::new()
         .add_attribute("method", "claimMarket")
@@ -238,6 +244,7 @@ pub fn claim_limit(
 pub fn batch_claim_limits(
     deps: DepsMut,
     info: MessageInfo,
+    env: Env,
     orders: Vec<(i64, u64)>,
 ) -> Result<Response, ContractError> {
     nonpayable(&info)?;
@@ -253,7 +260,13 @@ pub fn batch_claim_limits(
 
     for (tick_id, order_id) in orders {
         // Attempt to claim each order
-        match claim_order(deps.storage, info.sender.clone(), tick_id, order_id) {
+        match claim_order(
+            deps.storage,
+            env.contract.address.clone(),
+            info.sender.clone(),
+            tick_id,
+            order_id,
+        ) {
             Ok((_, mut bank_msgs)) => {
                 responses.append(&mut bank_msgs);
             }
@@ -501,6 +514,7 @@ pub(crate) fn run_market_order_internal(
 // Note: This can be called by anyone
 pub(crate) fn claim_order(
     storage: &mut dyn Storage,
+    contract_address: Addr,
     sender: Addr,
     tick_id: i64,
     order_id: u64,
@@ -589,17 +603,19 @@ pub(crate) fn claim_order(
     }
 
     // Claimed amount always goes to the order owner
-    let bank_msg = BankMsg::Send {
+    let bank_msg = MsgSend {
+        from_address: contract_address.to_string(),
         to_address: order.owner.to_string(),
-        amount: vec![coin(amount.u128(), denom.clone())],
+        amount: vec![coin_u256(amount.u128(), &denom)],
     };
     let mut bank_msg_vec = vec![SubMsg::reply_on_error(bank_msg, REPLY_ID_CLAIM)];
 
     if !bounty.is_zero() {
         // Bounty always goes to the sender
-        let bounty_msg = BankMsg::Send {
+        let bounty_msg = MsgSend {
+            from_address: contract_address.to_string(),
             to_address: sender.to_string(),
-            amount: vec![coin(bounty.u128(), denom)],
+            amount: vec![coin_u256(bounty.u128(), &denom)],
         };
         bank_msg_vec.push(SubMsg::reply_on_error(bounty_msg, REPLY_ID_CLAIM_BOUNTY));
     }

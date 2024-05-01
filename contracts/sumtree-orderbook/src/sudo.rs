@@ -1,10 +1,7 @@
-use std::str::FromStr;
-
 use cosmwasm_std::{
     ensure, entry_point, to_json_binary, Coin, Decimal, Deps, DepsMut, Env, Response, SubMsg,
     Uint128, Uint256,
 };
-use osmosis_std::types::cosmos::base::v1beta1::Coin as ProtoCoin;
 
 use crate::{
     auth,
@@ -12,9 +9,10 @@ use crate::{
     error::ContractResult,
     msg::{SudoMsg, SwapExactAmountInResponseData},
     order::run_market_order,
-    proto::MsgSend,
     state::{IS_ACTIVE, ORDERBOOK},
-    types::{coin_u256, MarketOrder, OrderDirection, REPLY_ID_SUDO_SWAP_EXACT_IN},
+    types::{
+        coin_u256, Coin256, MarketOrder, MsgSend256, OrderDirection, REPLY_ID_SUDO_SWAP_EXACT_IN,
+    },
     ContractError,
 };
 
@@ -123,7 +121,7 @@ pub(crate) fn dispatch_swap_exact_amount_in(
         run_market_order(deps.storage, env.contract.address, &mut order, tick_bound)?;
 
     // Validate the output message against the order
-    let MsgSend { amount, .. } = bank_msg.clone();
+    let MsgSend256 { amount, .. } = bank_msg.clone();
     let output_amt = amount.first().ok_or(ContractError::InvalidSwap {
         error: "Market order did not generate an output message".to_string(),
     })?;
@@ -171,13 +169,13 @@ pub(crate) fn dispatch_swap_exact_amount_out(
 pub(crate) fn validate_output_amount(
     max_in_amount: Option<Uint128>,
     min_out_amount: Option<Uint128>,
-    input: &ProtoCoin,
-    output: &ProtoCoin,
+    input: &Coin256,
+    output: &Coin256,
 ) -> ContractResult<()> {
     // Generated amount must be less than or equal to the maximum allowed amount
     if let Some(max_amount) = max_in_amount {
         ensure!(
-            Uint256::from_str(&input.amount)? <= Uint256::from_uint128(max_amount),
+            input.amount <= Uint256::from_uint128(max_amount),
             ContractError::InvalidSwap {
                 error: format!(
                     "Exceeded max swap amount: expected {max_amount} received {}",
@@ -189,7 +187,7 @@ pub(crate) fn validate_output_amount(
     // Generated amount must be more than or equal to the minimum allowed amount
     if let Some(min_amount) = min_out_amount {
         ensure!(
-            Uint256::from_str(&output.amount)? >= Uint256::from_uint128(min_amount),
+            output.amount >= Uint256::from_uint128(min_amount),
             ContractError::InvalidSwap {
                 error: format!(
                     "Did not meet minimum swap amount: expected {min_amount} received {}",

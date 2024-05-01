@@ -3,14 +3,13 @@ use cosmwasm_std::{
     testing::{mock_dependencies, mock_env, mock_info},
     Addr, Coin, Decimal, Decimal256, Uint128,
 };
-use osmosis_std::types::cosmos::base::v1beta1::Coin as ProtoCoin;
 
 use crate::{
     constants::{EXPECTED_SWAP_FEE, MAX_TICK, MIN_TICK},
     orderbook::create_orderbook,
     query,
     state::IS_ACTIVE,
-    types::{coin_u256, LimitOrder, MarketOrder, OrderDirection, TickState, TickValues},
+    types::{coin_u256, Coin256, LimitOrder, MarketOrder, OrderDirection, TickState, TickValues},
     ContractError,
 };
 
@@ -340,7 +339,7 @@ struct CalcOutAmountGivenInTestCase {
     token_in: Coin,
     token_out_denom: String,
     swap_fee: Decimal,
-    expected_output: ProtoCoin,
+    expected_output: Coin256,
     expected_error: Option<ContractError>,
 }
 
@@ -612,7 +611,8 @@ fn test_calc_out_amount_given_in() {
 
         let res = res.unwrap();
         assert_eq!(
-            res.token_out, test.expected_output,
+            res.token_out,
+            test.expected_output.into(),
             "{}: output did not match",
             test.name
         );

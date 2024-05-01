@@ -2,7 +2,6 @@ use std::str::FromStr;
 
 use crate::constants::{MAX_BATCH_CLAIM, MAX_TICK, MIN_TICK};
 use crate::error::{ContractError, ContractResult};
-use crate::proto::MsgSend;
 use crate::state::{
     add_directional_liquidity, new_order_id, orders, subtract_directional_liquidity, ORDERBOOK,
     TICK_STATE,
@@ -12,8 +11,8 @@ use crate::sumtree::tree::get_or_init_root_node;
 use crate::tick::sync_tick;
 use crate::tick_math::{amount_to_value, tick_to_price, RoundingDirection};
 use crate::types::{
-    coin_u256, LimitOrder, MarketOrder, OrderDirection, Orderbook, TickState, REPLY_ID_CLAIM,
-    REPLY_ID_CLAIM_BOUNTY, REPLY_ID_REFUND,
+    coin_u256, Coin256, LimitOrder, MarketOrder, MsgSend256, OrderDirection, Orderbook, TickState,
+    REPLY_ID_CLAIM, REPLY_ID_CLAIM_BOUNTY, REPLY_ID_REFUND,
 };
 use cosmwasm_std::{
     coin, ensure, ensure_eq, Addr, BankMsg, Decimal256, DepsMut, Env, MessageInfo, Order, Response,
@@ -21,7 +20,6 @@ use cosmwasm_std::{
 };
 use cw_storage_plus::Bound;
 use cw_utils::{must_pay, nonpayable};
-use osmosis_std::types::cosmos::base::v1beta1::Coin;
 
 #[allow(clippy::manual_range_contains, clippy::too_many_arguments)]
 pub fn place_limit(
@@ -310,7 +308,7 @@ pub fn run_market_order(
     contract_address: Addr,
     order: &mut MarketOrder,
     tick_bound: i64,
-) -> Result<(Uint256, MsgSend), ContractError> {
+) -> Result<(Uint256, MsgSend256), ContractError> {
     let PostMarketOrderState {
         output,
         tick_updates,
@@ -327,15 +325,15 @@ pub fn run_market_order(
     subtract_directional_liquidity(
         storage,
         order.order_direction.opposite(),
-        Decimal256::from_ratio(Uint256::from_str(&output.amount)?, Uint256::one()),
+        Decimal256::from_ratio(output.amount, Uint256::one()),
     )?;
 
     // Update tick pointers in orderbook
     ORDERBOOK.save(storage, &updated_orderbook)?;
 
     Ok((
-        Uint256::from_str(&output.amount)?,
-        MsgSend {
+        output.amount,
+        MsgSend256 {
             from_address: contract_address.to_string(),
             to_address: order.owner.to_string(),
             amount: vec![output],
@@ -345,7 +343,7 @@ pub fn run_market_order(
 
 /// Defines the state changes resulting from a market order.
 pub(crate) struct PostMarketOrderState {
-    pub output: Coin,
+    pub output: Coin256,
     pub tick_updates: Vec<(i64, TickState)>,
     pub updated_orderbook: Orderbook,
 }
@@ -614,7 +612,7 @@ pub(crate) fn claim_order(
     }
 
     // Claimed amount always goes to the order owner
-    let bank_msg = MsgSend {
+    let bank_msg = MsgSend256 {
         from_address: contract_address.to_string(),
         to_address: order.owner.to_string(),
         amount: vec![coin_u256(amount, &denom)],
@@ -623,7 +621,7 @@ pub(crate) fn claim_order(
 
     if !bounty.is_zero() {
         // Bounty always goes to the sender
-        let bounty_msg = MsgSend {
+        let bounty_msg = MsgSend256 {
             from_address: contract_address.to_string(),
             to_address: sender.to_string(),
             amount: vec![coin_u256(bounty, &denom)],

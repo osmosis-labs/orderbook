@@ -1,11 +1,8 @@
-use std::str::FromStr;
-
 use cosmwasm_std::{
     coin,
     testing::{mock_dependencies, mock_env, mock_info},
-    to_json_binary, Addr, Coin, Decimal, Decimal256, StdError, SubMsg, Uint128, Uint256,
+    to_json_binary, Addr, Coin, Decimal, Decimal256, StdError, SubMsg, Uint128,
 };
-use osmosis_std::types::cosmos::base::v1beta1::Coin as ProtoCoin;
 
 use crate::{
     auth::ADMIN,
@@ -13,12 +10,13 @@ use crate::{
     contract::execute,
     msg::{AuthExecuteMsg, ExecuteMsg, SudoMsg, SwapExactAmountInResponseData},
     orderbook::create_orderbook,
-    proto::MsgSend,
     state::IS_ACTIVE,
     sudo::{
         dispatch_swap_exact_amount_in, ensure_is_active, set_active, sudo, validate_output_amount,
     },
-    types::{coin_u256, LimitOrder, OrderDirection, REPLY_ID_SUDO_SWAP_EXACT_IN},
+    types::{
+        coin_u256, Coin256, LimitOrder, MsgSend256, OrderDirection, REPLY_ID_SUDO_SWAP_EXACT_IN,
+    },
     ContractError,
 };
 
@@ -28,8 +26,8 @@ struct ValidateOutputAmountTestCase {
     name: &'static str,
     max_in_amount: Option<Uint128>,
     min_out_amount: Option<Uint128>,
-    input: ProtoCoin,
-    output: ProtoCoin,
+    input: Coin256,
+    output: Coin256,
     expected_error: Option<ContractError>,
 }
 
@@ -114,7 +112,7 @@ struct SwapExactAmountInTestCase {
     token_out_denom: &'static str,
     token_out_min_amount: Uint128,
     swap_fee: Decimal,
-    expected_output: ProtoCoin,
+    expected_output: Coin256,
     expected_error: Option<ContractError>,
 }
 
@@ -325,7 +323,7 @@ fn test_swap_exact_amount_in() {
         // Ensure that generated output message matches what is expected
         let bank_msg = response.messages.first().unwrap();
         let expected_msg = SubMsg::reply_on_error(
-            MsgSend {
+            MsgSend256 {
                 from_address: env.contract.address.to_string(),
                 to_address: sender.to_string(),
                 amount: vec![test.expected_output.clone()],
@@ -340,7 +338,7 @@ fn test_swap_exact_amount_in() {
         );
 
         let expected_data = to_json_binary(&SwapExactAmountInResponseData {
-            token_out_amount: Uint256::from_str(&test.expected_output.amount).unwrap(),
+            token_out_amount: test.expected_output.amount,
         })
         .unwrap();
 

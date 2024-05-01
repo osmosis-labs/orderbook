@@ -18,7 +18,7 @@ use crate::{
     },
 };
 use cosmwasm_std::{
-    coin, testing::mock_dependencies, Addr, BankMsg, Coin, Decimal, Empty, SubMsg, Uint128, Uint256,
+    coin, testing::mock_dependencies, Addr, BankMsg, Coin, Empty, SubMsg, Uint128, Uint256,
 };
 use cosmwasm_std::{
     testing::{mock_dependencies_with_balances, mock_env, mock_info},
@@ -37,7 +37,7 @@ struct PlaceLimitTestCase {
     quantity: Uint128,
     sent: Uint128,
     order_direction: OrderDirection,
-    claim_bounty: Option<Decimal>,
+    claim_bounty: Option<Decimal256>,
     expected_error: Option<ContractError>,
 }
 
@@ -86,7 +86,7 @@ fn test_place_limit() {
             quantity: Uint128::new(100),
             sent: Uint128::new(100),
             order_direction: OrderDirection::Ask,
-            claim_bounty: Some(Decimal::from_str("0.001").unwrap()),
+            claim_bounty: Some(Decimal256::from_str("0.001").unwrap()),
             expected_error: None,
         },
         PlaceLimitTestCase {
@@ -95,7 +95,7 @@ fn test_place_limit() {
             quantity: Uint128::new(100),
             sent: Uint128::new(100),
             order_direction: OrderDirection::Ask,
-            claim_bounty: Some(Decimal::percent(1)),
+            claim_bounty: Some(Decimal256::percent(1)),
             expected_error: None,
         },
         PlaceLimitTestCase {
@@ -104,9 +104,9 @@ fn test_place_limit() {
             quantity: Uint128::new(100),
             sent: Uint128::new(100),
             order_direction: OrderDirection::Ask,
-            claim_bounty: Some(Decimal::from_str("0.011").unwrap()),
+            claim_bounty: Some(Decimal256::from_str("0.011").unwrap()),
             expected_error: Some(ContractError::InvalidClaimBounty {
-                claim_bounty: Some(Decimal::from_str("0.011").unwrap()),
+                claim_bounty: Some(Decimal256::from_str("0.011").unwrap()),
             }),
         },
         PlaceLimitTestCase {
@@ -1567,7 +1567,7 @@ fn test_claim_order() {
                     sender.clone(),
                     Uint128::from(100u128),
                     Decimal256::zero(),
-                    Some(Decimal::percent(1)),
+                    Some(Decimal256::percent(1)),
                 )),
                 OrderOperation::RunMarket(MarketOrder::new(
                     Uint128::from(100u128),
@@ -1609,7 +1609,7 @@ fn test_claim_order() {
                     Uint128::from(1000u128),
                     Decimal256::zero(),
                     // 0.35% claim bounty (0.0035)
-                    Some(Decimal::from_str("0.0035").unwrap()),
+                    Some(Decimal256::from_str("0.0035").unwrap()),
                 )),
                 OrderOperation::RunMarket(MarketOrder::new(
                     Uint128::from(700u128),
@@ -3367,7 +3367,7 @@ fn test_batch_claim_order() {
                     owner.clone(),
                     Uint128::from(100u128),
                     Decimal256::zero(),
-                    Some(Decimal::percent(1)),
+                    Some(Decimal256::percent(1)),
                 )),
                 OrderOperation::PlaceLimit(LimitOrder::new(
                     1,

@@ -16,8 +16,8 @@ use crate::types::{
     REPLY_ID_CLAIM_BOUNTY, REPLY_ID_REFUND,
 };
 use cosmwasm_std::{
-    coin, ensure, ensure_eq, Addr, BankMsg, Decimal, Decimal256, DepsMut, Env, MessageInfo, Order,
-    Response, Storage, SubMsg, Uint128, Uint256,
+    coin, ensure, ensure_eq, Addr, BankMsg, Decimal256, DepsMut, Env, MessageInfo, Order, Response,
+    Storage, SubMsg, Uint128, Uint256,
 };
 use cw_storage_plus::Bound;
 use cw_utils::{must_pay, nonpayable};
@@ -31,7 +31,7 @@ pub fn place_limit(
     tick_id: i64,
     order_direction: OrderDirection,
     quantity: Uint128,
-    claim_bounty: Option<Decimal>,
+    claim_bounty: Option<Decimal256>,
 ) -> Result<Response, ContractError> {
     let mut orderbook = ORDERBOOK.load(deps.storage)?;
 
@@ -51,7 +51,8 @@ pub fn place_limit(
     // We set a conservative upper bound of 1% for claim bounties as a guardrail.
     if let Some(claim_bounty_value) = claim_bounty {
         ensure!(
-            claim_bounty_value >= Decimal::zero() && claim_bounty_value <= Decimal::percent(1),
+            claim_bounty_value >= Decimal256::zero()
+                && claim_bounty_value <= Decimal256::percent(1),
             ContractError::InvalidClaimBounty {
                 claim_bounty: Some(claim_bounty_value)
             }
@@ -457,8 +458,7 @@ pub(crate) fn run_market_order_internal(
             break;
         }
 
-        let output_quantity_dec =
-            Decimal256::from_ratio(Uint256::from_uint128(output_quantity), Uint256::one());
+        let output_quantity_dec = Decimal256::from_ratio(output_quantity, Uint256::one());
 
         // If order quantity is less than the current tick's liquidity, fill the whole order.
         // Otherwise, fill the whole tick.
@@ -488,7 +488,9 @@ pub(crate) fn run_market_order_internal(
             tick_price,
             RoundingDirection::Up,
         )?;
-        order.quantity = order.quantity.checked_sub(input_filled)?;
+        order.quantity = order
+            .quantity
+            .checked_sub(Uint128::from_str(&input_filled.to_string())?)?;
 
         current_tick.set_values(order.order_direction.opposite(), current_tick_values);
         // Add the updated tick state to the vector
@@ -527,7 +529,7 @@ pub(crate) fn claim_order(
     sender: Addr,
     tick_id: i64,
     order_id: u64,
-) -> ContractResult<(Uint128, Vec<SubMsg>)> {
+) -> ContractResult<(Uint256, Vec<SubMsg>)> {
     let orderbook = ORDERBOOK.load(storage)?;
     // Fetch tick values for current order direction
     let tick_state = TICK_STATE
@@ -601,12 +603,12 @@ pub(crate) fn claim_order(
     let denom = orderbook.get_opposite_denom(&order.order_direction);
 
     // Send claim bounty to sender if applicable
-    let mut bounty = Uint128::zero();
+    let mut bounty = Uint256::zero();
     if let Some(claim_bounty) = order.claim_bounty {
         // Multiply by the claim bounty ratio and convert to Uint128.
         // Ensure claimed amount is updated to reflect the bounty.
         let bounty_amount =
-            Decimal::from_ratio(amount, Uint128::one()).checked_mul(claim_bounty)?;
+            Decimal256::from_ratio(amount, Uint256::one()).checked_mul(claim_bounty)?;
         bounty = bounty_amount.to_uint_floor();
         amount = amount.checked_sub(bounty)?;
     }
@@ -615,7 +617,7 @@ pub(crate) fn claim_order(
     let bank_msg = MsgSend {
         from_address: contract_address.to_string(),
         to_address: order.owner.to_string(),
-        amount: vec![coin_u256(amount.u128(), &denom)],
+        amount: vec![coin_u256(amount, &denom)],
     };
     let mut bank_msg_vec = vec![SubMsg::reply_on_error(bank_msg, REPLY_ID_CLAIM)];
 
@@ -624,7 +626,7 @@ pub(crate) fn claim_order(
         let bounty_msg = MsgSend {
             from_address: contract_address.to_string(),
             to_address: sender.to_string(),
-            amount: vec![coin_u256(bounty.u128(), &denom)],
+            amount: vec![coin_u256(bounty, &denom)],
         };
         bank_msg_vec.push(SubMsg::reply_on_error(bounty_msg, REPLY_ID_CLAIM_BOUNTY));
     }

@@ -1,6 +1,6 @@
 use crate::types::{OrderDirection, TickState};
 use cosmwasm_schema::{cw_serde, QueryResponses};
-use cosmwasm_std::{Addr, Coin, Decimal, Uint128, Uint256};
+use cosmwasm_std::{Addr, Coin, Decimal, Decimal256, Uint128, Uint256};
 use osmosis_std::types::cosmos::base::v1beta1::Coin as ProtoCoin;
 
 /// Message type for `instantiate` entry_point
@@ -19,7 +19,7 @@ pub enum ExecuteMsg {
         tick_id: i64,
         order_direction: OrderDirection,
         quantity: Uint128,
-        claim_bounty: Option<Decimal>,
+        claim_bounty: Option<Decimal256>,
     },
     CancelLimit {
         tick_id: i64,

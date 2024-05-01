@@ -11,7 +11,7 @@ pub const MAX_BATCH_CLAIM: u32 = 100;
 
 // TODO: optimize this using lazy_static
 pub fn max_spot_price() -> Decimal256 {
-    Decimal256::from_str("100000000000000000000000000000000000000").unwrap()
+    Decimal256::MAX
 }
 
 pub fn min_spot_price() -> Decimal256 {

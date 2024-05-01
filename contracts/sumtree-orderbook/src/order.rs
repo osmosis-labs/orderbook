@@ -1,4 +1,4 @@
-use crate::constants::{MAX_BATCH_CLAIM, MAX_TICK, MIN_TICK};
+use crate::constants::{max_spot_price, MAX_BATCH_CLAIM, MAX_TICK, MIN_TICK};
 use crate::error::{ContractError, ContractResult};
 use crate::state::{
     add_directional_liquidity, new_order_id, orders, subtract_directional_liquidity, ORDERBOOK,
@@ -53,6 +53,21 @@ pub fn place_limit(
             }
         );
     }
+
+    let max_spot_price = max_spot_price();
+    let tick_price = tick_to_price(tick_id)?;
+    let claimed_price = amount_to_value(
+        order_direction.opposite(),
+        quantity,
+        tick_price,
+        RoundingDirection::Down,
+    )?;
+
+    ensure!(
+        Decimal256::from_ratio(Uint256::from_u128(claimed_price.u128()), Uint256::one())
+            <= max_spot_price,
+        ContractError::MaxSpotPriceExceeded
+    );
 
     // Determine the correct denom based on order direction
     let expected_denom = orderbook.get_expected_denom(&order_direction);

@@ -103,6 +103,9 @@ pub enum ContractError {
 
     #[error("Orderbook is inactive")]
     Inactive,
+
+    #[error("Max spot price exceeded")]
+    MaxSpotPriceExceeded,
 }
 
 pub type ContractResult<T> = Result<T, ContractError>;

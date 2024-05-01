@@ -94,7 +94,9 @@ pub(crate) fn calc_out_amount_given_in(
     let order::PostMarketOrderState { output, .. } =
         order::run_market_order_internal(deps.storage, &mut mock_order, tick_bound)?;
 
-    Ok(CalcOutAmtGivenInResponse { token_out: output })
+    Ok(CalcOutAmtGivenInResponse {
+        token_out: output.into(),
+    })
 }
 
 /// Calculates the total pool liquidity for the current orderbook state.

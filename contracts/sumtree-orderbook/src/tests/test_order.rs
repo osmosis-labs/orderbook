@@ -3579,3 +3579,227 @@ fn test_batch_claim_order() {
         }
     }
 }
+
+struct DirectionalLiquidityTestCase {
+    name: &'static str,
+    operations: Vec<OrderOperation>,
+    expected_liquidity: ((OrderDirection, Decimal256), (OrderDirection, Decimal256)),
+}
+
+#[test]
+fn test_directional_liquidity() {
+    let quote_denom = "quote";
+    let base_denom = "base";
+    let sender = Addr::unchecked("sender");
+
+    let test_cases = vec![
+        DirectionalLiquidityTestCase {
+            name: "liquidity increment only",
+            operations: vec![
+                OrderOperation::PlaceLimit(LimitOrder::new(
+                    0,
+                    0,
+                    OrderDirection::Ask,
+                    sender.clone(),
+                    Uint128::from(200u128),
+                    Decimal256::zero(),
+                    None,
+                )),
+                OrderOperation::PlaceLimit(LimitOrder::new(
+                    0,
+                    1,
+                    OrderDirection::Bid,
+                    sender.clone(),
+                    Uint128::from(100u128),
+                    Decimal256::zero(),
+                    None,
+                )),
+            ],
+            expected_liquidity: (
+                (OrderDirection::Ask, decimal256_from_u128(200u128)),
+                (OrderDirection::Bid, decimal256_from_u128(100u128)),
+            ),
+        },
+        DirectionalLiquidityTestCase {
+            name: "liquidity increment & decrement from cancel",
+            operations: vec![
+                OrderOperation::PlaceLimit(LimitOrder::new(
+                    0,
+                    0,
+                    OrderDirection::Ask,
+                    sender.clone(),
+                    Uint128::from(200u128),
+                    Decimal256::zero(),
+                    None,
+                )),
+                OrderOperation::PlaceLimit(LimitOrder::new(
+                    0,
+                    1,
+                    OrderDirection::Bid,
+                    sender.clone(),
+                    Uint128::from(100u128),
+                    Decimal256::zero(),
+                    None,
+                )),
+                OrderOperation::Cancel((0, 0)),
+            ],
+            expected_liquidity: (
+                (OrderDirection::Ask, decimal256_from_u128(0u128)),
+                (OrderDirection::Bid, decimal256_from_u128(100u128)),
+            ),
+        },
+        DirectionalLiquidityTestCase {
+            name: "liquidity increment & decrement from partial fill and full fill",
+            operations: vec![
+                OrderOperation::PlaceLimit(LimitOrder::new(
+                    0,
+                    0,
+                    OrderDirection::Ask,
+                    sender.clone(),
+                    Uint128::from(100u128),
+                    Decimal256::zero(),
+                    None,
+                )),
+                OrderOperation::PlaceLimit(LimitOrder::new(
+                    0,
+                    1,
+                    OrderDirection::Bid,
+                    sender.clone(),
+                    Uint128::from(200u128),
+                    Decimal256::zero(),
+                    None,
+                )),
+                OrderOperation::RunMarket(MarketOrder::new(
+                    Uint128::from(100u128),
+                    OrderDirection::Ask,
+                    sender.clone(),
+                )),
+                OrderOperation::RunMarket(MarketOrder::new(
+                    Uint128::from(100u128),
+                    OrderDirection::Bid,
+                    sender.clone(),
+                )),
+            ],
+            expected_liquidity: (
+                (OrderDirection::Ask, decimal256_from_u128(0u128)),
+                (OrderDirection::Bid, decimal256_from_u128(100u128)),
+            ),
+        },
+        DirectionalLiquidityTestCase {
+            name: "liquidity increment & decrement from partial fill and full fill on large positive tick",
+            operations: vec![
+                OrderOperation::PlaceLimit(LimitOrder::new(
+                    LARGE_POSITIVE_TICK,
+                    0,
+                    OrderDirection::Ask,
+                    sender.clone(),
+                    Uint128::from(100u128),
+                    Decimal256::zero(),
+                    None,
+                )),
+                OrderOperation::PlaceLimit(LimitOrder::new(
+                    LARGE_POSITIVE_TICK,
+                    1,
+                    OrderDirection::Bid,
+                    sender.clone(),
+                    Uint128::from(200u128),
+                    Decimal256::zero(),
+                    None,
+                )),
+                // Filling Ask at 0.5 price = 100 units of opposite denom
+                OrderOperation::RunMarket(MarketOrder::new(
+                    Uint128::from(200u128),
+                    OrderDirection::Ask,
+                    sender.clone(),
+                )),
+                // Filling Bid at 0.5 price = 100 units of opposite denom
+                OrderOperation::RunMarket(MarketOrder::new(
+                    Uint128::from(50u128),
+                    OrderDirection::Bid,
+                    sender.clone(),
+                )),
+            ],
+            expected_liquidity: (
+                (OrderDirection::Ask, decimal256_from_u128(0u128)),
+                (OrderDirection::Bid, decimal256_from_u128(100u128)),
+            ),
+        },        
+        DirectionalLiquidityTestCase {
+            name: "liquidity increment & decrement from partial fill and full fill on large negative tick",
+            operations: vec![
+                OrderOperation::PlaceLimit(LimitOrder::new(
+                    LARGE_NEGATIVE_TICK,
+                    0,
+                    OrderDirection::Ask,
+                    sender.clone(),
+                    Uint128::from(100u128),
+                    Decimal256::zero(),
+                    None,
+                )),
+                OrderOperation::PlaceLimit(LimitOrder::new(
+                    LARGE_NEGATIVE_TICK,
+                    1,
+                    OrderDirection::Bid,
+                    sender.clone(),
+                    Uint128::from(200u128),
+                    Decimal256::zero(),
+                    None,
+                )),
+                // Filling Ask at 0.5 price = 200 units of opposite denom
+                OrderOperation::RunMarket(MarketOrder::new(
+                    Uint128::from(100u128),
+                    OrderDirection::Ask,
+                    sender.clone(),
+                )),
+                // Filling Bid at 0.5 price = 25 units of opposite denom
+                OrderOperation::RunMarket(MarketOrder::new(
+                    Uint128::from(50u128),
+                    OrderDirection::Bid,
+                    sender,
+                )),
+            ],
+            expected_liquidity: (
+                (OrderDirection::Ask, decimal256_from_u128(75u128)),
+                (OrderDirection::Bid, decimal256_from_u128(0u128)),
+            ),
+        },
+    ];
+
+    for test in test_cases {
+        // -- Test Setup --
+        let mut deps = mock_dependencies();
+        let env = mock_env();
+        let info = mock_info("sender", &[]);
+
+        create_orderbook(
+            deps.as_mut(),
+            quote_denom.to_string(),
+            base_denom.to_string(),
+        )
+        .unwrap();
+
+        // -- System under test --
+        for op in test.operations {
+            op.run(deps.as_mut(), env.clone(), info.clone()).unwrap();
+        }
+
+        // -- Assertions --
+        // Get directional liquidity from state and match against what is expected
+        let ((dir1, liq1), (dir2, liq2)) = test.expected_liquidity;
+        let dir1_liq = get_directional_liquidity(deps.as_ref().storage, dir1).unwrap();
+        assert_eq!(
+            dir1_liq,
+            liq1,
+            "{}: invalid direction liquidity",
+            format_test_name(test.name)
+        );
+
+        let dir2_liq = get_directional_liquidity(deps.as_ref().storage, dir2).unwrap();
+        assert_eq!(
+            dir2_liq,
+            liq2,
+            "{}: invalid direction liquidity",
+            format_test_name(test.name)
+        );
+    }
+}

@@ -12,6 +12,7 @@ use crate::msg::{ExecuteMsg, InstantiateMsg, MigrateMsg, QueryMsg};
 
 use crate::orderbook::create_orderbook;
 use crate::query;
+use crate::sudo;
 use crate::types::OrderDirection;
 use crate::{auth, order};
 
@@ -54,6 +55,12 @@ pub fn execute(
     info: MessageInfo,
     msg: ExecuteMsg,
 ) -> Result<Response, ContractError> {
+    // Ensure orderbook is active
+    // Switch does not apply to Auth messages
+    if !matches!(msg, ExecuteMsg::Auth(_)) {
+        sudo::ensure_is_active(deps.as_ref())?;
+    }
+
     match msg {
         // Places limit order on given market
         ExecuteMsg::PlaceLimit {
@@ -121,6 +128,7 @@ pub fn query(deps: Deps, _env: Env, msg: QueryMsg) -> ContractResult<Binary> {
         } => Ok(to_json_binary(&query::all_ticks(
             deps, start_from, end_at, limit,
         )?)?),
+        QueryMsg::IsActive {} => Ok(to_json_binary(&query::is_active(deps)?)?),
 
         // -- Auth Queries --
         QueryMsg::Auth(msg) => Ok(to_json_binary(&auth::query(deps, msg)?)?),

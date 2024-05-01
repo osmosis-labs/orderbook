@@ -3,6 +3,7 @@ use crate::{error::ContractResult, types::OrderDirection};
 use cosmwasm_std::{Decimal256, Storage};
 use cw_storage_plus::Map;
 
+// Key: (tick_id, direction as str)
 pub const TREE: Map<&(i64, &str), u64> = Map::new("tree");
 
 #[allow(dead_code)]

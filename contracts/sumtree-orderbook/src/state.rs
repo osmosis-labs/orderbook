@@ -1,6 +1,7 @@
-use crate::types::{FilterOwnerOrders, LimitOrder, Orderbook, TickState};
+use crate::error::ContractResult;
+use crate::types::{FilterOwnerOrders, LimitOrder, OrderDirection, Orderbook, TickState};
 use crate::ContractError;
-use cosmwasm_std::{Addr, Order, StdResult, Storage};
+use cosmwasm_std::{Addr, Decimal256, Order, StdResult, Storage};
 use cw_storage_plus::{Bound, Index, IndexList, IndexedMap, Item, Map, MultiIndex};
 
 // Counters for ID tracking
@@ -12,6 +13,8 @@ const DEFAULT_PAGE_SIZE: u8 = 50;
 
 pub const ORDERBOOK: Item<Orderbook> = Item::new("orderbook");
 pub const TICK_STATE: Map<i64, TickState> = Map::new("tick_state");
+pub const DIRECTION_TOTAL_LIQUIDITY: Map<&str, Decimal256> = Map::new("direction_liquidity");
+pub const IS_ACTIVE: Item<bool> = Item::new("is_active");
 
 pub struct OrderIndexes {
     // Index by owner; Generic types: MultiIndex<Index Key: owner, Input Data: LimitOrder, Map Key: ( tick, order_id)>
@@ -97,4 +100,58 @@ pub fn get_orders_by_owner(
         .collect();
 
     Ok(orders)
+}
+
+/// Gets the currently stored total liquidity for the specified `OrderDirection`.
+///
+/// Defaults to 0 for empty values.
+pub fn get_directional_liquidity(
+    storage: &dyn Storage,
+    direction: OrderDirection,
+) -> ContractResult<Decimal256> {
+    let direction_key = &direction.to_string();
+    let current_liquidity = DIRECTION_TOTAL_LIQUIDITY
+        .load(storage, direction_key)
+        .unwrap_or_default();
+    Ok(current_liquidity)
+}
+
+/// Adds the specified amount of liquidity to the specified `OrderDirection`'s total liquidity.
+///
+/// Errors on Decimal256 overflow.
+pub fn add_directional_liquidity(
+    storage: &mut dyn Storage,
+    direction: OrderDirection,
+    amount: Decimal256,
+) -> ContractResult<()> {
+    let direction_key = &direction.to_string();
+    let current_liquidity = DIRECTION_TOTAL_LIQUIDITY
+        .load(storage, direction_key)
+        .unwrap_or_default();
+    DIRECTION_TOTAL_LIQUIDITY.save(
+        storage,
+        direction_key,
+        &(current_liquidity.checked_add(amount)?),
+    )?;
+    Ok(())
+}
+
+/// Subtracts the specified amount of liquidity from the specified `OrderDirection`'s total liquidity.
+///
+/// Errors on Decimal256 underflow.
+pub fn subtract_directional_liquidity(
+    storage: &mut dyn Storage,
+    direction: OrderDirection,
+    amount: Decimal256,
+) -> ContractResult<()> {
+    let direction_key = &direction.to_string();
+    let current_liquidity = DIRECTION_TOTAL_LIQUIDITY
+        .load(storage, direction_key)
+        .unwrap_or_default();
+    DIRECTION_TOTAL_LIQUIDITY.save(
+        storage,
+        direction_key,
+        &(current_liquidity.checked_sub(amount)?),
+    )?;
+    Ok(())
 }

@@ -47,6 +47,9 @@ pub enum AuthExecuteMsg {
     OfferModerator { new_moderator: Addr },
     RejectModeratorOffer {},
     ClaimModerator {},
+
+    // -- Shared messages --
+    SetActive { active: bool },
 }
 
 /// Message type for `migrate` entry_point
@@ -89,6 +92,9 @@ pub enum QueryMsg {
     // -- Auth Queries --
     #[returns(Option<Addr>)]
     Auth(AuthQueryMsg),
+
+    #[returns(bool)]
+    IsActive {},
 }
 
 #[cw_serde]
@@ -161,6 +167,11 @@ pub enum SudoMsg {
         new_admin: Addr,
     },
     RemoveAdmin {},
+
+    // -- Active Switch
+    SetActive {
+        active: bool,
+    },
 }
 
 #[cw_serde]

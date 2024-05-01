@@ -6,6 +6,7 @@ use osmosis_std::types::cosmos::base::v1beta1::Coin as ProtoCoin;
 
 use crate::proto::MsgSend;
 
+/// A replication of `cosmwasmstd::coin` using `Uint256`.
 pub fn coin_u256(amount: impl Into<Uint256>, denom: &str) -> Coin256 {
     Coin256 {
         amount: amount.into(),
@@ -13,6 +14,9 @@ pub fn coin_u256(amount: impl Into<Uint256>, denom: &str) -> Coin256 {
     }
 }
 
+/// A replication of `cosmwasmstd::Coin` using `Uint256`.
+///
+/// Implements conversions from `cosmwasmstd::Coin` and `osmosis_std::Coin` to help with generating bank messages.
 #[cw_serde]
 pub struct Coin256 {
     pub amount: Uint256,
@@ -37,6 +41,9 @@ impl From<Coin256> for Coin {
     }
 }
 
+/// A replication of `BankMsg::Send` using `Coin256`.
+///
+/// Implements conversions to cosmwasm_std::CosmosMsg` and `super::MsgSend` to help with attaching these messages to `Response` objects.
 #[cw_serde]
 pub struct MsgSend256 {
     pub amount: Vec<Coin256>,

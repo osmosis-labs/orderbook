@@ -24,6 +24,7 @@ pub fn assert_internal_values(
     deps: Deps,
     internals: Vec<&TreeNode>,
     should_be_balanced: bool,
+    allow_overlaps: bool,
 ) {
     for internal_node in internals {
         let left_node = internal_node.get_left(deps.storage).unwrap();
@@ -93,7 +94,7 @@ pub fn assert_internal_values(
             );
         }
 
-        if let Some(left) = left_node {
+        if let Some(left) = left_node.clone() {
             let parent_string = if let Some(parent) = left.parent {
                 parent.to_string()
             } else {
@@ -109,7 +110,7 @@ pub fn assert_internal_values(
                 parent_string
             );
         }
-        if let Some(right) = right_node {
+        if let Some(right) = right_node.clone() {
             let parent_string = if let Some(parent) = right.parent {
                 parent.to_string()
             } else {
@@ -125,6 +126,11 @@ pub fn assert_internal_values(
                 parent_string
             );
         }
+
+        // Ensure there is no overlap in child nodes
+        let left_max = left_node.map_or(Decimal256::MIN, |n| n.get_max_range());
+        let right_min = right_node.map_or(Decimal256::MAX, |n| n.get_min_range());
+        assert!(allow_overlaps || left_max <= right_min, "{}: Left max is higher than right min", test_name);
     }
 }
 
@@ -408,7 +414,7 @@ fn test_node_insert_cases() {
 
         // Ensure all internal nodes are correctly summed and contain correct ranges
         let internals: Vec<&TreeNode> = result.iter().filter(|x| x.is_internal()).collect();
-        assert_internal_values(test.name, deps.as_ref(), internals, true);
+        assert_internal_values(test.name, deps.as_ref(), internals, true, false);
     }
 }
 
@@ -611,7 +617,7 @@ fn test_node_deletion_valid() {
         }
 
         let internals: Vec<&TreeNode> = result.iter().filter(|x| x.is_internal()).collect();
-        assert_internal_values(test.name, deps.as_ref(), internals, true);
+        assert_internal_values(test.name, deps.as_ref(), internals, true, false);
     }
 }
 
@@ -1297,7 +1303,7 @@ fn test_rotate_right() {
         assert_eq!(res, test.expected, "{}", test.name);
 
         let internals = nodes.iter().filter(|n| n.is_internal()).collect();
-        assert_internal_values(test.name, deps.as_ref(), internals, false);
+        assert_internal_values(test.name, deps.as_ref(), internals, false, true);
     }
 }
 
@@ -1894,7 +1900,7 @@ fn test_rotate_left() {
         assert_eq!(res, test.expected, "{}", test.name);
 
         let internals = nodes.iter().filter(|n| n.is_internal()).collect();
-        assert_internal_values(test.name, deps.as_ref(), internals, false);
+        assert_internal_values(test.name, deps.as_ref(), internals, false, true);
     }
 }
 
@@ -2658,7 +2664,7 @@ fn test_rebalance() {
         assert_eq!(res, test.expected, "{}", test.name);
 
         let internals = nodes.iter().filter(|n| n.is_internal()).collect();
-        assert_internal_values(test.name, deps.as_ref(), internals, true);
+        assert_internal_values(test.name, deps.as_ref(), internals, true, true);
     }
 }
 
@@ -2735,7 +2741,7 @@ fn test_node_insert_large_quantity() {
 
     // Ensure all internal nodes are correctly summed and contain correct ranges
     let internals: Vec<&TreeNode> = result.iter().filter(|x| x.is_internal()).collect();
-    assert_internal_values("Large amount of nodes", deps.as_ref(), internals, true);
+    assert_internal_values("Large amount of nodes", deps.as_ref(), internals, true, false);
 
     // Ensure prefix sum functions correctly
     let root_node = get_root_node(deps.as_mut().storage,  tick_id, direction).unwrap();

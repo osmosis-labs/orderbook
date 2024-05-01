@@ -123,7 +123,7 @@ pub fn insert_node(
 pub fn assert_sumtree_invariants(deps: Deps, tree: &TreeNode, test_name: &str) {
     let tree_nodes = tree.traverse(deps.storage).unwrap();
     let internals: Vec<&TreeNode> = tree_nodes.iter().filter(|x| x.is_internal()).collect();
-    assert_internal_values(test_name, deps, internals, true);
+    assert_internal_values(test_name, deps, internals, true, false);
 }
 
 // Generates a random leaf node with a random amount and the given ETAS.

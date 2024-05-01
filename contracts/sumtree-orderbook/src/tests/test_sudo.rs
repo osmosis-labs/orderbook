@@ -1,8 +1,11 @@
+use std::str::FromStr;
+
 use cosmwasm_std::{
     coin,
     testing::{mock_dependencies, mock_env, mock_info},
-    to_json_binary, Addr, BankMsg, Coin, Decimal, Decimal256, StdError, SubMsg, Uint128,
+    to_json_binary, Addr, Coin, Decimal, Decimal256, StdError, SubMsg, Uint128,
 };
+use osmosis_std::types::cosmos::base::v1beta1::Coin as ProtoCoin;
 
 use crate::{
     auth::ADMIN,
@@ -10,11 +13,12 @@ use crate::{
     contract::execute,
     msg::{AuthExecuteMsg, ExecuteMsg, SudoMsg, SwapExactAmountInResponseData},
     orderbook::create_orderbook,
+    proto::MsgSend,
     state::IS_ACTIVE,
     sudo::{
         dispatch_swap_exact_amount_in, ensure_is_active, set_active, sudo, validate_output_amount,
     },
-    types::{LimitOrder, OrderDirection, REPLY_ID_SUDO_SWAP_EXACT_IN},
+    types::{coin_u256, LimitOrder, OrderDirection, REPLY_ID_SUDO_SWAP_EXACT_IN},
     ContractError,
 };
 
@@ -24,8 +28,8 @@ struct ValidateOutputAmountTestCase {
     name: &'static str,
     max_in_amount: Option<Uint128>,
     min_out_amount: Option<Uint128>,
-    input: Coin,
-    output: Coin,
+    input: ProtoCoin,
+    output: ProtoCoin,
     expected_error: Option<ContractError>,
 }
 
@@ -38,16 +42,16 @@ fn test_validate_output_amount() {
             name: "valid output",
             max_in_amount: Some(Uint128::from(100u128)),
             min_out_amount: Some(Uint128::zero()),
-            input: coin(50u128, in_denom),
-            output: coin(50u128, out_denom),
+            input: coin_u256(50u128, in_denom),
+            output: coin_u256(50u128, out_denom),
             expected_error: None,
         },
         ValidateOutputAmountTestCase {
             name: "exceed max",
             max_in_amount: Some(Uint128::from(100u128)),
             min_out_amount: Some(Uint128::zero()),
-            output: coin(50u128, in_denom),
-            input: coin(101u128, out_denom),
+            output: coin_u256(50u128, in_denom),
+            input: coin_u256(101u128, out_denom),
             expected_error: Some(ContractError::InvalidSwap {
                 error: format!(
                     "Exceeded max swap amount: expected {} received {}",
@@ -60,8 +64,8 @@ fn test_validate_output_amount() {
             name: "do not meet min",
             max_in_amount: Some(Uint128::from(100u128)),
             min_out_amount: Some(Uint128::from(50u128)),
-            input: coin(50u128, in_denom),
-            output: coin(41u128, out_denom),
+            input: coin_u256(50u128, in_denom),
+            output: coin_u256(41u128, out_denom),
             expected_error: Some(ContractError::InvalidSwap {
                 error: format!(
                     "Did not meet minimum swap amount: expected {} received {}",
@@ -74,8 +78,8 @@ fn test_validate_output_amount() {
             name: "duplicate denom",
             max_in_amount: Some(Uint128::from(100u128)),
             min_out_amount: Some(Uint128::zero()),
-            input: coin(50u128, in_denom),
-            output: coin(41u128, in_denom),
+            input: coin_u256(50u128, in_denom),
+            output: coin_u256(41u128, in_denom),
             expected_error: Some(ContractError::InvalidSwap {
                 error: "Input and output denoms cannot be the same".to_string(),
             }),
@@ -110,7 +114,7 @@ struct SwapExactAmountInTestCase {
     token_out_denom: &'static str,
     token_out_min_amount: Uint128,
     swap_fee: Decimal,
-    expected_output: Coin,
+    expected_output: ProtoCoin,
     expected_error: Option<ContractError>,
 }
 
@@ -136,7 +140,7 @@ fn test_swap_exact_amount_in() {
             token_out_denom: base_denom,
             token_out_min_amount: Uint128::from(100u128),
             swap_fee: EXPECTED_SWAP_FEE,
-            expected_output: coin(100u128, base_denom),
+            expected_output: coin_u256(100u128, base_denom),
             expected_error: None,
         },
         SwapExactAmountInTestCase {
@@ -154,7 +158,7 @@ fn test_swap_exact_amount_in() {
             token_out_denom: base_denom,
             token_out_min_amount: Uint128::from(100u128),
             swap_fee: EXPECTED_SWAP_FEE,
-            expected_output: coin(100u128, base_denom),
+            expected_output: coin_u256(100u128, base_denom),
             expected_error: Some(ContractError::InsufficientLiquidity),
         },
         SwapExactAmountInTestCase {
@@ -164,7 +168,7 @@ fn test_swap_exact_amount_in() {
             token_out_denom: base_denom,
             token_out_min_amount: Uint128::from(100u128),
             swap_fee: EXPECTED_SWAP_FEE,
-            expected_output: coin(100u128, base_denom),
+            expected_output: coin_u256(100u128, base_denom),
             expected_error: Some(ContractError::InsufficientLiquidity),
         },
         SwapExactAmountInTestCase {
@@ -182,7 +186,7 @@ fn test_swap_exact_amount_in() {
             token_out_denom: quote_denom,
             token_out_min_amount: Uint128::from(100u128),
             swap_fee: EXPECTED_SWAP_FEE,
-            expected_output: coin(100u128, quote_denom),
+            expected_output: coin_u256(100u128, quote_denom),
             expected_error: None,
         },
         SwapExactAmountInTestCase {
@@ -200,7 +204,7 @@ fn test_swap_exact_amount_in() {
             token_out_denom: quote_denom,
             token_out_min_amount: Uint128::from(100u128),
             swap_fee: EXPECTED_SWAP_FEE,
-            expected_output: coin(100u128, quote_denom),
+            expected_output: coin_u256(100u128, quote_denom),
             expected_error: Some(ContractError::InsufficientLiquidity),
         },
         SwapExactAmountInTestCase {
@@ -210,7 +214,7 @@ fn test_swap_exact_amount_in() {
             token_out_denom: quote_denom,
             token_out_min_amount: Uint128::from(100u128),
             swap_fee: EXPECTED_SWAP_FEE,
-            expected_output: coin(100u128, quote_denom),
+            expected_output: coin_u256(100u128, quote_denom),
             expected_error: Some(ContractError::InsufficientLiquidity),
         },
         SwapExactAmountInTestCase {
@@ -220,7 +224,7 @@ fn test_swap_exact_amount_in() {
             token_out_denom: quote_denom,
             token_out_min_amount: Uint128::from(100u128),
             swap_fee: EXPECTED_SWAP_FEE,
-            expected_output: coin(100u128, quote_denom),
+            expected_output: coin_u256(100u128, quote_denom),
             expected_error: Some(ContractError::InvalidPair {
                 token_in_denom: "notadenom".to_string(),
                 token_out_denom: quote_denom.to_string(),
@@ -233,7 +237,7 @@ fn test_swap_exact_amount_in() {
             token_out_denom: "notadenom",
             token_out_min_amount: Uint128::from(100u128),
             swap_fee: EXPECTED_SWAP_FEE,
-            expected_output: coin(100u128, quote_denom),
+            expected_output: coin_u256(100u128, quote_denom),
             expected_error: Some(ContractError::InvalidPair {
                 token_in_denom: base_denom.to_string(),
                 token_out_denom: "notadenom".to_string(),
@@ -246,7 +250,7 @@ fn test_swap_exact_amount_in() {
             token_out_denom: base_denom,
             token_out_min_amount: Uint128::from(100u128),
             swap_fee: EXPECTED_SWAP_FEE,
-            expected_output: coin(100u128, quote_denom),
+            expected_output: coin_u256(100u128, quote_denom),
             expected_error: Some(ContractError::InvalidSwap {
                 error: "Input and output denoms cannot be the same".to_string(),
             }),
@@ -258,7 +262,7 @@ fn test_swap_exact_amount_in() {
             token_out_denom: "notadenom",
             token_out_min_amount: Uint128::from(100u128),
             swap_fee: Decimal::one(),
-            expected_output: coin(100u128, quote_denom),
+            expected_output: coin_u256(100u128, quote_denom),
             expected_error: Some(ContractError::InvalidSwap {
                 error: format!(
                     "Provided swap fee does not match: expected {EXPECTED_SWAP_FEE} received {}",
@@ -288,6 +292,7 @@ fn test_swap_exact_amount_in() {
         // -- System under test --
         let response = dispatch_swap_exact_amount_in(
             deps.as_mut(),
+            env.clone(),
             sender.to_string(),
             test.token_in,
             test.token_out_denom.to_string(),
@@ -320,7 +325,8 @@ fn test_swap_exact_amount_in() {
         // Ensure that generated output message matches what is expected
         let bank_msg = response.messages.first().unwrap();
         let expected_msg = SubMsg::reply_on_error(
-            BankMsg::Send {
+            MsgSend {
+                from_address: env.contract.address.to_string(),
                 to_address: sender.to_string(),
                 amount: vec![test.expected_output.clone()],
             },
@@ -334,7 +340,7 @@ fn test_swap_exact_amount_in() {
         );
 
         let expected_data = to_json_binary(&SwapExactAmountInResponseData {
-            token_out_amount: test.expected_output.amount,
+            token_out_amount: Uint128::from_str(&test.expected_output.amount).unwrap(),
         })
         .unwrap();
 

@@ -918,7 +918,7 @@ fn test_run_market_order() {
         // --- System under test ---
 
         let mut market_order = test.placed_order.clone();
-        let response = run_market_order(deps.as_mut().storage, &mut market_order, test.tick_bound);
+        let response = run_market_order(deps.as_mut().storage, env.contract.address.clone(), &mut market_order, test.tick_bound);
 
         // --- Assertions ---
 
@@ -985,9 +985,10 @@ fn test_run_market_order() {
             OrderDirection::Bid => base_denom,
             OrderDirection::Ask => quote_denom,
         };
-        let expected_msg = BankMsg::Send {
+        let expected_msg = MsgSend {
+            from_address: env.contract.address.to_string(),
             to_address: default_sender.to_string(),
-            amount: vec![coin(test.expected_output.u128(), expected_denom)],
+            amount: vec![coin_u256(test.expected_output.u128(), expected_denom)],
         };
 
         // Ensure output is as expected

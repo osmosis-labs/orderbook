@@ -303,9 +303,10 @@ pub fn batch_claim_limits(
 #[allow(clippy::manual_range_contains)]
 pub fn run_market_order(
     storage: &mut dyn Storage,
+    contract_address: Addr,
     order: &mut MarketOrder,
     tick_bound: i64,
-) -> Result<(Uint128, BankMsg), ContractError> {
+) -> Result<(Uint128, MsgSend), ContractError> {
     let PostMarketOrderState {
         output,
         tick_updates,
@@ -330,9 +331,10 @@ pub fn run_market_order(
 
     Ok((
         output.amount,
-        BankMsg::Send {
+        MsgSend {
+            from_address: contract_address.to_string(),
             to_address: order.owner.to_string(),
-            amount: vec![output],
+            amount: vec![coin_u256(output.amount, &output.denom)],
         },
     ))
 }

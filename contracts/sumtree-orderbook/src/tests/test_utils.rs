@@ -36,7 +36,8 @@ impl OrderOperation {
                     OrderDirection::Bid => MAX_TICK,
                     OrderDirection::Ask => MIN_TICK,
                 };
-                run_market_order(deps.storage, &mut order, tick_bound).unwrap();
+                run_market_order(deps.storage, env.contract.address, &mut order, tick_bound)
+                    .unwrap();
                 Ok(())
             }
             OrderOperation::PlaceLimitMulti((

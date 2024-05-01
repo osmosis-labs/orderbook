@@ -3,13 +3,14 @@ use cosmwasm_std::{
     testing::{mock_dependencies, mock_env, mock_info},
     Addr, Coin, Decimal, Decimal256, Uint128,
 };
+use osmosis_std::types::cosmos::base::v1beta1::Coin as ProtoCoin;
 
 use crate::{
     constants::{EXPECTED_SWAP_FEE, MAX_TICK, MIN_TICK},
     orderbook::create_orderbook,
     query,
     state::IS_ACTIVE,
-    types::{LimitOrder, MarketOrder, OrderDirection, TickState, TickValues},
+    types::{coin_u256, LimitOrder, MarketOrder, OrderDirection, TickState, TickValues},
     ContractError,
 };
 
@@ -339,7 +340,7 @@ struct CalcOutAmountGivenInTestCase {
     token_in: Coin,
     token_out_denom: String,
     swap_fee: Decimal,
-    expected_output: Coin,
+    expected_output: ProtoCoin,
     expected_error: Option<ContractError>,
 }
 
@@ -364,7 +365,7 @@ fn test_calc_out_amount_given_in() {
             token_in: coin(100, &quote_denom),
             token_out_denom: base_denom.clone(),
             swap_fee: EXPECTED_SWAP_FEE,
-            expected_output: coin(100, &base_denom),
+            expected_output: coin_u256(100u128, &base_denom),
             expected_error: None,
         },
         CalcOutAmountGivenInTestCase {
@@ -381,7 +382,7 @@ fn test_calc_out_amount_given_in() {
             token_in: coin(150, &quote_denom),
             token_out_denom: base_denom.clone(),
             swap_fee: EXPECTED_SWAP_FEE,
-            expected_output: coin(0, &base_denom),
+            expected_output: coin_u256(0u128, &base_denom),
             expected_error: Some(ContractError::InsufficientLiquidity {}),
         },
         CalcOutAmountGivenInTestCase {
@@ -428,7 +429,7 @@ fn test_calc_out_amount_given_in() {
             token_out_denom: base_denom.clone(),
             swap_fee: EXPECTED_SWAP_FEE,
             // Output: 100*1 (tick: 0) + 50*2 (tick: LARGE_POSITIVE_TICK) = 200
-            expected_output: coin(200, &base_denom),
+            expected_output: coin_u256(200u128, &base_denom),
             expected_error: None,
         },
         CalcOutAmountGivenInTestCase {
@@ -445,7 +446,7 @@ fn test_calc_out_amount_given_in() {
             token_in: coin(100, &base_denom),
             token_out_denom: quote_denom.clone(),
             swap_fee: EXPECTED_SWAP_FEE,
-            expected_output: coin(100, &quote_denom),
+            expected_output: coin_u256(100u128, &quote_denom),
             expected_error: None,
         },
         CalcOutAmountGivenInTestCase {
@@ -462,7 +463,7 @@ fn test_calc_out_amount_given_in() {
             token_in: coin(150, &base_denom),
             token_out_denom: quote_denom.clone(),
             swap_fee: EXPECTED_SWAP_FEE,
-            expected_output: coin(0, &quote_denom),
+            expected_output: coin_u256(0u128, &quote_denom),
             expected_error: Some(ContractError::InsufficientLiquidity {}),
         },
         CalcOutAmountGivenInTestCase {
@@ -509,7 +510,7 @@ fn test_calc_out_amount_given_in() {
             token_out_denom: quote_denom.clone(),
             swap_fee: EXPECTED_SWAP_FEE,
             // Output: 25 at 0.5 tick price + 100 at 1 tick price = 125
-            expected_output: coin(125, &quote_denom),
+            expected_output: coin_u256(125u128, &quote_denom),
             expected_error: None,
         },
         CalcOutAmountGivenInTestCase {
@@ -518,7 +519,7 @@ fn test_calc_out_amount_given_in() {
             token_in: coin(100, &quote_denom),
             token_out_denom: base_denom.clone(),
             swap_fee: EXPECTED_SWAP_FEE,
-            expected_output: coin(0, &base_denom),
+            expected_output: coin_u256(0u128, &base_denom),
             expected_error: Some(ContractError::InsufficientLiquidity {}),
         },
         CalcOutAmountGivenInTestCase {
@@ -527,7 +528,7 @@ fn test_calc_out_amount_given_in() {
             token_in: coin(100, &base_denom),
             token_out_denom: base_denom.clone(),
             swap_fee: EXPECTED_SWAP_FEE,
-            expected_output: coin(0, &base_denom),
+            expected_output: coin_u256(0u128, &base_denom),
             expected_error: Some(ContractError::InvalidPair {
                 token_in_denom: base_denom.to_string(),
                 token_out_denom: base_denom.to_string(),
@@ -539,7 +540,7 @@ fn test_calc_out_amount_given_in() {
             token_in: coin(100, "notadenom"),
             token_out_denom: base_denom.clone(),
             swap_fee: EXPECTED_SWAP_FEE,
-            expected_output: coin(0, &base_denom),
+            expected_output: coin_u256(0u128, &base_denom),
             expected_error: Some(ContractError::InvalidPair {
                 token_in_denom: "notadenom".to_string(),
                 token_out_denom: base_denom.to_string(),
@@ -551,7 +552,7 @@ fn test_calc_out_amount_given_in() {
             token_in: coin(100, &base_denom),
             token_out_denom: "notadenom".to_string(),
             swap_fee: EXPECTED_SWAP_FEE,
-            expected_output: coin(0, &base_denom),
+            expected_output: coin_u256(0u128, &base_denom),
             expected_error: Some(ContractError::InvalidPair {
                 token_in_denom: base_denom.to_string(),
                 token_out_denom: "notadenom".to_string(),
@@ -563,7 +564,7 @@ fn test_calc_out_amount_given_in() {
             token_in: coin(0, &base_denom),
             token_out_denom: quote_denom.to_string(),
             swap_fee: EXPECTED_SWAP_FEE,
-            expected_output: coin(0, &base_denom),
+            expected_output: coin_u256(0u128, &base_denom),
             expected_error: Some(ContractError::InvalidSwap {
                 error: "Input amount cannot be zero".to_string(),
             }),

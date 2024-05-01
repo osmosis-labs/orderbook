@@ -3,7 +3,7 @@ use std::str::FromStr;
 use cosmwasm_std::{
     coin,
     testing::{mock_dependencies, mock_env, mock_info},
-    to_json_binary, Addr, Coin, Decimal, Decimal256, StdError, SubMsg, Uint128,
+    to_json_binary, Addr, Coin, Decimal, Decimal256, StdError, SubMsg, Uint128, Uint256,
 };
 use osmosis_std::types::cosmos::base::v1beta1::Coin as ProtoCoin;
 
@@ -340,7 +340,7 @@ fn test_swap_exact_amount_in() {
         );
 
         let expected_data = to_json_binary(&SwapExactAmountInResponseData {
-            token_out_amount: Uint128::from_str(&test.expected_output.amount).unwrap(),
+            token_out_amount: Uint256::from_str(&test.expected_output.amount).unwrap(),
         })
         .unwrap();
 

@@ -591,7 +591,7 @@ struct RunMarketOrderTestCase {
     tick_bound: i64,
     orders: Vec<LimitOrder>,
     sent: Uint128,
-    expected_output: Uint128,
+    expected_output: Uint256,
     expected_tick_etas: Vec<(i64, Decimal256)>,
     expected_tick_pointers: Vec<(OrderDirection, i64)>,
     expected_error: Option<ContractError>,
@@ -627,7 +627,7 @@ fn test_run_market_order() {
 
             // Bidding 1000 units of input into tick -1500000, which corresponds to $0.85,
             // implies 1000*0.85 = 850 units of output.
-            expected_output: Uint128::new(850),
+            expected_output: Uint256::from_u128(850),
             expected_tick_etas: vec![(-1500000, decimal256_from_u128(Uint128::new(850)))],
             expected_tick_pointers: vec![(OrderDirection::Ask, -1500000)],
             expected_error: None,
@@ -656,7 +656,7 @@ fn test_run_market_order() {
             // price of $50000 (from tick math test cases).
             //
             // This implies 1000*50000 = 50,000,000 units of output.
-            expected_output: Uint128::new(50_000_000),
+            expected_output: Uint256::from_u128(50_000_000),
             expected_tick_etas: vec![(40000000, decimal256_from_u128(Uint128::new(50_000_000)))],
             expected_tick_pointers: vec![(OrderDirection::Ask, 40000000)],
             expected_error: None,
@@ -686,7 +686,7 @@ fn test_run_market_order() {
             //
             // This implies 1000*0.012345670000000000 = 12.34567 units of output,
             // truncated to 12 units.
-            expected_output: Uint128::new(12),
+            expected_output: Uint256::from_u128(12),
             expected_tick_etas: vec![(-17765433, decimal256_from_u128(Uint128::new(12)))],
             expected_tick_pointers: vec![(OrderDirection::Ask, -17765433)],
             expected_error: None,
@@ -721,7 +721,7 @@ fn test_run_market_order() {
             //
             // Note: this case does not cover rounding for input consumption since it overfills
             // the tick.
-            expected_output: Uint128::new(1000),
+            expected_output: Uint256::from_u128(1000),
             expected_tick_etas: vec![
                 (-1500000, decimal256_from_u128(Uint128::new(500))),
                 (40000000, decimal256_from_u128(Uint128::new(500))),
@@ -753,7 +753,7 @@ fn test_run_market_order() {
             // price of $1/50000 (from tick math test cases).
             //
             // This implies 100,000/50000 = 2 units of output.
-            expected_output: Uint128::new(2),
+            expected_output: Uint256::from_u128(2),
             expected_tick_etas: vec![(40000000, decimal256_from_u128(Uint128::new(2)))],
             expected_tick_pointers: vec![(OrderDirection::Bid, 40000000)],
             expected_error: None,
@@ -783,7 +783,7 @@ fn test_run_market_order() {
             //
             // This implies 1000 / 0.012345670000000000 = 81,000.059 units of output,
             // which gets truncated to 81,000 units.
-            expected_output: Uint128::new(81_000),
+            expected_output: Uint256::from_u128(81_000),
             expected_tick_etas: vec![(-17765433, decimal256_from_u128(Uint128::new(81_000)))],
             expected_tick_pointers: vec![(OrderDirection::Bid, -17765433)],
             expected_error: None,
@@ -799,7 +799,7 @@ fn test_run_market_order() {
             tick_bound: MIN_TICK - 1,
             // Orders we expect to not get touched
             orders: generate_limit_orders(&[10], 10, Uint128::new(10), OrderDirection::Ask),
-            expected_output: Uint128::zero(),
+            expected_output: Uint256::zero(),
             expected_tick_etas: vec![(10, Decimal256::zero())],
             expected_tick_pointers: vec![(OrderDirection::Ask, 10)],
             expected_error: Some(ContractError::InvalidTickId {
@@ -817,7 +817,7 @@ fn test_run_market_order() {
             tick_bound: MAX_TICK + 1,
             // Orders we expect to not get touched
             orders: generate_limit_orders(&[10], 10, Uint128::new(10), OrderDirection::Bid),
-            expected_output: Uint128::zero(),
+            expected_output: Uint256::zero(),
             expected_tick_etas: vec![(10, Decimal256::zero())],
             expected_tick_pointers: vec![(OrderDirection::Bid, MIN_TICK)],
             expected_error: Some(ContractError::InvalidTickId {
@@ -845,7 +845,7 @@ fn test_run_market_order() {
                 OrderDirection::Ask,
             ),
 
-            expected_output: Uint128::zero(),
+            expected_output: Uint256::zero(),
             expected_tick_etas: vec![(-1500000, Decimal256::zero())],
             expected_tick_pointers: vec![(OrderDirection::Ask, -1500000)],
             expected_error: Some(ContractError::InvalidTickId { tick_id: MIN_TICK }),
@@ -870,7 +870,7 @@ fn test_run_market_order() {
                 OrderDirection::Ask,
             ),
 
-            expected_output: Uint128::zero(),
+            expected_output: Uint256::zero(),
             expected_tick_etas: vec![],
             expected_tick_pointers: vec![],
             expected_error: Some(ContractError::InsufficientLiquidity {}),
@@ -988,7 +988,7 @@ fn test_run_market_order() {
         let expected_msg = MsgSend {
             from_address: env.contract.address.to_string(),
             to_address: default_sender.to_string(),
-            amount: vec![coin_u256(test.expected_output.u128(), expected_denom)],
+            amount: vec![coin_u256(test.expected_output, expected_denom)],
         };
 
         // Ensure output is as expected

@@ -1,3 +1,5 @@
+use std::str::FromStr;
+
 use crate::constants::{MAX_BATCH_CLAIM, MAX_TICK, MIN_TICK};
 use crate::error::{ContractError, ContractResult};
 use crate::proto::MsgSend;
@@ -14,11 +16,12 @@ use crate::types::{
     REPLY_ID_CLAIM_BOUNTY, REPLY_ID_REFUND,
 };
 use cosmwasm_std::{
-    coin, ensure, ensure_eq, Addr, BankMsg, Coin, Decimal, Decimal256, DepsMut, Env, MessageInfo,
-    Order, Response, Storage, SubMsg, Uint128, Uint256,
+    coin, ensure, ensure_eq, Addr, BankMsg, Decimal, Decimal256, DepsMut, Env, MessageInfo, Order,
+    Response, Storage, SubMsg, Uint128, Uint256,
 };
 use cw_storage_plus::Bound;
 use cw_utils::{must_pay, nonpayable};
+use osmosis_std::types::cosmos::base::v1beta1::Coin;
 
 #[allow(clippy::manual_range_contains, clippy::too_many_arguments)]
 pub fn place_limit(
@@ -306,7 +309,7 @@ pub fn run_market_order(
     contract_address: Addr,
     order: &mut MarketOrder,
     tick_bound: i64,
-) -> Result<(Uint128, MsgSend), ContractError> {
+) -> Result<(Uint256, MsgSend), ContractError> {
     let PostMarketOrderState {
         output,
         tick_updates,
@@ -323,18 +326,18 @@ pub fn run_market_order(
     subtract_directional_liquidity(
         storage,
         order.order_direction.opposite(),
-        Decimal256::from_ratio(Uint256::from_uint128(output.amount), Uint256::one()),
+        Decimal256::from_ratio(Uint256::from_str(&output.amount)?, Uint256::one()),
     )?;
 
     // Update tick pointers in orderbook
     ORDERBOOK.save(storage, &updated_orderbook)?;
 
     Ok((
-        output.amount,
+        Uint256::from_str(&output.amount)?,
         MsgSend {
             from_address: contract_address.to_string(),
             to_address: order.owner.to_string(),
-            amount: vec![coin_u256(output.amount, &output.denom)],
+            amount: vec![output],
         },
     ))
 }
@@ -421,7 +424,7 @@ pub(crate) fn run_market_order_internal(
 
     // Iterate through ticks and fill the market order as appropriate.
     // Due to our sumtree-based design, this process carries only O(1) overhead per tick.
-    let mut total_output: Uint128 = Uint128::zero();
+    let mut total_output: Uint256 = Uint256::zero();
     let mut tick_updates: Vec<(i64, TickState)> = Vec::new();
 
     // The price of the last tick iterated on, if no ticks are iterated price is constant
@@ -491,7 +494,7 @@ pub(crate) fn run_market_order_internal(
         // Add the updated tick state to the vector
         tick_updates.push((current_tick_id, current_tick));
 
-        total_output = total_output.checked_add(fill_amount)?;
+        total_output = total_output.checked_add(Uint256::from_uint128(fill_amount))?;
     }
 
     // Determine if filling remaining amount on the last possible tick produced any value
@@ -511,7 +514,7 @@ pub(crate) fn run_market_order_internal(
     );
 
     Ok(PostMarketOrderState {
-        output: coin(total_output.u128(), output_denom),
+        output: coin_u256(total_output, &output_denom),
         tick_updates,
         updated_orderbook: orderbook,
     })

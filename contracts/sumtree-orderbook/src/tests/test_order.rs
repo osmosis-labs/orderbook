@@ -164,6 +164,24 @@ fn test_place_limit() {
                 required: Uint128::new(100),
             }),
         },
+        PlaceLimitTestCase {
+            name: "exceed max spot",
+            tick_id: MAX_TICK,
+            quantity: Uint128::MAX,
+            sent: Uint128::MAX,
+            order_direction: OrderDirection::Ask,
+            claim_bounty: None,
+            expected_error: Some(ContractError::MaxSpotPriceExceeded),
+        },
+        // PlaceLimitTestCase {
+        //     name: "exceed max spot",
+        //     tick_id: MIN_TICK,
+        //     quantity: Uint128::MAX,
+        //     sent: Uint128::MAX,
+        //     order_direction: OrderDirection::Bid,
+        //     claim_bounty: None,
+        //     expected_error: Some(ContractError::MaxSpotPriceExceeded),
+        // },
     ];
 
     for test in test_cases {

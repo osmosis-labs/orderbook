@@ -64,10 +64,11 @@ pub fn place_limit(
         quantity,
         tick_price,
         RoundingDirection::Down,
-    )?;
+    );
 
     ensure!(
-        Decimal256::from_ratio(claimed_price, Uint256::one()) <= max_spot_price,
+        claimed_price.is_ok()
+            && Decimal256::from_ratio(claimed_price.unwrap(), Uint256::one()) <= max_spot_price,
         ContractError::MaxSpotPriceExceeded
     );
 

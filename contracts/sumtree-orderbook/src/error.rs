@@ -103,6 +103,9 @@ pub enum ContractError {
 
     #[error("Orderbook is inactive")]
     Inactive,
+
+    #[error("No maker fee recipient currently set")]
+    NoMakerFeeRecipient,
 }
 
 pub type ContractResult<T> = Result<T, ContractError>;

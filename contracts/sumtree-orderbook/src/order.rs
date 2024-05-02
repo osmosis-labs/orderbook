@@ -1,8 +1,8 @@
 use crate::constants::{MAX_BATCH_CLAIM, MAX_TICK, MIN_TICK};
 use crate::error::{ContractError, ContractResult};
 use crate::state::{
-    add_directional_liquidity, new_order_id, orders, subtract_directional_liquidity, ORDERBOOK,
-    TICK_STATE,
+    add_directional_liquidity, get_maker_fee, new_order_id, orders, subtract_directional_liquidity,
+    MAKER_FEE_RECIPIENT, ORDERBOOK, TICK_STATE,
 };
 use crate::sumtree::node::{generate_node_id, NodeType, TreeNode};
 use crate::sumtree::tree::get_or_init_root_node;
@@ -10,7 +10,7 @@ use crate::tick::sync_tick;
 use crate::tick_math::{amount_to_value, tick_to_price, RoundingDirection};
 use crate::types::{
     LimitOrder, MarketOrder, OrderDirection, Orderbook, TickState, REPLY_ID_CLAIM,
-    REPLY_ID_CLAIM_BOUNTY, REPLY_ID_REFUND,
+    REPLY_ID_CLAIM_BOUNTY, REPLY_ID_MAKER_FEE, REPLY_ID_REFUND,
 };
 use cosmwasm_std::{
     coin, ensure, ensure_eq, Addr, BankMsg, Coin, Decimal, Decimal256, DepsMut, Env, MessageInfo,
@@ -575,6 +575,8 @@ pub(crate) fn claim_order(
         tick_price,
         RoundingDirection::Down,
     )?;
+    // Immutable amount to prevent bounty/maker fee calculati
+    let raw_amount = amount;
 
     // Cannot send a zero amount, may be zero'd out by rounding
     ensure!(!amount.is_zero(), ContractError::ZeroClaim);
@@ -587,9 +589,20 @@ pub(crate) fn claim_order(
         // Multiply by the claim bounty ratio and convert to Uint128.
         // Ensure claimed amount is updated to reflect the bounty.
         let bounty_amount =
-            Decimal::from_ratio(amount, Uint128::one()).checked_mul(claim_bounty)?;
+            Decimal::from_ratio(raw_amount, Uint128::one()).checked_mul(claim_bounty)?;
         bounty = bounty_amount.to_uint_floor();
         amount = amount.checked_sub(bounty)?;
+    }
+
+    // Get the current maker fee for this orderbook
+    let maker_fee = get_maker_fee(storage)?;
+    let mut maker_fee_amount = Uint128::zero();
+    if !maker_fee.is_zero() {
+        // Calculate the fee amount based on the quantity originally being sent to the claimant
+        maker_fee_amount = Decimal::from_ratio(raw_amount, 1u128)
+            .checked_mul(maker_fee)?
+            .to_uint_floor();
+        amount = amount.checked_sub(maker_fee_amount)?;
     }
 
     // Claimed amount always goes to the order owner
@@ -603,9 +616,22 @@ pub(crate) fn claim_order(
         // Bounty always goes to the sender
         let bounty_msg = BankMsg::Send {
             to_address: sender.to_string(),
-            amount: vec![coin(bounty.u128(), denom)],
+            amount: vec![coin(bounty.u128(), denom.clone())],
         };
         bank_msg_vec.push(SubMsg::reply_on_error(bounty_msg, REPLY_ID_CLAIM_BOUNTY));
+    }
+
+    if !maker_fee_amount.is_zero() {
+        // Maker fee recipient is controlled by contract admin/moderator
+        let maker_fee_recipient = MAKER_FEE_RECIPIENT
+            .load(storage)
+            .ok()
+            .ok_or(ContractError::NoMakerFeeRecipient)?;
+        let maker_fee_msg = BankMsg::Send {
+            to_address: maker_fee_recipient.to_string(),
+            amount: vec![coin(maker_fee_amount.u128(), denom)],
+        };
+        bank_msg_vec.push(SubMsg::reply_on_error(maker_fee_msg, REPLY_ID_MAKER_FEE));
     }
 
     Ok((amount, bank_msg_vec))

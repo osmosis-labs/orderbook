@@ -3790,21 +3790,92 @@ fn test_maker_fee() {
     let base_denom = "base";
     let sender = Addr::unchecked("sender");
     let maker_fee_recipient = Addr::unchecked("maker");
-    let test_cases = vec![MakerFeeTestCase {
-        name: "Basic Maker Fee Test (no bounty)",
-        placed_order: LimitOrder::new(0, 0, OrderDirection::Bid, sender.clone(), Uint128::from(100u128), Decimal256::zero(), None),
-        maker_fee: Some(Decimal::percent(2)), // 2% maker fee
-        maker_fee_recipient: Some(maker_fee_recipient.clone()),
-        expected_claimant_msg: BankMsg::Send {
-            to_address: sender.to_string(),
-            amount: vec![coin(98, base_denom)], // 100 - 2% maker fee
+    let test_cases = vec![
+        MakerFeeTestCase {
+            name: "Basic Maker Fee (no bounty)",
+            placed_order: LimitOrder::new(0, 0, OrderDirection::Bid, sender.clone(), Uint128::from(100u128), Decimal256::zero(), None),
+            maker_fee: Some(Decimal::percent(2)), // 2% maker fee
+            maker_fee_recipient: Some(maker_fee_recipient.clone()),
+            expected_claimant_msg: BankMsg::Send {
+                to_address: sender.to_string(),
+                amount: vec![coin(98, base_denom)], // 100 - 2% maker fee
+            },
+            expected_maker_fee_msg: Some(BankMsg::Send {
+                to_address: maker_fee_recipient.to_string(),
+                amount: vec![coin(2, base_denom)], // 2% maker fee
+            }),
+            expected_error: None,
         },
-        expected_maker_fee_msg: Some(BankMsg::Send {
-            to_address: maker_fee_recipient.to_string(),
-            amount: vec![coin(2, base_denom)], // 2% maker fee
-        }),
-        expected_error: None,
-    }];
+        MakerFeeTestCase {
+            name: "Basic Maker Fee Test w/ bounty",
+            placed_order: LimitOrder::new(0, 0, OrderDirection::Bid, sender.clone(), Uint128::from(100u128), Decimal256::zero(), Some(Decimal::percent(1))),
+            maker_fee: Some(Decimal::percent(2)), // 2% maker fee
+            maker_fee_recipient: Some(maker_fee_recipient.clone()),
+            expected_claimant_msg: BankMsg::Send {
+                to_address: sender.to_string(),
+                amount: vec![coin(97, base_denom)], // 100 - 2% maker fee - 1% claim bounty
+            },
+            expected_maker_fee_msg: Some(BankMsg::Send {
+                to_address: maker_fee_recipient.to_string(),
+                amount: vec![coin(2, base_denom)], // 2% maker fee
+            }),
+            expected_error: None,
+        },
+        MakerFeeTestCase {
+            name: "Basic Maker Fee w/ rounding",
+            placed_order: LimitOrder::new(0, 0, OrderDirection::Bid, sender.clone(), Uint128::from(100u128), Decimal256::zero(), None),
+            maker_fee: Some(Decimal::from_ratio(1u64, 33u64)), // 3.333...% maker fee
+            maker_fee_recipient: Some(maker_fee_recipient.clone()),
+            expected_claimant_msg: BankMsg::Send {
+                to_address: sender.to_string(),
+                amount: vec![coin(97, base_denom)], // 100 - 3% maker fee (rounded down)
+            },
+            expected_maker_fee_msg: Some(BankMsg::Send {
+                to_address: maker_fee_recipient.to_string(),
+                amount: vec![coin(3, base_denom)], // 2% maker fee
+            }),
+            expected_error: None,
+        },
+        MakerFeeTestCase {
+            name: "No maker fee",
+            placed_order: LimitOrder::new(0, 0, OrderDirection::Bid, sender.clone(), Uint128::from(100u128), Decimal256::zero(), None),
+            maker_fee: None, 
+            maker_fee_recipient: Some(maker_fee_recipient.clone()),
+            expected_claimant_msg: BankMsg::Send {
+                to_address: sender.to_string(),
+                amount: vec![coin(100, base_denom)], 
+            },
+            expected_maker_fee_msg: None,
+            expected_error: None,
+        },
+        MakerFeeTestCase {
+            name: "Maker fee zero amount",
+            placed_order: LimitOrder::new(0, 0, OrderDirection::Bid, sender.clone(), Uint128::from(100u128), Decimal256::zero(), None),
+            maker_fee: Some(Decimal::from_ratio(1u64, 1000u64)), // 0.1% maker fee
+            maker_fee_recipient: Some(maker_fee_recipient.clone()),
+            expected_claimant_msg: BankMsg::Send {
+                to_address: sender.to_string(),
+                amount: vec![coin(100, base_denom)], // 100 - 0.1% maker fee (rounded down)
+            },
+            expected_maker_fee_msg: None,
+            expected_error: None,
+        },
+        MakerFeeTestCase {
+            name: "No recipient",
+            placed_order: LimitOrder::new(0, 0, OrderDirection::Bid, sender.clone(), Uint128::from(100u128), Decimal256::zero(), None),
+            maker_fee: Some(Decimal::percent(2)), // 2% maker fee
+            maker_fee_recipient: None,
+            expected_claimant_msg: BankMsg::Send {
+                to_address: sender.to_string(),
+                amount: vec![coin(98, base_denom)], // 100 - 2% maker fee
+            },
+            expected_maker_fee_msg: Some(BankMsg::Send {
+                to_address: maker_fee_recipient.to_string(),
+                amount: vec![coin(2, base_denom)], // 2% maker fee
+            }),
+            expected_error: Some(ContractError::NoMakerFeeRecipient),
+        },
+    ];
 
     for test in test_cases {
         // -- Test Setup --

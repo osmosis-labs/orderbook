@@ -898,7 +898,7 @@ fn test_set_maker_fee() {
             expected_error: Some(ContractError::Unauthorized {}),
         },
         SetMakerFeeTestCase {
-            name: "fee abox maximum",
+            name: "fee above maximum",
             sender: current_admin,
             fee: Decimal::percent(5),
             expected_error: Some(ContractError::InvalidMakerFee),

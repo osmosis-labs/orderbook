@@ -111,7 +111,7 @@ pub enum ContractError {
     #[error("Invalid Maker Fee Recipient")]
     InvalidMakerFeeRecipient,
 
-    #[error("Invalid Maker Fee: provided fee must be less than {MAX_MAKER_FEE_PERCENTAGE:?}")]
+    #[error("Invalid Maker Fee: provided fee must be less than or equal to {MAX_MAKER_FEE_PERCENTAGE:?}")]
     InvalidMakerFee,
 }
 

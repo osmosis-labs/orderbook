@@ -1,4 +1,5 @@
 use crate::{
+    constants::MAX_MAKER_FEE_PERCENTAGE,
     error::ContractResult,
     msg::{AuthExecuteMsg, AuthQueryMsg},
     state::{MAKER_FEE, MAKER_FEE_RECIPIENT},
@@ -313,6 +314,10 @@ pub(crate) fn dispatch_set_maker_fee(
 ) -> ContractResult<Response> {
     ensure_is_admin_or_moderator(deps.as_ref(), &info.sender)?;
 
+    ensure!(
+        maker_fee <= MAX_MAKER_FEE_PERCENTAGE,
+        ContractError::InvalidMakerFee {}
+    );
     MAKER_FEE.save(deps.storage, &maker_fee)?;
 
     Ok(Response::default().add_attributes(vec![

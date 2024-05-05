@@ -9,6 +9,8 @@ pub struct InstantiateMsg {
     pub quote_denom: String,
     pub admin: Addr,
     pub moderator: Addr,
+    pub maker_fee: Option<Decimal>,
+    pub maker_fee_recipient: Addr,
 }
 
 /// Message type for `execute` entry_point

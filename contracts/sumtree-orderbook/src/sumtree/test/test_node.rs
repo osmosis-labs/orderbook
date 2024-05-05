@@ -93,7 +93,7 @@ pub fn assert_internal_values(
             );
         }
 
-        if let Some(left) = left_node {
+        if let Some(left) = left_node.clone() {
             let parent_string = if let Some(parent) = left.parent {
                 parent.to_string()
             } else {
@@ -109,7 +109,7 @@ pub fn assert_internal_values(
                 parent_string
             );
         }
-        if let Some(right) = right_node {
+        if let Some(right) = right_node.clone() {
             let parent_string = if let Some(parent) = right.parent {
                 parent.to_string()
             } else {
@@ -125,6 +125,11 @@ pub fn assert_internal_values(
                 parent_string
             );
         }
+
+        // Ensure there is no overlap in child nodes
+        let left_max = left_node.map_or(Decimal256::MIN, |n| n.get_max_range());
+        let right_min = right_node.map_or(Decimal256::MAX, |n| n.get_min_range());
+        assert!(left_max <= right_min, "{}: Left max is higher than right min", test_name);
     }
 }
 
@@ -1311,7 +1316,6 @@ struct RotateLeftTestCase {
 
 #[test]
 fn test_rotate_left() {
-    
     let tick_id = 1;
     let direction = OrderDirection::Bid;
     let test_cases: Vec<RotateLeftTestCase> = vec![
@@ -1381,7 +1385,7 @@ fn test_rotate_left() {
         //                 ┌────────────────────────────────┐
         //              4: 2 1                         2: 2 1-3
         //                                         ┌────────
-        //                                      3: 1 1
+        //                                      3: 3 1
         //
         // Post-rotation
         // --------------------------
@@ -1389,7 +1393,7 @@ fn test_rotate_left() {
         //                 ┌────────────────
         //             1: 2 1-3
         //         ┌────────────────┐
-        //      4: 2 1          3: 1 1
+        //      4: 2 1          3: 3 1
         RotateLeftTestCase {
             name: "Right internal (no right-right ancestor) left leaf",
             nodes: vec![
@@ -1418,7 +1422,7 @@ fn test_rotate_left() {
                     tick_id,
                     direction,
                     3,
-                    NodeType::leaf_uint256(1u32, 1u32),
+                    NodeType::leaf_uint256(3u32, 1u32),
                 )
                 .with_parent(2),
                 // Left
@@ -1441,13 +1445,13 @@ fn test_rotate_left() {
         //                 ┌────────────────────────────────┐
         //              4: 2 1                         2: 1 1-2
         //                                                 ────────┐
-        //                                                      3: 1 1
+        //                                                      3: 3 1
         //
         // Post-rotation:
         // --------------------------
         //                             2: 2 1-3
         //                 ┌────────────────────────────────┐
-        //             1: 1 2-3                         3: 1 1
+        //             1: 1 2-3                         3: 3 1
         //         ┌────────
         //      4: 2 1
         RotateLeftTestCase {
@@ -1474,16 +1478,14 @@ fn test_rotate_left() {
                 .with_parent(1),
                 // Right-Right
                 TreeNode::new(
-                    
                     tick_id,
                     direction,
                     3,
-                    NodeType::leaf_uint256(1u32, 1u32),
+                    NodeType::leaf_uint256(3u32, 1u32),
                 )
                 .with_parent(2),
                 // Left
                 TreeNode::new(
-                    
                     tick_id,
                     direction,
                     4,
@@ -1501,15 +1503,15 @@ fn test_rotate_left() {
         //                 ┌────────────────────────────────┐
         //              5: 3 1                         2: 2 1-3
         //                                         ┌────────────────┐
-        //                                      3: 1 1          4: 2 1
+        //                                      3: 4 1          4: 5 1
         //
         // Post-rotation:
         // --------------------------
         //                             2: 3 1-4
         //                 ┌────────────────────────────────┐
-        //             1: 2 1-4                         4: 2 1
+        //             1: 2 1-4                         4: 5 1
         //         ┌────────────────┐
-        //      5: 3 1          3: 1 1
+        //      5: 3 1          3: 4 1
         RotateLeftTestCase {
             name: "Right internal left leaf",
             nodes: vec![
@@ -1524,7 +1526,6 @@ fn test_rotate_left() {
                 .with_children(Some(5), Some(2)),
                 // Right
                 TreeNode::new(
-                    
                     tick_id,
                     direction,
                     2,
@@ -1534,25 +1535,22 @@ fn test_rotate_left() {
                 .with_parent(1),
                 // Right-Left
                 TreeNode::new(
-                    
                     tick_id,
                     direction,
                     3,
-                    NodeType::leaf_uint256(1u32, 1u32),
+                    NodeType::leaf_uint256(4u32, 1u32),
                 )
                 .with_parent(2),
                 // Right-Right
                 TreeNode::new(
-                    
                     tick_id,
                     direction,
                     4,
-                    NodeType::leaf_uint256(2u32, 1u32),
+                    NodeType::leaf_uint256(5u32, 1u32),
                 )
                 .with_parent(2),
                 // Left
                 TreeNode::new(
-                    
                     tick_id,
                     direction,
                     5,
@@ -1570,13 +1568,13 @@ fn test_rotate_left() {
         //                 ┌────────────────────────────────┐
         //             5: 2 3-5                        2: 1 2-3
         //         ┌────────────────┐                        ────────┐
-        //      6: 3 1          7: 4 1                             4: 2 1
+        //      6: 3 1          7: 4 1                             4: 5 1
         //
         // Post-rotation:
         // --------------------------
         //                                                             2: 3 2-5
         //                                 ┌────────────────────────────────────────────────────────────────┐
-        //                             1: 2 3-5                                                         4: 2 1
+        //                             1: 2 3-5                                                         4: 5 1
         //                 ┌────────────────
         //             5: 2 3-5
         //         ┌────────────────┐
@@ -1605,11 +1603,10 @@ fn test_rotate_left() {
                 .with_parent(1),
                 // Right-Right
                 TreeNode::new(
-                    
                     tick_id,
                     direction,
                     4,
-                    NodeType::leaf_uint256(2u32, 1u32),
+                    NodeType::leaf_uint256(5u32, 1u32),
                 )
                 .with_parent(2),
                 // Left
@@ -1651,7 +1648,7 @@ fn test_rotate_left() {
         //                 ┌────────────────────────────────┐
         //             5: 2 3-5                        2: 1 2-3
         //         ┌────────────────┐                ┌────────
-        //      6: 3 1          7: 4 1             4: 2 1
+        //      6: 3 1          7: 4 1             4: 5 1
         //
         // Post-rotation
         // --------------------------
@@ -1690,7 +1687,7 @@ fn test_rotate_left() {
                     tick_id,
                     direction,
                     4,
-                    NodeType::leaf_uint256(2u32, 1u32),
+                    NodeType::leaf_uint256(5u32, 1u32),
                 )
                 .with_parent(2),
                 // Left
@@ -1919,7 +1916,7 @@ fn test_rebalance() {
         //                                                                                 ┌────────────────────────────────┐
         //                                                                              4: 4 1                    5: 0 4294967295-0
         //                                                                                                         ┌────────────────┐
-        //                                                                                                      6: 2 1          7: 3 1
+        //                                                                                                      6: 5 1          7: 6 1
         //
         // Post-rotation: Case 1: Right Right
         // --------------------------
@@ -1927,13 +1924,12 @@ fn test_rebalance() {
         //                 ┌────────────────────────────────┐
         //             1: 2 1-5                   5: 0 4294967295-0
         //         ┌────────────────┐                ┌────────────────┐
-        //      2: 1 1          4: 4 1             6: 2 1          7: 3 1
+        //      2: 1 1          4: 4 1             6: 5 1          7: 6 1
         RebalanceTestCase {
             name: "Case 1: Right Right",
             nodes: vec![
                 // Root
                 TreeNode::new(
-                    
                     tick_id,
                     direction,
                     1,
@@ -1942,7 +1938,6 @@ fn test_rebalance() {
                 .with_children(Some(2), Some(3)),
                 // Left
                 TreeNode::new(
-                    
                     tick_id,
                     direction,
                     2,
@@ -1951,7 +1946,6 @@ fn test_rebalance() {
                 .with_parent(1),
                 // Right
                 TreeNode::new(
-                    
                     tick_id,
                     direction,
                     3,
@@ -1961,7 +1955,6 @@ fn test_rebalance() {
                 .with_parent(1),
                 // Right-Left
                 TreeNode::new(
-                    
                     tick_id,
                     direction,
                     4,
@@ -1970,11 +1963,10 @@ fn test_rebalance() {
                 .with_parent(3),
                 // Right-Right
                 TreeNode::new(
-                    
                     tick_id,
                     direction,
                     5,
-                    NodeType::internal_uint256(0u32, (u32::MAX, u32::MIN)),
+                    NodeType::internal_uint256(0u32, (5u32, 7u32)),
                 )
                 .with_children(Some(6), Some(7))
                 .with_parent(3),
@@ -1984,7 +1976,7 @@ fn test_rebalance() {
                     tick_id,
                     direction,
                     6,
-                    NodeType::leaf_uint256(2u32, 1u32),
+                    NodeType::leaf_uint256(5u32, 1u32),
                 )
                 .with_parent(5),
                 // Right-Right-Right
@@ -1993,7 +1985,7 @@ fn test_rebalance() {
                     tick_id,
                     direction,
                     7,
-                    NodeType::leaf_uint256(3u32, 1u32),
+                    NodeType::leaf_uint256(6u32, 1u32),
                 )
                 .with_parent(5),
             ],
@@ -2005,7 +1997,7 @@ fn test_rebalance() {
         // --------------------------
         //                                                             1: 4 1-5
         //                                 ┌────────────────────────────────────────────────────────────────┐
-        //                             2: 3 2-5                                                         3: 1 1
+        //                             2: 3 2-5                                                         3: 5 1
         //                 ┌────────────────────────────────┐
         //             4: 2 2-4                         5: 4 1
         //         ┌────────────────┐
@@ -2017,13 +2009,12 @@ fn test_rebalance() {
         //                 ┌────────────────────────────────┐
         //             4: 2 2-4                        1: 2 1-5
         //         ┌────────────────┐                ┌────────────────┐
-        //      6: 2 1          7: 3 1             5: 4 1          3: 1 1
+        //      6: 2 1          7: 3 1             5: 4 1          3: 5 1
         RebalanceTestCase {
             name: "Case 2: Left Left",
             nodes: vec![
                 // Root
                 TreeNode::new(
-                    
                     tick_id,
                     direction,
                     1,
@@ -2032,7 +2023,6 @@ fn test_rebalance() {
                 .with_children(Some(2), Some(3)),
                 // Left
                 TreeNode::new(
-                    
                     tick_id,
                     direction,
                     2,
@@ -2042,7 +2032,6 @@ fn test_rebalance() {
                 .with_parent(1),
                 // Left-Left
                 TreeNode::new(
-                    
                     tick_id,
                     direction,
                     4,
@@ -2083,7 +2072,7 @@ fn test_rebalance() {
                     tick_id,
                     direction,
                     3,
-                    NodeType::leaf_uint256(1u32, 1u32),
+                    NodeType::leaf_uint256(6u32, 1u32),
                 )
                 .with_parent(1),
             ],
@@ -2185,7 +2174,7 @@ fn test_rebalance() {
         // --------------------------
         //                                                             1: 4 1-5
         //                                 ┌────────────────────────────────────────────────────────────────┐
-        //                             2: 3 2-5                                                         3: 1 1
+        //                             2: 3 2-5                                                         3: 5 1
         //                 ┌────────────────────────────────┐
         //             4: 2 2-4                         5: 4 1
         //         ┌────────────────┐
@@ -2197,13 +2186,12 @@ fn test_rebalance() {
         //                 ┌────────────────────────────────┐
         //             4: 2 2-4                        1: 2 1-5
         //         ┌────────────────┐                ┌────────────────┐
-        //      6: 2 1          7: 3 1             5: 4 1          3: 1 1
+        //      6: 2 1          7: 3 1             5: 4 1          3: 5 1
         RebalanceTestCase {
             name: "Case 4: Left Right",
             nodes: vec![
                 // Root
                 TreeNode::new(
-                    
                     tick_id,
                     direction,
                     1,
@@ -2212,7 +2200,6 @@ fn test_rebalance() {
                 .with_children(Some(2), Some(3)),
                 // Left
                 TreeNode::new(
-                    
                     tick_id,
                     direction,
                     2,
@@ -2222,7 +2209,6 @@ fn test_rebalance() {
                 .with_parent(1),
                 // Left-Left
                 TreeNode::new(
-                    
                     tick_id,
                     direction,
                     4,
@@ -2232,7 +2218,6 @@ fn test_rebalance() {
                 .with_parent(2),
                 // Left-Left-Left
                 TreeNode::new(
-                    
                     tick_id,
                     direction,
                     6,
@@ -2241,7 +2226,6 @@ fn test_rebalance() {
                 .with_parent(4),
                 // Left-Left-Right
                 TreeNode::new(
-                    
                     tick_id,
                     direction,
                     7,
@@ -2250,7 +2234,6 @@ fn test_rebalance() {
                 .with_parent(4),
                 // Left-Right
                 TreeNode::new(
-                    
                     tick_id,
                     direction,
                     5,
@@ -2259,11 +2242,10 @@ fn test_rebalance() {
                 .with_parent(2),
                 // Right
                 TreeNode::new(
-                    
                     tick_id,
                     direction,
                     3,
-                    NodeType::leaf_uint256(1u32, 1u32),
+                    NodeType::leaf_uint256(5u32, 1u32),
                 )
                 .with_parent(1),
             ],
@@ -2349,7 +2331,7 @@ fn test_rebalance() {
         // --------------------------
         //                             1: 3 2-4
         //                 ┌────────────────────────────────┐
-        //             2: 2 2-4                         3: 2 1
+        //             2: 2 2-4                         3: 4 1
         //         ┌────────────────┐
         //      4: 2 1          5: 3 1
         //
@@ -2357,7 +2339,7 @@ fn test_rebalance() {
         // --------------------------
         //                             1: 3 2-4
         //                 ┌────────────────────────────────┐
-        //             2: 2 2-4                         3: 2 1
+        //             2: 2 2-4                         3: 4 1
         //         ┌────────────────┐
         //      4: 2 1          5: 3 1
         RebalanceTestCase {
@@ -2365,7 +2347,6 @@ fn test_rebalance() {
             nodes: vec![
                 // Root
                 TreeNode::new(
-                    
                     tick_id,
                     direction,
                     1,
@@ -2374,7 +2355,6 @@ fn test_rebalance() {
                 .with_children(Some(2), Some(3)),
                 // Left
                 TreeNode::new(
-                    
                     tick_id,
                     direction,
                     2,
@@ -2384,7 +2364,6 @@ fn test_rebalance() {
                 .with_parent(1),
                 // Left-Left
                 TreeNode::new(
-                    
                     tick_id,
                     direction,
                     4,
@@ -2393,7 +2372,6 @@ fn test_rebalance() {
                 .with_parent(2),
                 // Left-Right
                 TreeNode::new(
-                    
                     tick_id,
                     direction,
                     5,
@@ -2402,11 +2380,10 @@ fn test_rebalance() {
                 .with_parent(2),
                 // Right
                 TreeNode::new(
-                    
                     tick_id,
                     direction,
                     3,
-                    NodeType::leaf_uint256(2u32, 1u32),
+                    NodeType::leaf_uint256(4u32, 1u32),
                 )
                 .with_parent(1),
             ],
@@ -2418,7 +2395,7 @@ fn test_rebalance() {
         // --------------------------
         //                             1: 3 2-4
         //                 ┌────────────────────────────────┐
-        //              2: 2 1                         3: 2 2-4
+        //              2: 1 1                         3: 2 2-4
         //                                         ┌────────────────┐
         //                                      4: 2 1          5: 3 1
         //
@@ -2426,7 +2403,7 @@ fn test_rebalance() {
         // --------------------------
         //                             1: 3 2-4
         //                 ┌────────────────────────────────┐
-        //              2: 2 1                         3: 2 2-4
+        //              2: 1 1                         3: 2 2-4
         //                                         ┌────────────────┐
         //                                      4: 2 1          5: 3 1
         RebalanceTestCase {
@@ -2434,7 +2411,6 @@ fn test_rebalance() {
             nodes: vec![
                 // Root
                 TreeNode::new(
-                    
                     tick_id,
                     direction,
                     1,
@@ -2443,16 +2419,14 @@ fn test_rebalance() {
                 .with_children(Some(2), Some(3)),
                 // Left
                 TreeNode::new(
-                    
                     tick_id,
                     direction,
                     2,
-                    NodeType::leaf_uint256(2u32, 1u32),
+                    NodeType::leaf_uint256(1u32, 1u32),
                 )
                 .with_parent(1),
                 // Right
                 TreeNode::new(
-                    
                     tick_id,
                     direction,
                     3,
@@ -2462,7 +2436,6 @@ fn test_rebalance() {
                 .with_parent(1),
                 // Right-Left
                 TreeNode::new(
-                    
                     tick_id,
                     direction,
                     4,
@@ -2471,7 +2444,6 @@ fn test_rebalance() {
                 .with_parent(3),
                 // Right-Right
                 TreeNode::new(
-                    
                     tick_id,
                     direction,
                     5,
@@ -2576,7 +2548,6 @@ fn test_rebalance() {
             nodes: vec![
                 // Root
                 TreeNode::new(
-                    
                     tick_id,
                     direction,
                     1,

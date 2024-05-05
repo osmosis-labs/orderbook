@@ -556,11 +556,11 @@ impl TreeNode {
         let accumulator = self.get_value().checked_add(new_node.get_value())?;
 
         // Determine which node goes to which side, maintaining order by ETAS
-        let (new_left, new_right) = if self.get_max_range() <= new_node.get_min_range() {
-            // New node is higher than current node
+        let (new_left, new_right) = if self.below_range(new_node.clone()) {
+            // Current node is below new node
             (self.key, new_node.key)
-        } else if self.get_min_range() >= new_node.get_max_range() {
-            // New node is lower than current node
+        } else if self.above_range(new_node.clone()) {
+            // Current node is above new node
             (new_node.key, self.key)
         } else {
             // New node overlap the current node creating an invalid sumtree

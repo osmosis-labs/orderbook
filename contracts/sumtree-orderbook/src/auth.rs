@@ -331,7 +331,10 @@ pub(crate) fn dispatch_set_maker_fee_recipient(
 ) -> ContractResult<Response> {
     ensure_is_admin_or_moderator(deps.as_ref(), &info.sender)?;
 
-    let addr = deps.api.addr_validate(maker_fee_recipient.as_str())?;
+    let addr = deps
+        .api
+        .addr_validate(maker_fee_recipient.as_str())
+        .map_err(|_| ContractError::InvalidMakerFeeRecipient)?;
     MAKER_FEE_RECIPIENT.save(deps.storage, &addr)?;
 
     Ok(Response::default().add_attributes(vec![

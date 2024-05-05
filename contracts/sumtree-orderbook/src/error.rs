@@ -106,6 +106,9 @@ pub enum ContractError {
 
     #[error("No maker fee recipient currently set")]
     NoMakerFeeRecipient,
+
+    #[error("Invalid Maker Fee Recipient")]
+    InvalidMakerFeeRecipient,
 }
 
 pub type ContractResult<T> = Result<T, ContractError>;

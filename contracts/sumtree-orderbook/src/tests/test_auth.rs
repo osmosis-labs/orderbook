@@ -1,7 +1,7 @@
 use cosmwasm_std::{
     from_json,
     testing::{mock_dependencies, mock_env, mock_info},
-    Addr,
+    Addr, Decimal,
 };
 
 use crate::{
@@ -13,7 +13,7 @@ use crate::{
     },
     contract::{execute, query},
     msg::{AuthExecuteMsg, AuthQueryMsg, ExecuteMsg, QueryMsg},
-    state::IS_ACTIVE,
+    state::{get_maker_fee, IS_ACTIVE, MAKER_FEE_RECIPIENT},
     ContractError,
 };
 
@@ -858,4 +858,166 @@ fn test_get_moderator_offer() {
     let admin_res: Option<Addr> = from_json(res).unwrap();
 
     assert_eq!(admin_res, Some(Addr::unchecked(moderator)));
+}
+
+struct SetMakerFeeTestCase {
+    name: &'static str,
+    sender: &'static str,
+    fee: Decimal,
+    expected_error: Option<ContractError>,
+}
+
+#[test]
+fn test_set_maker_fee() {
+    let current_admin = "admin";
+    let current_moderator = "moderator";
+
+    let test_cases = vec![
+        SetMakerFeeTestCase {
+            name: "valid fee set by moderator",
+            sender: current_moderator,
+            fee: Decimal::percent(5),
+            expected_error: None,
+        },
+        SetMakerFeeTestCase {
+            name: "valid fee set by admin",
+            sender: current_admin,
+            fee: Decimal::percent(10),
+            expected_error: None,
+        },
+        SetMakerFeeTestCase {
+            name: "valid zero fee",
+            sender: current_admin,
+            fee: Decimal::percent(0),
+            expected_error: None,
+        },
+        SetMakerFeeTestCase {
+            name: "invalid fee set by unauthorized user",
+            sender: "user",
+            fee: Decimal::percent(0),
+            expected_error: Some(ContractError::Unauthorized {}),
+        },
+    ];
+
+    for test in test_cases {
+        // -- Test Setup --
+        let mut deps = mock_dependencies();
+        let env = mock_env();
+        let info = mock_info(test.sender, &[]);
+
+        ADMIN
+            .save(deps.as_mut().storage, &Addr::unchecked(current_admin))
+            .unwrap();
+        MODERATOR
+            .save(deps.as_mut().storage, &Addr::unchecked(current_moderator))
+            .unwrap();
+        let msg = ExecuteMsg::Auth(AuthExecuteMsg::SetMakerFee { fee: test.fee });
+
+        // -- System under test --
+        let res = execute(deps.as_mut(), env, info, msg);
+
+        // -- Test Assertions --
+        if let Some(err) = test.expected_error {
+            assert_eq!(
+                res.unwrap_err(),
+                err,
+                "{}: did not receive expected error",
+                test.name
+            );
+            continue;
+        }
+
+        res.unwrap();
+
+        let new_fee = get_maker_fee(deps.as_mut().storage).unwrap();
+
+        assert_eq!(
+            test.fee, new_fee,
+            "{}: fee did not update correctly",
+            test.name
+        );
+    }
+}
+
+struct SetMakerFeeRecipientTestCase {
+    name: &'static str,
+    sender: &'static str,
+    recipient: &'static str,
+    expected_error: Option<ContractError>,
+}
+
+#[test]
+fn test_set_maker_fee_recipient() {
+    let current_admin = "admin";
+    let current_moderator = "moderator";
+    let unauthorized_user = "user";
+    let recipient = "fee_recipient";
+    let test_cases = vec![
+        SetMakerFeeRecipientTestCase {
+            name: "valid set by admin",
+            sender: current_admin,
+            recipient,
+            expected_error: None,
+        },
+        SetMakerFeeRecipientTestCase {
+            name: "valid set by moderator",
+            sender: current_moderator,
+            recipient,
+            expected_error: None,
+        },
+        SetMakerFeeRecipientTestCase {
+            name: "invalid set by unauthorized user",
+            sender: unauthorized_user,
+            recipient,
+            expected_error: Some(ContractError::Unauthorized {}),
+        },
+        SetMakerFeeRecipientTestCase {
+            name: "invalid recipient",
+            sender: current_admin,
+            recipient: "0",
+            expected_error: Some(ContractError::InvalidMakerFeeRecipient),
+        },
+    ];
+
+    for test in test_cases {
+        // -- Test Setup --
+        let mut deps = mock_dependencies();
+        let env = mock_env();
+        let info = mock_info(test.sender, &[]);
+
+        ADMIN
+            .save(deps.as_mut().storage, &Addr::unchecked(current_admin))
+            .unwrap();
+        MODERATOR
+            .save(deps.as_mut().storage, &Addr::unchecked(current_moderator))
+            .unwrap();
+        let msg = ExecuteMsg::Auth(AuthExecuteMsg::SetMakerFeeRecipient {
+            recipient: Addr::unchecked(test.recipient),
+        });
+
+        // -- System under test --
+        let res = execute(deps.as_mut(), env, info, msg);
+
+        // -- Test Assertions --
+        if let Some(err) = test.expected_error {
+            assert_eq!(
+                res.unwrap_err(),
+                err,
+                "{}: did not receive expected error",
+                test.name
+            );
+            continue;
+        }
+
+        res.unwrap();
+
+        let new_recipient = MAKER_FEE_RECIPIENT.load(deps.as_mut().storage).unwrap();
+
+        assert_eq!(
+            Addr::unchecked(test.recipient),
+            new_recipient,
+            "{}: recipient did not update correctly",
+            test.name
+        );
+    }
 }

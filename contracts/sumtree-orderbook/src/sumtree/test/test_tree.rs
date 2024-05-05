@@ -180,7 +180,7 @@ fn test_get_prefix_sum_valid() {
         // Assert that the resulting tree maintains basic sumtree invariants
         let tree_nodes = tree.traverse(deps.as_ref().storage).unwrap();
         let internals: Vec<&TreeNode> = tree_nodes.iter().filter(|x| x.is_internal()).collect();
-        assert_internal_values(test.name, deps.as_ref(), internals, true, false);
+        assert_internal_values(test.name, deps.as_ref(), internals, true);
 
         // System under test: get prefix sum
         let prefix_sum = get_prefix_sum(deps.as_ref().storage, tree, test.target_etas).unwrap();

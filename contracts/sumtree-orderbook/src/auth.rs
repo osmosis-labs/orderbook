@@ -1,9 +1,10 @@
 use crate::{
     error::ContractResult,
     msg::{AuthExecuteMsg, AuthQueryMsg},
+    state::{MAKER_FEE, MAKER_FEE_RECIPIENT},
     sudo, ContractError,
 };
-use cosmwasm_std::{ensure, Addr, Api, Deps, DepsMut, MessageInfo, Response, Storage};
+use cosmwasm_std::{ensure, Addr, Api, Decimal, Deps, DepsMut, MessageInfo, Response, Storage};
 use cw_storage_plus::Item;
 
 pub const ADMIN: Item<Addr> = Item::new("admin");
@@ -50,7 +51,18 @@ pub(crate) fn dispatch(
         // Accept an ongoing moderator offer
         AuthExecuteMsg::ClaimModerator {} => dispatch_claim_moderator(deps, info),
 
+        // -- Shared Messages --
+
+        // Set the active state of the contract
         AuthExecuteMsg::SetActive { active } => dispatch_set_active(deps, info, active),
+
+        // Set the maker fee amount for the contract
+        AuthExecuteMsg::SetMakerFee { fee } => dispatch_set_maker_fee(deps, info, fee),
+
+        // Set the recipient address for the maker fee for the contract
+        AuthExecuteMsg::SetMakerFeeRecipient { recipient } => {
+            dispatch_set_maker_fee_recipient(deps, info, recipient)
+        }
     }
 }
 
@@ -278,13 +290,9 @@ pub(crate) fn get_moderator_offer(storage: &dyn Storage) -> ContractResult<Optio
 
 // -- Shared Methods --
 
-/// Asserts that the orderbook is currently active.
+/// Sets the active state of the orderbook.
 ///
-/// Errors if the `IS_ACTIVE` switch is false.
-///
-/// If `IS_ACTIVE` is empty then it defaults to true.
-///
-/// Callable by either moderator or admin.
+/// Only callable by either moderator or admin.
 pub(crate) fn dispatch_set_active(
     deps: DepsMut,
     info: MessageInfo,
@@ -293,6 +301,43 @@ pub(crate) fn dispatch_set_active(
     ensure_is_admin_or_moderator(deps.as_ref(), &info.sender)?;
 
     sudo::set_active(deps, active)
+}
+
+/// Sets the maker fee amount for the orderbook.
+///
+/// Only callable by either moderator or admin.
+pub(crate) fn dispatch_set_maker_fee(
+    deps: DepsMut,
+    info: MessageInfo,
+    maker_fee: Decimal,
+) -> ContractResult<Response> {
+    ensure_is_admin_or_moderator(deps.as_ref(), &info.sender)?;
+
+    MAKER_FEE.save(deps.storage, &maker_fee)?;
+
+    Ok(Response::default().add_attributes(vec![
+        ("method", "set_maker_fee"),
+        ("maker_fee", &maker_fee.to_string()),
+    ]))
+}
+
+/// Sets the recipient address for the maker fee for the orderbook.
+///
+/// Only callable by either moderator or admin.
+pub(crate) fn dispatch_set_maker_fee_recipient(
+    deps: DepsMut,
+    info: MessageInfo,
+    maker_fee_recipient: Addr,
+) -> ContractResult<Response> {
+    ensure_is_admin_or_moderator(deps.as_ref(), &info.sender)?;
+
+    let addr = deps.api.addr_validate(maker_fee_recipient.as_str())?;
+    MAKER_FEE_RECIPIENT.save(deps.storage, &addr)?;
+
+    Ok(Response::default().add_attributes(vec![
+        ("method", "set_maker_fee_recipient"),
+        ("maker_fee_recipient", addr.as_str()),
+    ]))
 }
 
 // -- Ensure Methods --

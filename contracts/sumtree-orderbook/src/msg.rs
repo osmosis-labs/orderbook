@@ -50,6 +50,8 @@ pub enum AuthExecuteMsg {
 
     // -- Shared messages --
     SetActive { active: bool },
+    SetMakerFee { fee: Decimal },
+    SetMakerFeeRecipient { recipient: Addr },
 }
 
 /// Message type for `migrate` entry_point

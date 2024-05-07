@@ -1,5 +1,3 @@
-use std::str::FromStr;
-
 use crate::constants::{
     EXPONENT_AT_PRICE_ONE, GEOMETRIC_EXPONENT_INCREMENT_DISTANCE_IN_TICKS, MAX_TICK, MIN_TICK,
 };
@@ -99,23 +97,20 @@ pub fn multiply_by_price(
     amount: Uint128,
     price: Decimal256,
     rounding_direction: RoundingDirection,
-) -> ContractResult<Uint128> {
+) -> ContractResult<Uint256> {
     let amount_to_send_dec256 = price.checked_mul(Decimal256::from_ratio(
         Uint256::from_uint128(amount),
         Uint256::one(),
-    ))?;
-    let amount_to_send_u256 = rounding_direction.round(amount_to_send_dec256);
-
-    // TODO: Rounding?
+    ));
     ensure!(
-        amount_to_send_u256 <= Uint256::from_u128(Uint128::MAX.u128()),
+        amount_to_send_dec256.is_ok(),
         ContractError::Overflow(OverflowError {
             operation: OverflowOperation::Mul,
             operand1: amount.to_string(),
             operand2: price.to_string(),
         })
     );
-    let amount_to_send = Uint128::from_str(amount_to_send_u256.to_string().as_str()).unwrap();
+    let amount_to_send = rounding_direction.round(amount_to_send_dec256?);
 
     Ok(amount_to_send)
 }
@@ -125,20 +120,17 @@ pub fn divide_by_price(
     amount: Uint128,
     price: Decimal256,
     rounding_direction: RoundingDirection,
-) -> ContractResult<Uint128> {
-    let amount_to_send_dec256 =
-        Decimal256::from_ratio(amount, Uint256::one()).checked_div(price)?;
-    let amount_to_send_u256 = rounding_direction.round(amount_to_send_dec256);
-
+) -> ContractResult<Uint256> {
+    let amount_to_send_dec256 = Decimal256::from_ratio(amount, Uint256::one()).checked_div(price);
     ensure!(
-        amount_to_send_u256 <= Uint256::from_u128(Uint128::MAX.u128()),
+        amount_to_send_dec256.is_ok(),
         ContractError::Overflow(OverflowError {
             operation: OverflowOperation::Mul,
             operand1: amount.to_string(),
             operand2: price.to_string(),
         })
     );
-    let amount_to_send = Uint128::from_str(amount_to_send_u256.to_string().as_str()).unwrap();
+    let amount_to_send = rounding_direction.round(amount_to_send_dec256?);
 
     Ok(amount_to_send)
 }
@@ -149,9 +141,9 @@ pub fn amount_to_value(
     amount: Uint128,
     price: Decimal256,
     rounding_direction: RoundingDirection,
-) -> ContractResult<Uint128> {
+) -> ContractResult<Uint256> {
     if amount.is_zero() {
-        return Ok(Uint128::zero());
+        return Ok(Uint256::zero());
     }
     match order {
         OrderDirection::Bid => multiply_by_price(amount, price, rounding_direction),

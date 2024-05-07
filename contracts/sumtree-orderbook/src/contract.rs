@@ -1,7 +1,7 @@
 #[cfg(not(feature = "library"))]
 use cosmwasm_std::entry_point;
 use cosmwasm_std::{
-    ensure, to_json_binary, Binary, Decimal, Deps, DepsMut, Env, MessageInfo, Reply, Response,
+    ensure, to_json_binary, Binary, Decimal256, Deps, DepsMut, Env, MessageInfo, Reply, Response,
     Uint128,
 };
 use cw2::set_contract_version;
@@ -88,7 +88,7 @@ pub fn execute(
             order::claim_limit(deps, env, info, tick_id, order_id)
         }
 
-        ExecuteMsg::BatchClaim { orders } => order::batch_claim_limits(deps, info, orders),
+        ExecuteMsg::BatchClaim { orders } => order::batch_claim_limits(deps, info, env, orders),
 
         // Handles all authorisation messages
         ExecuteMsg::Auth(auth_msg) => auth::dispatch(deps, info, auth_msg),
@@ -155,7 +155,7 @@ pub fn dispatch_place_limit(
     tick_id: i64,
     order_direction: OrderDirection,
     quantity: Uint128,
-    claim_bounty: Option<Decimal>,
+    claim_bounty: Option<Decimal256>,
 ) -> Result<Response, ContractError> {
     order::place_limit(
         &mut deps,

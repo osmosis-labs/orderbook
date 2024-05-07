@@ -5,6 +5,7 @@ mod error;
 pub mod msg;
 mod order;
 mod orderbook;
+pub mod proto;
 pub mod query;
 pub mod state;
 pub mod sudo;

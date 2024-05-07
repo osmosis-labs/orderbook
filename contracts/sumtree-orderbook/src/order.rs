@@ -1,5 +1,3 @@
-use std::str::FromStr;
-
 use crate::constants::{MAX_BATCH_CLAIM, MAX_TICK, MIN_TICK};
 use crate::error::{ContractError, ContractResult};
 use crate::state::{
@@ -489,7 +487,7 @@ pub(crate) fn run_market_order_internal(
         order.quantity = order
             .quantity
             // Safe conversions as amount filled should never be larger than order quantity which is upper bounded by Uint128::MAX
-            .checked_sub(Uint128::from_str(&input_filled.to_string())?)?;
+            .checked_sub(Uint128::try_from(input_filled)?)?;
 
         current_tick.set_values(order.order_direction.opposite(), current_tick_values);
         // Add the updated tick state to the vector

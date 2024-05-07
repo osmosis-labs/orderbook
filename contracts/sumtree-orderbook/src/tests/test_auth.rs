@@ -14,7 +14,7 @@ use crate::{
     constants::MAX_MAKER_FEE_PERCENTAGE,
     contract::{execute, query},
     msg::{AuthExecuteMsg, AuthQueryMsg, ExecuteMsg, QueryMsg},
-    state::{get_maker_fee, IS_ACTIVE, MAKER_FEE_RECIPIENT},
+    state::{get_maker_fee, IS_ACTIVE, MAKER_FEE, MAKER_FEE_RECIPIENT},
     ContractError,
 };
 
@@ -933,6 +933,12 @@ fn test_set_maker_fee() {
                 "{}: did not receive expected error",
                 test.name
             );
+            let maybe_maker_fee = MAKER_FEE.may_load(deps.as_ref().storage).unwrap();
+            assert!(
+                maybe_maker_fee.is_none(),
+                "{}: fee was incorrectly set",
+                test.name
+            );
             continue;
         }
 
@@ -1013,6 +1019,13 @@ fn test_set_maker_fee_recipient() {
                 res.unwrap_err(),
                 err,
                 "{}: did not receive expected error",
+                test.name
+            );
+            let maybe_maker_fee_recipient =
+                MAKER_FEE_RECIPIENT.may_load(deps.as_ref().storage).unwrap();
+            assert!(
+                maybe_maker_fee_recipient.is_none(),
+                "{}: fee recipient was incorrectly set",
                 test.name
             );
             continue;

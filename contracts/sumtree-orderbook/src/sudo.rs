@@ -126,8 +126,8 @@ pub(crate) fn dispatch_swap_exact_amount_in(
         error: "Market order did not generate an output message".to_string(),
     })?;
     validate_output_amount(
-        Some(Uint256::from_uint128(token_in.amount)),
-        Some(Uint256::from_uint128(token_out_min_amount)),
+        Uint256::from_uint128(token_in.amount),
+        Uint256::from_uint128(token_out_min_amount),
         &coin_u256(token_in.amount, &token_in.denom),
         output_amt,
     )?;
@@ -167,35 +167,31 @@ pub(crate) fn dispatch_swap_exact_amount_out(
 /// 2. An optional provided minimum amount (swap exact amount in)
 /// 3. An expected denom
 pub(crate) fn validate_output_amount(
-    max_in_amount: Option<Uint256>,
-    min_out_amount: Option<Uint256>,
+    max_in_amount: Uint256,
+    min_out_amount: Uint256,
     input: &Coin256,
     output: &Coin256,
 ) -> ContractResult<()> {
     // Generated amount must be less than or equal to the maximum allowed amount
-    if let Some(max_amount) = max_in_amount {
-        ensure!(
-            input.amount <= max_amount,
-            ContractError::InvalidSwap {
-                error: format!(
-                    "Exceeded max swap amount: expected {max_amount} received {}",
-                    input.amount
-                )
-            }
-        );
-    }
+    ensure!(
+        input.amount <= max_in_amount,
+        ContractError::InvalidSwap {
+            error: format!(
+                "Exceeded max swap amount: expected {max_in_amount} received {}",
+                input.amount
+            )
+        }
+    );
     // Generated amount must be more than or equal to the minimum allowed amount
-    if let Some(min_amount) = min_out_amount {
-        ensure!(
-            output.amount >= min_amount,
-            ContractError::InvalidSwap {
-                error: format!(
-                    "Did not meet minimum swap amount: expected {min_amount} received {}",
-                    output.amount
-                )
-            }
-        );
-    }
+    ensure!(
+        output.amount >= min_out_amount,
+        ContractError::InvalidSwap {
+            error: format!(
+                "Did not meet minimum swap amount: expected {min_out_amount} received {}",
+                output.amount
+            )
+        }
+    );
 
     // Ensure in and out denoms are not equal
     ensure!(

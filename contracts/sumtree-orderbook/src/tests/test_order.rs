@@ -3779,7 +3779,7 @@ struct MakerFeeTestCase {
     placed_order: LimitOrder,
     maker_fee: Option<Decimal>,
     maker_fee_recipient: Option<Addr>,
-    expected_claimant_msg: BankMsg,
+    expected_claimer_msg: BankMsg,
     expected_maker_fee_msg: Option<BankMsg>,
     expected_error: Option<ContractError>,
 }
@@ -3796,7 +3796,7 @@ fn test_maker_fee() {
             placed_order: LimitOrder::new(0, 0, OrderDirection::Bid, sender.clone(), Uint128::from(100u128), Decimal256::zero(), None),
             maker_fee: Some(Decimal::percent(2)), // 2% maker fee
             maker_fee_recipient: Some(maker_fee_recipient.clone()),
-            expected_claimant_msg: BankMsg::Send {
+            expected_claimer_msg: BankMsg::Send {
                 to_address: sender.to_string(),
                 amount: vec![coin(98, base_denom)], // 100 - 2% maker fee
             },
@@ -3811,7 +3811,7 @@ fn test_maker_fee() {
             placed_order: LimitOrder::new(0, 0, OrderDirection::Bid, sender.clone(), Uint128::from(100u128), Decimal256::zero(), Some(Decimal::percent(1))),
             maker_fee: Some(Decimal::percent(2)), // 2% maker fee
             maker_fee_recipient: Some(maker_fee_recipient.clone()),
-            expected_claimant_msg: BankMsg::Send {
+            expected_claimer_msg: BankMsg::Send {
                 to_address: sender.to_string(),
                 amount: vec![coin(97, base_denom)], // 100 - 2% maker fee - 1% claim bounty
             },
@@ -3826,7 +3826,7 @@ fn test_maker_fee() {
             placed_order: LimitOrder::new(0, 0, OrderDirection::Bid, sender.clone(), Uint128::from(100u128), Decimal256::zero(), None),
             maker_fee: Some(Decimal::from_ratio(1u64, 33u64)), // 3.333...% maker fee
             maker_fee_recipient: Some(maker_fee_recipient.clone()),
-            expected_claimant_msg: BankMsg::Send {
+            expected_claimer_msg: BankMsg::Send {
                 to_address: sender.to_string(),
                 amount: vec![coin(97, base_denom)], // 100 - 3% maker fee (rounded down)
             },
@@ -3841,7 +3841,7 @@ fn test_maker_fee() {
             placed_order: LimitOrder::new(0, 0, OrderDirection::Bid, sender.clone(), Uint128::from(100u128), Decimal256::zero(), None),
             maker_fee: None, 
             maker_fee_recipient: Some(maker_fee_recipient.clone()),
-            expected_claimant_msg: BankMsg::Send {
+            expected_claimer_msg: BankMsg::Send {
                 to_address: sender.to_string(),
                 amount: vec![coin(100, base_denom)], 
             },
@@ -3853,7 +3853,7 @@ fn test_maker_fee() {
             placed_order: LimitOrder::new(0, 0, OrderDirection::Bid, sender.clone(), Uint128::from(100u128), Decimal256::zero(), None),
             maker_fee: Some(Decimal::from_ratio(1u64, 1000u64)), // 0.1% maker fee
             maker_fee_recipient: Some(maker_fee_recipient.clone()),
-            expected_claimant_msg: BankMsg::Send {
+            expected_claimer_msg: BankMsg::Send {
                 to_address: sender.to_string(),
                 amount: vec![coin(100, base_denom)], // 100 - 0.1% maker fee (rounded down)
             },
@@ -3865,7 +3865,7 @@ fn test_maker_fee() {
             placed_order: LimitOrder::new(0, 0, OrderDirection::Bid, sender.clone(), Uint128::from(100u128), Decimal256::zero(), None),
             maker_fee: Some(Decimal::percent(2)), // 2% maker fee
             maker_fee_recipient: None,
-            expected_claimant_msg: BankMsg::Send {
+            expected_claimer_msg: BankMsg::Send {
                 to_address: sender.to_string(),
                 amount: vec![coin(98, base_denom)], // 100 - 2% maker fee
             },
@@ -3926,10 +3926,10 @@ fn test_maker_fee() {
 
         let (_, msgs) = result.unwrap();
 
-        // The claimant's message is always first in the array of bank messages
-        let claimant_msg = msgs.first().unwrap();
-        let expected_claimant_msg = SubMsg::reply_on_error(test.expected_claimant_msg, REPLY_ID_CLAIM);
-        assert_eq!(claimant_msg, &expected_claimant_msg, "{}", format_test_name(test.name));
+        // The claimer's message is always first in the array of bank messages
+        let claimer_msg = msgs.first().unwrap();
+        let expected_claimer_msg = SubMsg::reply_on_error(test.expected_claimer_msg, REPLY_ID_CLAIM);
+        assert_eq!(claimer_msg, &expected_claimer_msg, "{}", format_test_name(test.name));
 
         // The index of the maker fee message is always after any bounties
         // If the placed order has an expected bounty, the maker fee message is at index 2

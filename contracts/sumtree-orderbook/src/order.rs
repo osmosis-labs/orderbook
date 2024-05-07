@@ -598,7 +598,7 @@ pub(crate) fn claim_order(
     let maker_fee = get_maker_fee(storage)?;
     let mut maker_fee_amount = Uint128::zero();
     if !maker_fee.is_zero() {
-        // Calculate the fee amount based on the quantity originally being sent to the claimant
+        // Calculate the fee amount based on the quantity originally being sent to the claimer
         maker_fee_amount = Decimal::from_ratio(raw_amount, 1u128)
             .checked_mul(maker_fee)?
             .to_uint_floor();

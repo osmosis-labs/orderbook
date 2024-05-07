@@ -53,7 +53,7 @@ pub enum AuthExecuteMsg {
 
     // -- Shared messages --
     SetActive { active: bool },
-    SetMakerFee { fee: Decimal },
+    SetMakerFee { fee: Decimal256 },
     SetMakerFeeRecipient { recipient: Addr },
 }
 

@@ -5,7 +5,7 @@ use crate::{
     state::{MAKER_FEE, MAKER_FEE_RECIPIENT},
     sudo, ContractError,
 };
-use cosmwasm_std::{ensure, Addr, Api, Decimal, Deps, DepsMut, MessageInfo, Response, Storage};
+use cosmwasm_std::{ensure, Addr, Api, Decimal256, Deps, DepsMut, MessageInfo, Response, Storage};
 use cw_storage_plus::Item;
 
 pub const ADMIN: Item<Addr> = Item::new("admin");
@@ -310,7 +310,7 @@ pub(crate) fn dispatch_set_active(
 pub(crate) fn dispatch_set_maker_fee(
     deps: DepsMut,
     info: MessageInfo,
-    maker_fee: Decimal,
+    maker_fee: Decimal256,
 ) -> ContractResult<Response> {
     ensure_is_admin_or_moderator(deps.as_ref(), &info.sender)?;
 

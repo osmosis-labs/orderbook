@@ -1,7 +1,7 @@
 use cosmwasm_std::{
     from_json,
     testing::{mock_dependencies, mock_env, mock_info},
-    Addr, Decimal,
+    Addr, Decimal256,
 };
 
 use crate::{
@@ -864,7 +864,7 @@ fn test_get_moderator_offer() {
 struct SetMakerFeeTestCase {
     name: &'static str,
     sender: &'static str,
-    fee: Decimal,
+    fee: Decimal256,
     expected_error: Option<ContractError>,
 }
 
@@ -877,32 +877,32 @@ fn test_set_maker_fee() {
         SetMakerFeeTestCase {
             name: "valid fee set by moderator",
             sender: current_moderator,
-            fee: Decimal::percent(1),
+            fee: Decimal256::percent(1),
             expected_error: None,
         },
         SetMakerFeeTestCase {
             name: "valid fee set by admin",
             sender: current_admin,
-            fee: Decimal::percent(1),
+            fee: Decimal256::percent(1),
             expected_error: None,
         },
         SetMakerFeeTestCase {
             name: "valid zero fee",
             sender: current_admin,
-            fee: Decimal::percent(0),
+            fee: Decimal256::percent(0),
             expected_error: None,
         },
         SetMakerFeeTestCase {
             name: "invalid fee set by unauthorized user",
             sender: "user",
-            fee: Decimal::percent(0),
+            fee: Decimal256::percent(0),
             expected_error: Some(ContractError::Unauthorized {}),
         },
         SetMakerFeeTestCase {
             name: "fee above maximum",
             sender: current_admin,
             fee: MAX_MAKER_FEE_PERCENTAGE
-                .checked_add(Decimal::percent(1))
+                .checked_add(Decimal256::percent(1))
                 .unwrap(),
             expected_error: Some(ContractError::InvalidMakerFee),
         },

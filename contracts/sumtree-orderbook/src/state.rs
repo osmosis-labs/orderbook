@@ -1,7 +1,7 @@
 use crate::error::ContractResult;
 use crate::types::{FilterOwnerOrders, LimitOrder, OrderDirection, Orderbook, TickState};
 use crate::ContractError;
-use cosmwasm_std::{Addr, Decimal, Decimal256, Order, StdResult, Storage};
+use cosmwasm_std::{Addr, Decimal256, Order, StdResult, Storage};
 use cw_storage_plus::{Bound, Index, IndexList, IndexedMap, Item, Map, MultiIndex};
 
 // Counters for ID tracking
@@ -17,7 +17,7 @@ pub const DIRECTION_TOTAL_LIQUIDITY: Map<&str, Decimal256> = Map::new("direction
 
 // Admin State
 pub const IS_ACTIVE: Item<bool> = Item::new("is_active");
-pub const MAKER_FEE: Item<Decimal> = Item::new("maker_fee");
+pub const MAKER_FEE: Item<Decimal256> = Item::new("maker_fee");
 pub const MAKER_FEE_RECIPIENT: Item<Addr> = Item::new("maker_fee_recipient");
 
 pub struct OrderIndexes {
@@ -163,7 +163,7 @@ pub fn subtract_directional_liquidity(
 /// Returns the current maker fee
 ///
 /// If none is set defaults to `Decimal256::zero()`
-pub fn get_maker_fee(storage: &dyn Storage) -> ContractResult<Decimal> {
+pub fn get_maker_fee(storage: &dyn Storage) -> ContractResult<Decimal256> {
     let fee = MAKER_FEE.load(storage).unwrap_or_default();
     Ok(fee)
 }

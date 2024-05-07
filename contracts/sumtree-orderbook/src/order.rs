@@ -575,7 +575,7 @@ pub(crate) fn claim_order(
         tick_price,
         RoundingDirection::Down,
     )?;
-    // Immutable amount to prevent bounty/maker fee calculati
+    // Immutable amount to prevent bounty/maker fee calculations affecting each other
     let raw_amount = amount;
 
     // Cannot send a zero amount, may be zero'd out by rounding

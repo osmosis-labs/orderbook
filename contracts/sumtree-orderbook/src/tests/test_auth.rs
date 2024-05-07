@@ -11,6 +11,7 @@ use crate::{
         dispatch_renounce_adminship, dispatch_transfer_admin, ADMIN, ADMIN_OFFER, MODERATOR,
         MODERATOR_OFFER,
     },
+    constants::MAX_MAKER_FEE_PERCENTAGE,
     contract::{execute, query},
     msg::{AuthExecuteMsg, AuthQueryMsg, ExecuteMsg, QueryMsg},
     state::{get_maker_fee, IS_ACTIVE, MAKER_FEE_RECIPIENT},
@@ -900,7 +901,9 @@ fn test_set_maker_fee() {
         SetMakerFeeTestCase {
             name: "fee above maximum",
             sender: current_admin,
-            fee: Decimal::percent(5),
+            fee: MAX_MAKER_FEE_PERCENTAGE
+                .checked_add(Decimal::percent(1))
+                .unwrap(),
             expected_error: Some(ContractError::InvalidMakerFee),
         },
     ];

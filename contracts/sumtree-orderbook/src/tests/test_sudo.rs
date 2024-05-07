@@ -1,7 +1,7 @@
 use cosmwasm_std::{
     coin,
     testing::{mock_dependencies, mock_env, mock_info},
-    to_json_binary, Addr, Coin, Decimal, Decimal256, StdError, SubMsg, Uint128,
+    to_json_binary, Addr, Coin, Decimal, Decimal256, StdError, SubMsg, Uint128, Uint256,
 };
 
 use crate::{
@@ -24,8 +24,8 @@ use super::test_utils::{format_test_name, OrderOperation};
 
 struct ValidateOutputAmountTestCase {
     name: &'static str,
-    max_in_amount: Option<Uint128>,
-    min_out_amount: Option<Uint128>,
+    max_in_amount: Option<Uint256>,
+    min_out_amount: Option<Uint256>,
     input: Coin256,
     output: Coin256,
     expected_error: Option<ContractError>,
@@ -38,16 +38,16 @@ fn test_validate_output_amount() {
     let test_cases: Vec<ValidateOutputAmountTestCase> = vec![
         ValidateOutputAmountTestCase {
             name: "valid output",
-            max_in_amount: Some(Uint128::from(100u128)),
-            min_out_amount: Some(Uint128::zero()),
+            max_in_amount: Some(Uint256::from(100u128)),
+            min_out_amount: Some(Uint256::zero()),
             input: coin_u256(50u128, in_denom),
             output: coin_u256(50u128, out_denom),
             expected_error: None,
         },
         ValidateOutputAmountTestCase {
             name: "exceed max",
-            max_in_amount: Some(Uint128::from(100u128)),
-            min_out_amount: Some(Uint128::zero()),
+            max_in_amount: Some(Uint256::from(100u128)),
+            min_out_amount: Some(Uint256::zero()),
             output: coin_u256(50u128, in_denom),
             input: coin_u256(101u128, out_denom),
             expected_error: Some(ContractError::InvalidSwap {
@@ -60,8 +60,8 @@ fn test_validate_output_amount() {
         },
         ValidateOutputAmountTestCase {
             name: "do not meet min",
-            max_in_amount: Some(Uint128::from(100u128)),
-            min_out_amount: Some(Uint128::from(50u128)),
+            max_in_amount: Some(Uint256::from(100u128)),
+            min_out_amount: Some(Uint256::from(50u128)),
             input: coin_u256(50u128, in_denom),
             output: coin_u256(41u128, out_denom),
             expected_error: Some(ContractError::InvalidSwap {
@@ -74,8 +74,8 @@ fn test_validate_output_amount() {
         },
         ValidateOutputAmountTestCase {
             name: "duplicate denom",
-            max_in_amount: Some(Uint128::from(100u128)),
-            min_out_amount: Some(Uint128::zero()),
+            max_in_amount: Some(Uint256::from(100u128)),
+            min_out_amount: Some(Uint256::zero()),
             input: coin_u256(50u128, in_denom),
             output: coin_u256(41u128, in_denom),
             expected_error: Some(ContractError::InvalidSwap {

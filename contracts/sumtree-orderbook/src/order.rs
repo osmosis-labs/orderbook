@@ -624,8 +624,7 @@ pub(crate) fn claim_order(
     if !maker_fee_amount.is_zero() {
         // Maker fee recipient is controlled by contract admin/moderator
         let maker_fee_recipient = MAKER_FEE_RECIPIENT
-            .load(storage)
-            .ok()
+            .may_load(storage)?
             .ok_or(ContractError::NoMakerFeeRecipient)?;
         let maker_fee_msg = BankMsg::Send {
             to_address: maker_fee_recipient.to_string(),

@@ -26,7 +26,8 @@ fn test_tick_to_price() {
     let tick_price_test_cases = vec![
         TickToPriceTestCase {
             tick_index: MAX_TICK,
-            expected_price: max_spot_price(),
+            expected_price: Decimal256::from_str("100000000000000000000000000000000000000")
+                .unwrap(),
             expected_error: None,
         },
         TickToPriceTestCase {
@@ -66,7 +67,8 @@ fn test_tick_to_price() {
         },
         TickToPriceTestCase {
             tick_index: MAX_TICK - 1,
-            expected_price: max_spot_price()
+            expected_price: Decimal256::from_str("100000000000000000000000000000000000000")
+                .unwrap()
                 .checked_sub(min_increment_near_max_price)
                 .unwrap(),
             expected_error: None,
@@ -129,7 +131,11 @@ fn test_tick_to_price() {
 
         match test.expected_error {
             Some(expected_err) => assert_eq!(result.unwrap_err(), expected_err),
-            None => assert_eq!(test.expected_price, result.unwrap()),
+            None => assert_eq!(
+                test.expected_price,
+                result.unwrap(),
+                "expected price and result did not match"
+            ),
         }
     }
 }

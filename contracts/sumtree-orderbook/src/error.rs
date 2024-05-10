@@ -1,3 +1,4 @@
+use crate::constants::MAX_MAKER_FEE_PERCENTAGE;
 use cosmwasm_std::{
     CheckedFromRatioError, CheckedMultiplyRatioError, CoinsError, ConversionOverflowError,
     Decimal256, DecimalRangeExceeded, DivideByZeroError, OverflowError, StdError, Uint128,
@@ -106,6 +107,15 @@ pub enum ContractError {
 
     #[error("Max spot price exceeded")]
     MaxSpotPriceExceeded,
+  
+    #[error("No maker fee recipient currently set")]
+    NoMakerFeeRecipient,
+
+    #[error("Invalid Maker Fee Recipient")]
+    InvalidMakerFeeRecipient,
+
+    #[error("Invalid Maker Fee: provided fee must be less than or equal to {MAX_MAKER_FEE_PERCENTAGE:?}")]
+    InvalidMakerFee,
 }
 
 pub type ContractResult<T> = Result<T, ContractError>;

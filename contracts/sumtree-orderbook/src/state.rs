@@ -14,7 +14,11 @@ const DEFAULT_PAGE_SIZE: u8 = 50;
 pub const ORDERBOOK: Item<Orderbook> = Item::new("orderbook");
 pub const TICK_STATE: Map<i64, TickState> = Map::new("tick_state");
 pub const DIRECTION_TOTAL_LIQUIDITY: Map<&str, Decimal256> = Map::new("direction_liquidity");
+
+// Admin State
 pub const IS_ACTIVE: Item<bool> = Item::new("is_active");
+pub const MAKER_FEE: Item<Decimal256> = Item::new("maker_fee");
+pub const MAKER_FEE_RECIPIENT: Item<Addr> = Item::new("maker_fee_recipient");
 
 pub struct OrderIndexes {
     // Index by owner; Generic types: MultiIndex<Index Key: owner, Input Data: LimitOrder, Map Key: ( tick, order_id)>
@@ -154,4 +158,12 @@ pub fn subtract_directional_liquidity(
         &(current_liquidity.checked_sub(amount)?),
     )?;
     Ok(())
+}
+
+/// Returns the current maker fee
+///
+/// If none is set defaults to `Decimal256::zero()`
+pub fn get_maker_fee(storage: &dyn Storage) -> ContractResult<Decimal256> {
+    let fee = MAKER_FEE.load(storage).unwrap_or_default();
+    Ok(fee)
 }

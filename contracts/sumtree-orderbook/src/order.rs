@@ -58,7 +58,7 @@ pub fn place_limit(
     let max_spot_price = max_spot_price();
     let tick_price = tick_to_price(tick_id)?;
     let claimed_price = amount_to_value(
-        order_direction.opposite(),
+        order_direction,
         quantity,
         tick_price,
         RoundingDirection::Down,

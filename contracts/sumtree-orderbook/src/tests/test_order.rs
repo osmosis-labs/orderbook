@@ -4,12 +4,9 @@ use crate::{
     constants::{MAX_TICK, MIN_TICK}, error::ContractError, order::*, orderbook::*, state::*, sumtree::{
         node::{NodeType, TreeNode},
         tree::get_root_node,
-    },
-    tests::test_utils::{decimal256_from_u128, place_multiple_limit_orders},
-    types::{
-        FilterOwnerOrders, LimitOrder, MarketOrder, OrderDirection, Orderbook, TickState, TickValues, REPLY_ID_CLAIM, REPLY_ID_CLAIM_BOUNTY, REPLY_ID_MAKER_FEE, REPLY_ID_REFUND,
-        coin_u256, MsgSend256
-    },
+    }, tests::test_utils::{decimal256_from_u128, place_multiple_limit_orders}, tick_math::{amount_to_value, tick_to_price, RoundingDirection}, types::{
+        coin_u256, FilterOwnerOrders, LimitOrder, MarketOrder, MsgSend256, OrderDirection, Orderbook, TickState, TickValues, REPLY_ID_CLAIM, REPLY_ID_CLAIM_BOUNTY, REPLY_ID_MAKER_FEE, REPLY_ID_REFUND
+    }
 };
 use cosmwasm_std::{
     coin, testing::mock_dependencies, Addr, BankMsg, Coin, Empty, SubMsg, Uint128, Uint256,

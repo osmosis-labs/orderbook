@@ -1,7 +1,7 @@
 use std::str::FromStr;
 
 use crate::{
-    constants::{MAX_TICK, MIN_TICK}, error::ContractError, order::*, orderbook::*, state::*, sumtree::{
+    constants::{max_spot_price, MAX_TICK, MIN_TICK}, error::ContractError, order::*, orderbook::*, state::*, sumtree::{
         node::{NodeType, TreeNode},
         tree::get_root_node,
     }, tests::test_utils::{decimal256_from_u128, place_multiple_limit_orders}, tick_math::{amount_to_value, tick_to_price, RoundingDirection}, types::{
@@ -158,17 +158,23 @@ fn test_place_limit() {
             }),
         },
         PlaceLimitTestCase {
-            name: "exceed max spot",
+            name: "max amount on max tick",
             tick_id: MAX_TICK,
             quantity: Uint128::MAX,
             sent: Uint128::MAX,
             order_direction: OrderDirection::Bid,
             claim_bounty: None,
-            expected_error: Some(ContractError::MaxSpotPriceExceeded),
+            expected_error: None,
         },
-        // Min tick testing is done as a separate test as the amount required to fill the order is larger than can be sent in a single order.
-        // See: test_claim_max_order_min_tick
-        // Placing a limit on MIN_TICK cannot cause an error due to `Uint128::Max/tick_to_price(MIN_TICK)` not causing an overflow on `Decimal256`
+        PlaceLimitTestCase {
+            name: "max amount on min tick",
+            tick_id: MIN_TICK,
+            quantity: Uint128::MAX,
+            sent: Uint128::MAX,
+            order_direction: OrderDirection::Ask,
+            claim_bounty: None,
+            expected_error: None,
+        },
     ];
 
     for test in test_cases {
@@ -3365,14 +3371,15 @@ fn test_claim_max_order_min_tick() {
     // Place limit order on min tick for max amount
     let order_id = 0;
     let tick_id = MIN_TICK;
-    place_limit(&mut deps.as_mut(), env.clone(), info, tick_id, OrderDirection::Ask, Uint128::MAX, None).unwrap();
+    let order_direction = OrderDirection::Ask;
+    place_limit(&mut deps.as_mut(), env.clone(), info, tick_id, order_direction, Uint128::MAX, None).unwrap();
 
     // Update tick state to allow order to be claimable
     let mut tick_state = TICK_STATE.load(deps.as_ref().storage, tick_id).unwrap();
-    let mut tick_value = tick_state.get_values(OrderDirection::Ask);
+    let mut tick_value = tick_state.get_values(order_direction);
     tick_value.effective_total_amount_swapped = Decimal256::MAX;
     tick_value.cumulative_total_value = Decimal256::MAX;
-    tick_state.set_values(OrderDirection::Ask, tick_value);
+    tick_state.set_values(order_direction, tick_value);
     TICK_STATE.save(deps.as_mut().storage, tick_id, &tick_state).unwrap();
 
     // -- System under test --
@@ -3382,7 +3389,59 @@ fn test_claim_max_order_min_tick() {
 
     // The expected amount is the amount converted from the original order
     // This calculation is done explicitly to ensure amounts match
-    let expected_amount = coin_u256(amount_to_value(OrderDirection::Ask, Uint128::MAX, tick_to_price(MIN_TICK).unwrap(), RoundingDirection::Down).unwrap(), quote_denom);
+    let expected_amount = coin_u256(amount_to_value(order_direction, Uint128::MAX, tick_to_price(MIN_TICK).unwrap(), RoundingDirection::Down).unwrap(), quote_denom);
+    assert_eq!(
+        output.first().unwrap(), 
+        &SubMsg::reply_on_error(MsgSend256 { 
+            from_address: "cosmos2contract".to_string(), 
+            to_address: sender.to_string(), 
+            amount: vec![expected_amount] }, 
+            REPLY_ID_CLAIM
+        )
+    );
+}
+
+/// Testing that a maximum order placed in minimum tick is claimable.
+/// 
+/// This is done as a separate test as the amount required to fill the order is larger than can be sent in a single order.
+#[test]
+fn test_claim_max_order_max_tick() {
+    let quote_denom = "quote";
+    let base_denom = "base";
+    let sender = Addr::unchecked("sender");
+
+    // -- Test Setup --
+    let mut deps = mock_dependencies();
+    let env = mock_env();
+    let info = mock_info("sender", &[coin(u128::MAX, quote_denom)]);
+    create_orderbook(
+        deps.as_mut(),
+        quote_denom.to_string(),
+        base_denom.to_string(),
+    ).unwrap();
+
+    // Place limit order on max tick for max amount
+    let order_id = 0;
+    let order_direction = OrderDirection::Bid;
+    let tick_id = MAX_TICK;
+    place_limit(&mut deps.as_mut(), env.clone(), info, tick_id, order_direction, Uint128::MAX, None).unwrap();
+
+    // Update tick state to allow order to be claimable
+    let mut tick_state = TICK_STATE.load(deps.as_ref().storage, tick_id).unwrap();
+    let mut tick_value = tick_state.get_values(order_direction);
+    tick_value.effective_total_amount_swapped = Decimal256::MAX;
+    tick_value.cumulative_total_value = Decimal256::MAX;
+    tick_state.set_values(order_direction, tick_value);
+    TICK_STATE.save(deps.as_mut().storage, tick_id, &tick_state).unwrap();
+
+    // -- System under test --
+    let (_, output) = claim_order(deps.as_mut().storage, env.contract.address, sender.clone(), tick_id, order_id).unwrap();
+
+    // -- Post test assertions --
+
+    // The expected amount is the amount converted from the original order
+    // This calculation is done explicitly to ensure amounts match
+    let expected_amount = coin_u256(amount_to_value(order_direction, Uint128::MAX, max_spot_price(), RoundingDirection::Down).unwrap(), base_denom);
     assert_eq!(
         output.first().unwrap(), 
         &SubMsg::reply_on_error(MsgSend256 { 
@@ -4048,4 +4107,3 @@ fn test_maker_fee() {
     }
 
 }
-

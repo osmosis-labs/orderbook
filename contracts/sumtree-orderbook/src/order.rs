@@ -56,19 +56,14 @@ pub fn place_limit(
     }
 
     let max_spot_price = max_spot_price();
-    let tick_price = tick_to_price(tick_id)?;
     let claimed_price = amount_to_value(
         order_direction,
         quantity,
-        tick_price,
+        max_spot_price,
         RoundingDirection::Down,
     );
 
-    ensure!(
-        claimed_price.is_ok()
-            && Decimal256::from_ratio(claimed_price.unwrap(), Uint256::one()) <= max_spot_price,
-        ContractError::MaxSpotPriceExceeded
-    );
+    ensure!(claimed_price.is_ok(), ContractError::MaxSpotPriceExceeded);
 
     // Determine the correct denom based on order direction
     let expected_denom = orderbook.get_expected_denom(&order_direction);

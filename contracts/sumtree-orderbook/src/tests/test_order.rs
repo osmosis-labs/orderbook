@@ -1,20 +1,12 @@
 use std::str::FromStr;
 
 use crate::{
-    constants::{MAX_TICK, MIN_TICK},
-    error::ContractError,
-    order::*,
-    orderbook::*,
-    state::*,
-    sumtree::{
+    constants::{MAX_TICK, MIN_TICK}, error::ContractError, order::*, orderbook::*, state::*, sumtree::{
         node::{NodeType, TreeNode},
         tree::get_root_node,
-    },
-    tests::test_utils::{decimal256_from_u128, place_multiple_limit_orders},
-    types::{
-        FilterOwnerOrders, LimitOrder, MarketOrder, OrderDirection, Orderbook, TickState, TickValues, REPLY_ID_CLAIM, REPLY_ID_CLAIM_BOUNTY, REPLY_ID_MAKER_FEE, REPLY_ID_REFUND,
-        coin_u256, MsgSend256
-    },
+    }, tests::test_utils::{decimal256_from_u128, place_multiple_limit_orders}, types::{
+        coin_u256, FilterOwnerOrders, LimitOrder, MarketOrder, MsgSend256, OrderDirection, Orderbook, TickState, TickValues, REPLY_ID_CLAIM, REPLY_ID_CLAIM_BOUNTY, REPLY_ID_MAKER_FEE, REPLY_ID_REFUND
+    }
 };
 use cosmwasm_std::{
     coin, testing::mock_dependencies, Addr, BankMsg, Coin, Empty, SubMsg, Uint128, Uint256,
@@ -166,23 +158,23 @@ fn test_place_limit() {
             }),
         },
         PlaceLimitTestCase {
-            name: "exceed max spot",
+            name: "max amount on max tick",
             tick_id: MAX_TICK,
+            quantity: Uint128::MAX,
+            sent: Uint128::MAX,
+            order_direction: OrderDirection::Bid,
+            claim_bounty: None,
+            expected_error: None,
+        },
+        PlaceLimitTestCase {
+            name: "max amount on min tick",
+            tick_id: MIN_TICK,
             quantity: Uint128::MAX,
             sent: Uint128::MAX,
             order_direction: OrderDirection::Ask,
             claim_bounty: None,
-            expected_error: Some(ContractError::MaxSpotPriceExceeded),
+            expected_error: None,
         },
-        // PlaceLimitTestCase {
-        //     name: "exceed max spot",
-        //     tick_id: MIN_TICK,
-        //     quantity: Uint128::MAX,
-        //     sent: Uint128::MAX,
-        //     order_direction: OrderDirection::Bid,
-        //     claim_bounty: None,
-        //     expected_error: Some(ContractError::MaxSpotPriceExceeded),
-        // },
     ];
 
     for test in test_cases {
@@ -4010,4 +4002,3 @@ fn test_maker_fee() {
     }
 
 }
-

@@ -19,15 +19,14 @@ fn test_tick_to_price() {
     // which with an EXPONENT_AT_PRICE_ONE of -6 should be 10^31.
     let min_increment_near_max_price = Decimal256::from_ratio(
         Uint256::from(10u8)
-            .checked_pow((37 + EXPONENT_AT_PRICE_ONE) as u32)
+            .checked_pow((20 + EXPONENT_AT_PRICE_ONE) as u32)
             .unwrap(),
         Uint256::one(),
     );
     let tick_price_test_cases = vec![
         TickToPriceTestCase {
             tick_index: MAX_TICK,
-            expected_price: Decimal256::from_str("100000000000000000000000000000000000000")
-                .unwrap(),
+            expected_price: max_spot_price(),
             expected_error: None,
         },
         TickToPriceTestCase {
@@ -67,8 +66,7 @@ fn test_tick_to_price() {
         },
         TickToPriceTestCase {
             tick_index: MAX_TICK - 1,
-            expected_price: Decimal256::from_str("100000000000000000000000000000000000000")
-                .unwrap()
+            expected_price: max_spot_price()
                 .checked_sub(min_increment_near_max_price)
                 .unwrap(),
             expected_error: None,

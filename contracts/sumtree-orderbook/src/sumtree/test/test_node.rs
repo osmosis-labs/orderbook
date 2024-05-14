@@ -130,7 +130,7 @@ pub fn assert_internal_values(
 
 struct TestNodeInsertCase {
     name: &'static str,
-    nodes: Vec<NodeType>,
+    new_nodes: Vec<NodeType>,
     tree: Vec<TreeNode>,
     // Depth first search ordering of node IDs (Could be improved?)
     expected: Vec<u64>,
@@ -162,7 +162,7 @@ fn test_node_insert_cases() {
         //  2: 1 5          ->8: 6 6
         TestNodeInsertCase {
             name: "Case 1: New node fits in left internal range, insert left",
-            nodes: vec![
+            new_nodes: vec![
                 NodeType::leaf_uint256(6u32, 6u32),
             ],
             tree: vec![
@@ -203,7 +203,7 @@ fn test_node_insert_cases() {
         //                                                         3: 20 5         ->8: 25 5
         TestNodeInsertCase {
             name: "Case 2: New node fits in right internal range, insert right",
-            nodes: vec![
+            new_nodes: vec![
                 NodeType::leaf_uint256(25u32, 5u32),
             ],
             tree: vec![
@@ -244,7 +244,7 @@ fn test_node_insert_cases() {
         //                         4: 12 6         8: 18 2
         TestNodeInsertCase {
             name: "Case 3: Both left and right are internal, node does not fit in either, insert left",
-            nodes: vec![
+            new_nodes: vec![
                 NodeType::leaf_uint256(18u32, 2u32),
             ],
             tree: vec![
@@ -281,7 +281,7 @@ fn test_node_insert_cases() {
         // 2: 1 10         ->4: 12 8
         TestNodeInsertCase {
             name: "Case 4: New node does not fit in right range (or is less than right.min if right is a leaf) and left node is a leaf, split left",
-            nodes: vec![
+            new_nodes: vec![
                 NodeType::leaf_uint256(12u32, 8u32),
             ],
             tree: vec![
@@ -312,7 +312,7 @@ fn test_node_insert_cases() {
         // 2: 1 10         4: 12 8            3: 20 10        -> 6: 30 8
         TestNodeInsertCase {
             name: "Case 5: New node does not fit in left range (or is greater than or equal to left.max when left is a leaf) and right node is a leaf, split right",
-            nodes: vec![
+            new_nodes: vec![
                 NodeType::leaf_uint256(30u32, 8u32),
             ],
             tree: vec![
@@ -343,7 +343,7 @@ fn test_node_insert_cases() {
         // ->3: 1 10         2: 12 10
         TestNodeInsertCase {
             name: "Case 6: Right node is empty, new node is lower than left node, move left node to right and insert left",
-            nodes: vec![
+            new_nodes: vec![
                 NodeType::leaf_uint256(1u32, 10u32),
             ],
             tree: vec![
@@ -355,16 +355,31 @@ fn test_node_insert_cases() {
             expected: vec![1, 3, 2],
             print: true,
         },
-        // TODO: Explicitly build trees in this test to allow testing case 7
-        // TestNodeInsertCase {
-        //     name: "Case 7: Left node is empty, new node is higher than right node, move right node to left and insert right",
-        //     nodes: vec![
-        //         NodeType::leaf_uint256(12u32, 10u32),
-        //         NodeType::leaf_uint256(1u32, 10u32),
-        //     ],
-        //     expected: vec![1, 3, 2],
-        //     print: true,
-        // },
+        // Pre
+        // ---
+        //  1: 10 1-11                
+        //      ────────┐        
+        //           2: 1 10  
+        //
+        // Post
+        // ----
+        //          1: 20 1-22
+        //     ┌────────────────┐
+        // 2: 1 10         ->3: 12 10
+        TestNodeInsertCase {
+            name: "Case 7: Left node is empty, new node is higher than right node, move right node to left and insert right",
+            new_nodes: vec![
+                NodeType::leaf_uint256(12u32, 10u32),
+            ],
+            tree: vec![
+                // Root
+                TreeNode::new(tick_id, direction, 1, NodeType::internal_uint256(20u128, (1u128, 22u128))).with_children(None, Some(2)),
+                // Right
+                TreeNode::new(tick_id, direction, 2, NodeType::leaf_uint256(1u32, 10u32)).with_parent(1),
+            ],
+            expected: vec![1, 2, 3],
+            print: true,
+        },
 
         // Pre
         // ---
@@ -377,7 +392,7 @@ fn test_node_insert_cases() {
         // ->2: 1 10
         TestNodeInsertCase {
             name: "Case 8: Left node is empty, insert left",
-            nodes: vec![NodeType::leaf_uint256(1u32, 10u32)],
+            new_nodes: vec![NodeType::leaf_uint256(1u32, 10u32)],
             expected: vec![1, 2],
             tree: vec![],
             print: true,
@@ -395,7 +410,7 @@ fn test_node_insert_cases() {
         // 2: 1 10         ->3: 12 10
         TestNodeInsertCase {
             name: "Case 9: Right is empty, insert right",
-            nodes: vec![
+            new_nodes: vec![
                 NodeType::leaf_uint256(12u32, 10u32),
             ],
             tree: vec![
@@ -409,7 +424,7 @@ fn test_node_insert_cases() {
         },
         TestNodeInsertCase {
             name: "Insert sequential nodes",
-            nodes: vec![
+            new_nodes: vec![
                 NodeType::leaf_uint256(5u128, 10u128),
                 NodeType::leaf_uint256(15u128, 20u128),
                 NodeType::leaf_uint256(35u128, 30u128),
@@ -420,7 +435,7 @@ fn test_node_insert_cases() {
         },
         TestNodeInsertCase {
             name: "Insert adjacent nodes in decreasing order",
-            nodes: vec![
+            new_nodes: vec![
                 NodeType::leaf_uint256(35u128, 25u128),
                 NodeType::leaf_uint256(10u128, 25u128),
             ],
@@ -432,6 +447,7 @@ fn test_node_insert_cases() {
 
     for test in test_cases {
         let mut deps = mock_dependencies();
+        // Build pre-insertion tree as described
         for node in test.tree.clone() {
             if node.key == 1 {
                 TREE.save(
@@ -459,6 +475,8 @@ fn test_node_insert_cases() {
                 .unwrap();
         }
 
+        // Some tests do not include a prebuilt tree
+        // In these cases we must generate a new root
         let maybe_tree = get_root_node(deps.as_ref().storage, tick_id, direction);
         let mut tree = if let Ok(tree) = maybe_tree {
             tree
@@ -478,6 +496,7 @@ fn test_node_insert_cases() {
             new_node
         };
 
+        // Print tree pre-insertion
         if !test.tree.is_empty() {
             print_tree("Pre-Insert Tree", test.name, &tree, &deps.as_ref());
         } else {
@@ -486,7 +505,7 @@ fn test_node_insert_cases() {
         }
 
         // Insert nodes into tree
-        for node in test.nodes.iter() {
+        for node in test.new_nodes.iter() {
             let mut tree_node = TreeNode::new(
                 tick_id,
                 direction,

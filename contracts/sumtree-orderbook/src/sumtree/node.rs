@@ -485,7 +485,6 @@ impl TreeNode {
             return Ok(());
         }
 
-        // TODO: Add edge case test for this
         // Case 7: Left node is empty, new node is higher than right node, move right node to left and insert right
         if maybe_left.is_none() && is_greater_than_right {
             self.left = self.right;

@@ -130,8 +130,10 @@ pub fn assert_internal_values(
 
 struct TestNodeInsertCase {
     name: &'static str,
-    new_nodes: Vec<NodeType>,
+    // Pre-insertion tree
     tree: Vec<TreeNode>,
+    // New nodes to be added to the tree
+    new_nodes: Vec<NodeType>,
     // Depth first search ordering of node IDs (Could be improved?)
     expected: Vec<u64>,
     // Whether to print the tree

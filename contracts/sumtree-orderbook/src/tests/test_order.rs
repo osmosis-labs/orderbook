@@ -3349,9 +3349,7 @@ fn test_claim_order_moving_tick() {
     }
 }
 
-/// Testing that a maximum order placed in minimum tick is claimable.
-/// 
-/// This is done as a separate test as the amount required to fill the order is larger than can be sent in a single order.
+/// Testing that a maximum order placed on minimum tick is claimable.
 #[test]
 fn test_claim_max_order_min_tick() {
     let quote_denom = "quote";
@@ -3401,9 +3399,7 @@ fn test_claim_max_order_min_tick() {
     );
 }
 
-/// Testing that a maximum order placed in minimum tick is claimable.
-/// 
-/// This is done as a separate test as the amount required to fill the order is larger than can be sent in a single order.
+/// Testing that a maximum order placed on max tick is claimable.
 #[test]
 fn test_claim_max_order_max_tick() {
     let quote_denom = "quote";

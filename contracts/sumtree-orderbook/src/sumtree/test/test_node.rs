@@ -9,15 +9,6 @@ use crate::{
     ContractError,
 };
 
-struct TestNodeInsertCase {
-    name: &'static str,
-    nodes: Vec<NodeType>,
-    // Depth first search ordering of node IDs (Could be improved?)
-    expected: Vec<u64>,
-    // Whether to print the tree
-    print: bool,
-}
-
 // Asserts all values of internal nodes are as expected
 pub fn assert_internal_values(
     test_name: &str,
@@ -129,8 +120,22 @@ pub fn assert_internal_values(
         // Ensure there is no overlap in child nodes
         let left_max = left_node.map_or(Decimal256::MIN, |n| n.get_max_range());
         let right_min = right_node.map_or(Decimal256::MAX, |n| n.get_min_range());
-        assert!(left_max <= right_min, "{}: Left max is higher than right min", test_name);
+        assert!(
+            left_max <= right_min,
+            "{}: Left max is higher than right min",
+            test_name
+        );
     }
+}
+
+struct TestNodeInsertCase {
+    name: &'static str,
+    nodes: Vec<NodeType>,
+    tree: Vec<TreeNode>,
+    // Depth first search ordering of node IDs (Could be improved?)
+    expected: Vec<u64>,
+    // Whether to print the tree
+    print: bool,
 }
 
 #[test]
@@ -158,11 +163,23 @@ fn test_node_insert_cases() {
         TestNodeInsertCase {
             name: "Case 1: New node fits in left internal range, insert left",
             nodes: vec![
-                NodeType::leaf_uint256(1u32, 5u32),
-                NodeType::leaf_uint256(20u32, 10u32),
-                NodeType::leaf_uint256(12u32, 8u32),
-                NodeType::leaf_uint256(30u32, 8u32),
                 NodeType::leaf_uint256(6u32, 6u32),
+            ],
+            tree: vec![
+                // Root
+                TreeNode::new(tick_id, direction, 1, NodeType::internal_uint256(31u128, (1u128,38u128))).with_children(Some(5), Some(7)),
+                // Left
+                TreeNode::new(tick_id, direction, 5, NodeType::internal_uint256(13u128, (1u128, 20u128))).with_children(Some(2), Some(4)).with_parent(1),
+                // Left-Left
+                TreeNode::new(tick_id, direction, 2, NodeType::leaf_uint256(1u32, 5u32)).with_parent(5),
+                // Left-Right
+                TreeNode::new(tick_id, direction, 4, NodeType::leaf_uint256(12u32, 8u32)).with_parent(5),
+                // Right
+                TreeNode::new(tick_id, direction, 7, NodeType::internal_uint256(18u128, (20u128, 38u128))).with_children(Some(3), Some(6)).with_parent(1),
+                // Right-Left
+                TreeNode::new(tick_id, direction, 3, NodeType::leaf_uint256(20u32, 10u32)).with_parent(7),
+                // Right-Right
+                TreeNode::new(tick_id, direction, 6, NodeType::leaf_uint256(30u32, 8u32)).with_parent(7),
             ],
             expected: vec![1, 5, 9, 2, 8, 4, 7, 3, 6],
             print: true,
@@ -187,40 +204,64 @@ fn test_node_insert_cases() {
         TestNodeInsertCase {
             name: "Case 2: New node fits in right internal range, insert right",
             nodes: vec![
-                NodeType::leaf_uint256(1u32, 11u32),
-                NodeType::leaf_uint256(20u32, 5u32),
-                NodeType::leaf_uint256(12u32, 8u32),
-                NodeType::leaf_uint256(30u32, 8u32),
                 NodeType::leaf_uint256(25u32, 5u32),
+            ],
+            tree: vec![
+                // Root
+                TreeNode::new(tick_id, direction, 1, NodeType::internal_uint256(32u128, (1u128, 38u128))).with_children(Some(5), Some(7)),
+                // Left
+                TreeNode::new(tick_id, direction, 5, NodeType::internal_uint256(19u128, (1u128, 20u128))).with_children(Some(2), Some(4)).with_parent(1),
+                // Left-Left
+                TreeNode::new(tick_id, direction, 2, NodeType::leaf_uint256(1u32, 11u32)).with_parent(5),
+                // Left-Right
+                TreeNode::new(tick_id, direction, 4, NodeType::leaf_uint256(12u32, 8u32)).with_parent(5),
+                // Right
+                TreeNode::new(tick_id, direction, 7, NodeType::internal_uint256(18u128, (20u128, 38u128))).with_children(Some(3), Some(6)).with_parent(1),
+                // Right-Left
+                TreeNode::new(tick_id, direction, 3, NodeType::leaf_uint256(20u32, 5u32)).with_parent(7),
+                // Right-Right
+                TreeNode::new(tick_id, direction, 6, NodeType::leaf_uint256(30u32, 8u32)).with_parent(7),
             ],
             expected: vec![1, 5, 2, 4, 7, 9, 3, 8, 6],
             print: true,
         },
         // Pre
         // ---
-        //                        1: 30 1-38                                
-        //             ┌────────────────────────────────┐                
-        //        5: 17 1-18                     7: 13 20-38                
-        //     ┌────────────────┐                ┌────────────────┐        
-        // 2: 1 11         4: 12 6            3: 20 5         6: 30 8  
+        //                        1: 30 1-38
+        //             ┌────────────────────────────────┐
+        //        5: 17 1-18                     7: 13 20-38
+        //     ┌────────────────┐                ┌────────────────┐
+        // 2: 1 11         4: 12 6            3: 20 5         6: 30 8
         //
         // Post
         // ----
-        //                                                1: 32 1-38                                                                
-        //                     ┌────────────────────────────────────────────────────────────────┐                                
-        //                5: 19 1-20                                                     7: 13 20-38                                
-        //     ┌────────────────────────────────┐                                ┌────────────────────────────────┐                
-        // 2: 1 11                        9: 8 12-20                            3: 20 5                         6: 30 8                
-        //                             ┌────────────────┐                                                                        
-        //                         4: 12 6         8: 18 2  
+        //                                                1: 32 1-38
+        //                     ┌────────────────────────────────────────────────────────────────┐
+        //                5: 19 1-20                                                     7: 13 20-38
+        //     ┌────────────────────────────────┐                                ┌────────────────────────────────┐
+        // 2: 1 11                        9: 8 12-20                            3: 20 5                         6: 30 8
+        //                             ┌────────────────┐
+        //                         4: 12 6         8: 18 2
         TestNodeInsertCase {
             name: "Case 3: Both left and right are internal, node does not fit in either, insert left",
             nodes: vec![
-                NodeType::leaf_uint256(1u32, 11u32),
-                NodeType::leaf_uint256(20u32, 5u32),
-                NodeType::leaf_uint256(12u32, 6u32),
-                NodeType::leaf_uint256(30u32, 8u32),
                 NodeType::leaf_uint256(18u32, 2u32),
+            ],
+            tree: vec![
+                // Root
+                TreeNode::new(tick_id, direction, 1, NodeType::internal_uint256(30u128, (1u128, 38u128))).with_children(Some(5), Some(7)),
+                // Left
+                TreeNode::new(tick_id, direction, 5, NodeType::internal_uint256(17u128, (1u128, 18u128))).with_children(Some(2), Some(4)).with_parent(1),
+                // Left-Left
+                TreeNode::new(tick_id, direction, 2, NodeType::leaf_uint256(1u32, 11u32)).with_parent(5),
+                // Left-Right
+                TreeNode::new(tick_id, direction, 4, NodeType::leaf_uint256(12u32, 6u32)).with_parent(5),
+                // Right
+                TreeNode::new(tick_id, direction, 7, NodeType::internal_uint256(13u128, (20u128, 38u128))).with_children(Some(3), Some(6)).with_parent(1),
+                // Right-Left
+                TreeNode::new(tick_id, direction, 3, NodeType::leaf_uint256(20u32, 5u32)).with_parent(7),
+                // Right-Right
+                TreeNode::new(tick_id, direction, 6, NodeType::leaf_uint256(30u32, 8u32)).with_parent(7),
             ],
             expected: vec![1, 5, 2, 9, 4, 8, 7, 3, 6],
             print: true,
@@ -241,9 +282,15 @@ fn test_node_insert_cases() {
         TestNodeInsertCase {
             name: "Case 4: New node does not fit in right range (or is less than right.min if right is a leaf) and left node is a leaf, split left",
             nodes: vec![
-                NodeType::leaf_uint256(1u32, 10u32),
-                NodeType::leaf_uint256(20u32, 10u32),
                 NodeType::leaf_uint256(12u32, 8u32),
+            ],
+            tree: vec![
+                // Root
+                TreeNode::new(tick_id, direction, 1, NodeType::internal_uint256(28u128, (1u128, 30u128))).with_children(Some(2), Some(3)),
+                // Left
+                TreeNode::new(tick_id, direction, 2, NodeType::leaf_uint256(1u32, 10u32)).with_parent(1),
+                // Right
+                TreeNode::new(tick_id, direction, 3, NodeType::leaf_uint256(20u32, 10u32)).with_parent(1),
             ],
             expected: vec![1, 5, 2, 4, 3],
             print: true,
@@ -266,10 +313,19 @@ fn test_node_insert_cases() {
         TestNodeInsertCase {
             name: "Case 5: New node does not fit in left range (or is greater than or equal to left.max when left is a leaf) and right node is a leaf, split right",
             nodes: vec![
-                NodeType::leaf_uint256(1u32, 10u32),
-                NodeType::leaf_uint256(20u32, 10u32),
-                NodeType::leaf_uint256(12u32, 8u32),
                 NodeType::leaf_uint256(30u32, 8u32),
+            ],
+            tree: vec![
+                // Root
+                TreeNode::new(tick_id, direction, 1, NodeType::internal_uint256(36u128, (1u128, 38u128))).with_children(Some(5), Some(3)),
+                // Left
+                TreeNode::new(tick_id, direction, 5, NodeType::internal_uint256(18u128, (1u128, 20u128))).with_children(Some(2), Some(4)).with_parent(1),
+                // Left-Left
+                TreeNode::new(tick_id, direction, 2, NodeType::leaf_uint256(1u32, 10u32)).with_parent(5),
+                // Left-Right
+                TreeNode::new(tick_id, direction, 4, NodeType::leaf_uint256(12u32, 8u32)).with_parent(5),
+                // Right
+                TreeNode::new(tick_id, direction, 3, NodeType::leaf_uint256(20u32, 10u32)).with_parent(1),
             ],
             expected: vec![1, 5, 2, 4, 7, 3, 6],
             print: true,
@@ -284,12 +340,17 @@ fn test_node_insert_cases() {
         // ----
         //          1: 20 1-22
         //     ┌────────────────┐
-        // ->2: 1 10         3: 12 10
+        // ->3: 1 10         2: 12 10
         TestNodeInsertCase {
             name: "Case 6: Right node is empty, new node is lower than left node, move left node to right and insert left",
             nodes: vec![
-                NodeType::leaf_uint256(12u32, 10u32),
                 NodeType::leaf_uint256(1u32, 10u32),
+            ],
+            tree: vec![
+                // Root
+                TreeNode::new(tick_id, direction, 1, NodeType::internal_uint256(20u128, (1u128, 22u128))).with_children(Some(2), None),
+                // Left
+                TreeNode::new(tick_id, direction, 2, NodeType::leaf_uint256(12u32, 10u32)).with_parent(1),
             ],
             expected: vec![1, 3, 2],
             print: true,
@@ -304,7 +365,7 @@ fn test_node_insert_cases() {
         //     expected: vec![1, 3, 2],
         //     print: true,
         // },
-        
+
         // Pre
         // ---
         // No Tree
@@ -318,6 +379,7 @@ fn test_node_insert_cases() {
             name: "Case 8: Left node is empty, insert left",
             nodes: vec![NodeType::leaf_uint256(1u32, 10u32)],
             expected: vec![1, 2],
+            tree: vec![],
             print: true,
         },
         // Pre
@@ -334,8 +396,13 @@ fn test_node_insert_cases() {
         TestNodeInsertCase {
             name: "Case 9: Right is empty, insert right",
             nodes: vec![
-                NodeType::leaf_uint256(1u32, 10u32),
                 NodeType::leaf_uint256(12u32, 10u32),
+            ],
+            tree: vec![
+                // Root
+                TreeNode::new(tick_id, direction, 1, NodeType::internal_uint256(20u128, (1u128, 22u128))).with_children(Some(2), None),
+                // Left
+                TreeNode::new(tick_id, direction, 2, NodeType::leaf_uint256(1u32, 10u32)).with_parent(1),
             ],
             expected: vec![1, 2, 3],
             print: true,
@@ -347,6 +414,7 @@ fn test_node_insert_cases() {
                 NodeType::leaf_uint256(15u128, 20u128),
                 NodeType::leaf_uint256(35u128, 30u128),
             ],
+            tree: vec![],
             expected: vec![1, 2, 5, 3, 4],
             print: true,
         },
@@ -356,6 +424,7 @@ fn test_node_insert_cases() {
                 NodeType::leaf_uint256(35u128, 25u128),
                 NodeType::leaf_uint256(10u128, 25u128),
             ],
+            tree: vec![],
             expected: vec![1, 3, 2],
             print: true,
         },
@@ -363,35 +432,71 @@ fn test_node_insert_cases() {
 
     for test in test_cases {
         let mut deps = mock_dependencies();
-        // Create tree root
-        let mut tree = TreeNode::new(
-            tick_id,
-            direction,
-            generate_node_id(deps.as_mut().storage,  tick_id).unwrap(),
-            NodeType::internal_uint256(Uint256::zero(), (u32::MAX, u32::MIN)),
-        );
+        for node in test.tree.clone() {
+            if node.key == 1 {
+                TREE.save(
+                    deps.as_mut().storage,
+                    &(tick_id, &direction.to_string()),
+                    &node.key,
+                )
+                .unwrap();
+            }
+            NODES
+                .save(deps.as_mut().storage, &(tick_id, node.key), &node)
+                .unwrap();
+            generate_node_id(deps.as_mut().storage, tick_id).unwrap();
+        }
+
+        // Sync weights post node storage
+        for mut node in test.tree.clone() {
+            if node.is_internal() || node.parent.is_none() {
+                continue;
+            }
+            node.sync(deps.as_ref().storage).unwrap();
+            let mut parent = node.get_parent(deps.as_ref().storage).unwrap().unwrap();
+            parent
+                .sync_range_and_value_up(deps.as_mut().storage)
+                .unwrap();
+        }
+
+        let maybe_tree = get_root_node(deps.as_ref().storage, tick_id, direction);
+        let mut tree = if let Ok(tree) = maybe_tree {
+            tree
+        } else {
+            let new_node = TreeNode::new(
+                tick_id,
+                direction,
+                generate_node_id(deps.as_mut().storage, tick_id).unwrap(),
+                NodeType::internal_uint256(Uint256::zero(), (u32::MAX, u32::MIN)),
+            );
+            TREE.save(
+                deps.as_mut().storage,
+                &(tick_id, &direction.to_string()),
+                &new_node.key,
+            )
+            .unwrap();
+            new_node
+        };
+
+        if !test.tree.is_empty() {
+            print_tree("Pre-Insert Tree", test.name, &tree, &deps.as_ref());
+        } else {
+            println!("{}: No Pre-Insertion Tree", test.name);
+            println!();
+        }
 
         // Insert nodes into tree
-        for (idx, node) in test.nodes.iter().enumerate() {
+        for node in test.nodes.iter() {
             let mut tree_node = TreeNode::new(
                 tick_id,
                 direction,
-                generate_node_id(deps.as_mut().storage,  tick_id).unwrap(),
+                generate_node_id(deps.as_mut().storage, tick_id).unwrap(),
                 node.clone(),
             );
             NODES
-                .save(
-                    deps.as_mut().storage,
-                    &( tick_id, tree_node.key),
-                    &tree_node,
-                )
+                .save(deps.as_mut().storage, &(tick_id, tree_node.key), &tree_node)
                 .unwrap();
             tree.insert(deps.as_mut().storage, &mut tree_node).unwrap();
-
-            //Print tree at second last node to see pre-insert
-            if test.nodes.len() >= 2 && idx == test.nodes.len() - 2 && test.print {
-                print_tree("Pre-Insert Tree", test.name, &tree, &deps.as_ref());
-            }
         }
 
         if test.print {
@@ -405,10 +510,10 @@ fn test_node_insert_cases() {
             result,
             test.expected
                 .iter()
-                .map(|key| NODES
-                    .load(deps.as_ref().storage, &( tick_id, *key))
-                    .unwrap())
-                .collect::<Vec<TreeNode>>()
+                .map(|key| NODES.load(deps.as_ref().storage, &(tick_id, *key)).unwrap())
+                .collect::<Vec<TreeNode>>(),
+            "{}: output did not match expected output",
+            test.name
         );
 
         // Ensure all internal nodes are correctly summed and contain correct ranges
@@ -550,7 +655,7 @@ fn test_node_deletion_valid() {
         let mut tree = TreeNode::new(
             tick_id,
             direction,
-            generate_node_id(deps.as_mut().storage,  tick_id).unwrap(),
+            generate_node_id(deps.as_mut().storage, tick_id).unwrap(),
             NodeType::internal_uint256(Uint256::zero(), (u32::MAX, u32::MIN)),
         );
 
@@ -558,15 +663,11 @@ fn test_node_deletion_valid() {
             let mut tree_node = TreeNode::new(
                 tick_id,
                 direction,
-                generate_node_id(deps.as_mut().storage,  tick_id).unwrap(),
+                generate_node_id(deps.as_mut().storage, tick_id).unwrap(),
                 node,
             );
             NODES
-                .save(
-                    deps.as_mut().storage,
-                    &( tick_id, tree_node.key),
-                    &tree_node,
-                )
+                .save(deps.as_mut().storage, &(tick_id, tree_node.key), &tree_node)
                 .unwrap();
             tree.insert(deps.as_mut().storage, &mut tree_node).unwrap();
         }
@@ -576,9 +677,7 @@ fn test_node_deletion_valid() {
         }
 
         for key in test.delete.clone() {
-            let node = NODES
-                .load(deps.as_ref().storage, &( tick_id, key))
-                .unwrap();
+            let node = NODES.load(deps.as_ref().storage, &(tick_id, key)).unwrap();
             node.delete(deps.as_mut().storage).unwrap();
         }
 
@@ -589,7 +688,7 @@ fn test_node_deletion_valid() {
         }
 
         let tree = NODES
-            .load(deps.as_ref().storage, &( tick_id, tree.key))
+            .load(deps.as_ref().storage, &(tick_id, tree.key))
             .unwrap();
 
         if test.print {
@@ -602,15 +701,13 @@ fn test_node_deletion_valid() {
             result,
             test.expected
                 .iter()
-                .map(|key| NODES
-                    .load(deps.as_ref().storage, &( tick_id, *key))
-                    .unwrap())
+                .map(|key| NODES.load(deps.as_ref().storage, &(tick_id, *key)).unwrap())
                 .collect::<Vec<TreeNode>>()
         );
 
         for key in test.delete {
             let maybe_node = NODES
-                .may_load(deps.as_ref().storage, &( tick_id, key))
+                .may_load(deps.as_ref().storage, &(tick_id, key))
                 .unwrap();
             assert!(maybe_node.is_none(), "Node {key} was not deleted");
         }
@@ -653,7 +750,6 @@ fn test_rotate_right() {
             nodes: vec![
                 // Root
                 TreeNode::new(
-                    
                     tick_id,
                     direction,
                     1,
@@ -662,7 +758,6 @@ fn test_rotate_right() {
                 .with_children(Some(2), None),
                 // Left
                 TreeNode::new(
-                    
                     tick_id,
                     direction,
                     2,
@@ -671,23 +766,11 @@ fn test_rotate_right() {
                 .with_children(Some(3), Some(4))
                 .with_parent(1),
                 // Left-Left
-                TreeNode::new(
-                    
-                    tick_id,
-                    direction,
-                    3,
-                    NodeType::leaf_uint256(1u32, 1u32),
-                )
-                .with_parent(2),
+                TreeNode::new(tick_id, direction, 3, NodeType::leaf_uint256(1u32, 1u32))
+                    .with_parent(2),
                 // Left-Right
-                TreeNode::new(
-                    
-                    tick_id,
-                    direction,
-                    4,
-                    NodeType::leaf_uint256(2u32, 1u32),
-                )
-                .with_parent(2),
+                TreeNode::new(tick_id, direction, 4, NodeType::leaf_uint256(2u32, 1u32))
+                    .with_parent(2),
             ],
             expected: vec![2, 3, 1, 4],
             expected_error: None,
@@ -713,7 +796,6 @@ fn test_rotate_right() {
             nodes: vec![
                 // Root
                 TreeNode::new(
-                    
                     tick_id,
                     direction,
                     1,
@@ -722,7 +804,6 @@ fn test_rotate_right() {
                 .with_children(Some(2), Some(4)),
                 // Left
                 TreeNode::new(
-                    
                     tick_id,
                     direction,
                     2,
@@ -731,23 +812,11 @@ fn test_rotate_right() {
                 .with_children(Some(3), None)
                 .with_parent(1),
                 // Left-Left
-                TreeNode::new(
-                    
-                    tick_id,
-                    direction,
-                    3,
-                    NodeType::leaf_uint256(1u32, 1u32),
-                )
-                .with_parent(2),
+                TreeNode::new(tick_id, direction, 3, NodeType::leaf_uint256(1u32, 1u32))
+                    .with_parent(2),
                 // Right
-                TreeNode::new(
-                    
-                    tick_id,
-                    direction,
-                    4,
-                    NodeType::leaf_uint256(2u32, 1u32),
-                )
-                .with_parent(1),
+                TreeNode::new(tick_id, direction, 4, NodeType::leaf_uint256(2u32, 1u32))
+                    .with_parent(1),
             ],
             expected: vec![2, 3, 1, 4],
             expected_error: None,
@@ -773,7 +842,6 @@ fn test_rotate_right() {
             nodes: vec![
                 // Root
                 TreeNode::new(
-                    
                     tick_id,
                     direction,
                     1,
@@ -782,7 +850,6 @@ fn test_rotate_right() {
                 .with_children(Some(2), Some(4)),
                 // Left
                 TreeNode::new(
-                    
                     tick_id,
                     direction,
                     2,
@@ -791,23 +858,11 @@ fn test_rotate_right() {
                 .with_children(None, Some(3))
                 .with_parent(1),
                 // Left-Right
-                TreeNode::new(
-                    
-                    tick_id,
-                    direction,
-                    3,
-                    NodeType::leaf_uint256(1u32, 1u32),
-                )
-                .with_parent(2),
+                TreeNode::new(tick_id, direction, 3, NodeType::leaf_uint256(1u32, 1u32))
+                    .with_parent(2),
                 // Right
-                TreeNode::new(
-                    
-                    tick_id,
-                    direction,
-                    4,
-                    NodeType::leaf_uint256(2u32, 1u32),
-                )
-                .with_parent(1),
+                TreeNode::new(tick_id, direction, 4, NodeType::leaf_uint256(2u32, 1u32))
+                    .with_parent(1),
             ],
             expected: vec![2, 1, 3, 4],
             expected_error: None,
@@ -833,7 +888,6 @@ fn test_rotate_right() {
             nodes: vec![
                 // Root
                 TreeNode::new(
-                    
                     tick_id,
                     direction,
                     1,
@@ -842,7 +896,6 @@ fn test_rotate_right() {
                 .with_children(Some(2), Some(5)),
                 // Left
                 TreeNode::new(
-                    
                     tick_id,
                     direction,
                     2,
@@ -851,32 +904,14 @@ fn test_rotate_right() {
                 .with_children(Some(3), Some(4))
                 .with_parent(1),
                 // Left-Left
-                TreeNode::new(
-                    
-                    tick_id,
-                    direction,
-                    3,
-                    NodeType::leaf_uint256(1u32, 1u32),
-                )
-                .with_parent(2),
+                TreeNode::new(tick_id, direction, 3, NodeType::leaf_uint256(1u32, 1u32))
+                    .with_parent(2),
                 // Left-Right
-                TreeNode::new(
-                    
-                    tick_id,
-                    direction,
-                    4,
-                    NodeType::leaf_uint256(2u32, 1u32),
-                )
-                .with_parent(2),
+                TreeNode::new(tick_id, direction, 4, NodeType::leaf_uint256(2u32, 1u32))
+                    .with_parent(2),
                 // Right
-                TreeNode::new(
-                    
-                    tick_id,
-                    direction,
-                    5,
-                    NodeType::leaf_uint256(3u32, 1u32),
-                )
-                .with_parent(1),
+                TreeNode::new(tick_id, direction, 5, NodeType::leaf_uint256(3u32, 1u32))
+                    .with_parent(1),
             ],
             expected: vec![2, 3, 1, 4, 5],
             expected_error: None,
@@ -904,7 +939,6 @@ fn test_rotate_right() {
             nodes: vec![
                 // Root
                 TreeNode::new(
-                    
                     tick_id,
                     direction,
                     1,
@@ -913,7 +947,6 @@ fn test_rotate_right() {
                 .with_children(Some(2), Some(5)),
                 // Left
                 TreeNode::new(
-                    
                     tick_id,
                     direction,
                     2,
@@ -922,26 +955,13 @@ fn test_rotate_right() {
                 .with_children(Some(3), Some(4))
                 .with_parent(1),
                 // Left-Left
-                TreeNode::new(
-                    
-                    tick_id,
-                    direction,
-                    3,
-                    NodeType::leaf_uint256(1u32, 1u32),
-                )
-                .with_parent(2),
+                TreeNode::new(tick_id, direction, 3, NodeType::leaf_uint256(1u32, 1u32))
+                    .with_parent(2),
                 // Left-Right
-                TreeNode::new(
-                    
-                    tick_id,
-                    direction,
-                    4,
-                    NodeType::leaf_uint256(2u32, 1u32),
-                )
-                .with_parent(2),
+                TreeNode::new(tick_id, direction, 4, NodeType::leaf_uint256(2u32, 1u32))
+                    .with_parent(2),
                 // Right
                 TreeNode::new(
-                    
                     tick_id,
                     direction,
                     5,
@@ -950,23 +970,11 @@ fn test_rotate_right() {
                 .with_children(Some(6), Some(7))
                 .with_parent(1),
                 // Right-Left
-                TreeNode::new(
-                    
-                    tick_id,
-                    direction,
-                    6,
-                    NodeType::leaf_uint256(3u32, 1u32),
-                )
-                .with_parent(5),
+                TreeNode::new(tick_id, direction, 6, NodeType::leaf_uint256(3u32, 1u32))
+                    .with_parent(5),
                 // Right-Right
-                TreeNode::new(
-                    
-                    tick_id,
-                    direction,
-                    7,
-                    NodeType::leaf_uint256(4u32, 1u32),
-                )
-                .with_parent(5),
+                TreeNode::new(tick_id, direction, 7, NodeType::leaf_uint256(4u32, 1u32))
+                    .with_parent(5),
             ],
             expected: vec![2, 3, 1, 4, 5, 6, 7],
             expected_error: None,
@@ -994,7 +1002,6 @@ fn test_rotate_right() {
             nodes: vec![
                 // Root
                 TreeNode::new(
-                    
                     tick_id,
                     direction,
                     1,
@@ -1003,7 +1010,6 @@ fn test_rotate_right() {
                 .with_children(Some(2), Some(5)),
                 // Left
                 TreeNode::new(
-                    
                     tick_id,
                     direction,
                     2,
@@ -1012,17 +1018,10 @@ fn test_rotate_right() {
                 .with_children(None, Some(4))
                 .with_parent(1),
                 // Left-Right
-                TreeNode::new(
-                    
-                    tick_id,
-                    direction,
-                    4,
-                    NodeType::leaf_uint256(2u32, 1u32),
-                )
-                .with_parent(2),
+                TreeNode::new(tick_id, direction, 4, NodeType::leaf_uint256(2u32, 1u32))
+                    .with_parent(2),
                 // Right
                 TreeNode::new(
-                    
                     tick_id,
                     direction,
                     5,
@@ -1031,23 +1030,11 @@ fn test_rotate_right() {
                 .with_children(Some(6), Some(7))
                 .with_parent(1),
                 // Right-Left
-                TreeNode::new(
-                    
-                    tick_id,
-                    direction,
-                    6,
-                    NodeType::leaf_uint256(3u32, 1u32),
-                )
-                .with_parent(5),
+                TreeNode::new(tick_id, direction, 6, NodeType::leaf_uint256(3u32, 1u32))
+                    .with_parent(5),
                 // Right-Right
-                TreeNode::new(
-                    
-                    tick_id,
-                    direction,
-                    7,
-                    NodeType::leaf_uint256(4u32, 1u32),
-                )
-                .with_parent(5),
+                TreeNode::new(tick_id, direction, 7, NodeType::leaf_uint256(4u32, 1u32))
+                    .with_parent(5),
             ],
             expected: vec![2, 1, 4, 5, 6, 7],
             expected_error: None,
@@ -1075,7 +1062,6 @@ fn test_rotate_right() {
             nodes: vec![
                 // Root
                 TreeNode::new(
-                    
                     tick_id,
                     direction,
                     1,
@@ -1084,7 +1070,6 @@ fn test_rotate_right() {
                 .with_children(Some(2), Some(5)),
                 // Left
                 TreeNode::new(
-                    
                     tick_id,
                     direction,
                     2,
@@ -1093,17 +1078,10 @@ fn test_rotate_right() {
                 .with_children(Some(4), None)
                 .with_parent(1),
                 // Left-Left
-                TreeNode::new(
-                    
-                    tick_id,
-                    direction,
-                    4,
-                    NodeType::leaf_uint256(2u32, 1u32),
-                )
-                .with_parent(2),
+                TreeNode::new(tick_id, direction, 4, NodeType::leaf_uint256(2u32, 1u32))
+                    .with_parent(2),
                 // Right
                 TreeNode::new(
-                    
                     tick_id,
                     direction,
                     5,
@@ -1112,23 +1090,11 @@ fn test_rotate_right() {
                 .with_children(Some(6), Some(7))
                 .with_parent(1),
                 // Right-Left
-                TreeNode::new(
-                    
-                    tick_id,
-                    direction,
-                    6,
-                    NodeType::leaf_uint256(3u32, 1u32),
-                )
-                .with_parent(5),
+                TreeNode::new(tick_id, direction, 6, NodeType::leaf_uint256(3u32, 1u32))
+                    .with_parent(5),
                 // Right-Right
-                TreeNode::new(
-                    
-                    tick_id,
-                    direction,
-                    7,
-                    NodeType::leaf_uint256(4u32, 1u32),
-                )
-                .with_parent(5),
+                TreeNode::new(tick_id, direction, 7, NodeType::leaf_uint256(4u32, 1u32))
+                    .with_parent(5),
             ],
             expected: vec![2, 4, 1, 5, 6, 7],
             expected_error: None,
@@ -1146,7 +1112,6 @@ fn test_rotate_right() {
             nodes: vec![
                 // Root
                 TreeNode::new(
-                    
                     tick_id,
                     direction,
                     1,
@@ -1155,7 +1120,6 @@ fn test_rotate_right() {
                 .with_children(None, Some(5)),
                 // Right
                 TreeNode::new(
-                    
                     tick_id,
                     direction,
                     5,
@@ -1164,23 +1128,11 @@ fn test_rotate_right() {
                 .with_children(Some(6), Some(7))
                 .with_parent(1),
                 // Right-Left
-                TreeNode::new(
-                    
-                    tick_id,
-                    direction,
-                    6,
-                    NodeType::leaf_uint256(3u32, 1u32),
-                )
-                .with_parent(5),
+                TreeNode::new(tick_id, direction, 6, NodeType::leaf_uint256(3u32, 1u32))
+                    .with_parent(5),
                 // Right-Right
-                TreeNode::new(
-                    
-                    tick_id,
-                    direction,
-                    7,
-                    NodeType::leaf_uint256(4u32, 1u32),
-                )
-                .with_parent(5),
+                TreeNode::new(tick_id, direction, 7, NodeType::leaf_uint256(4u32, 1u32))
+                    .with_parent(5),
             ],
             expected: vec![],
             expected_error: Some(ContractError::InvalidNodeType),
@@ -1198,7 +1150,6 @@ fn test_rotate_right() {
             nodes: vec![
                 // Root
                 TreeNode::new(
-                    
                     tick_id,
                     direction,
                     1,
@@ -1206,17 +1157,10 @@ fn test_rotate_right() {
                 )
                 .with_children(Some(2), Some(5)),
                 // Left
-                TreeNode::new(
-                    
-                    tick_id,
-                    direction,
-                    2,
-                    NodeType::leaf_uint256(2u32, 1u32),
-                )
-                .with_parent(1),
+                TreeNode::new(tick_id, direction, 2, NodeType::leaf_uint256(2u32, 1u32))
+                    .with_parent(1),
                 // Right
                 TreeNode::new(
-                    
                     tick_id,
                     direction,
                     5,
@@ -1225,23 +1169,11 @@ fn test_rotate_right() {
                 .with_children(Some(6), Some(7))
                 .with_parent(1),
                 // Right-Left
-                TreeNode::new(
-                    
-                    tick_id,
-                    direction,
-                    6,
-                    NodeType::leaf_uint256(3u32, 1u32),
-                )
-                .with_parent(5),
+                TreeNode::new(tick_id, direction, 6, NodeType::leaf_uint256(3u32, 1u32))
+                    .with_parent(5),
                 // Right-Right
-                TreeNode::new(
-                    
-                    tick_id,
-                    direction,
-                    7,
-                    NodeType::leaf_uint256(4u32, 1u32),
-                )
-                .with_parent(5),
+                TreeNode::new(tick_id, direction, 7, NodeType::leaf_uint256(4u32, 1u32))
+                    .with_parent(5),
             ],
             expected: vec![],
             expected_error: Some(ContractError::InvalidNodeType),
@@ -1257,13 +1189,13 @@ fn test_rotate_right() {
             if idx == 0 {
                 TREE.save(
                     deps.as_mut().storage,
-                    &( tick_id, &direction.to_string()),
+                    &(tick_id, &direction.to_string()),
                     &node.key,
                 )
                 .unwrap();
             }
             NODES
-                .save(deps.as_mut().storage, &( tick_id, node.key), node)
+                .save(deps.as_mut().storage, &(tick_id, node.key), node)
                 .unwrap();
         }
 
@@ -1279,7 +1211,7 @@ fn test_rotate_right() {
                 .unwrap();
         }
 
-        let mut tree = get_root_node(deps.as_ref().storage,  tick_id, direction).unwrap();
+        let mut tree = get_root_node(deps.as_ref().storage, tick_id, direction).unwrap();
         if test.print {
             print_tree("Pre-rotation", test.name, &tree, &deps.as_ref());
         }
@@ -1292,7 +1224,7 @@ fn test_rotate_right() {
         }
 
         // Get new root node, it may have changed due to rotationss
-        let tree = get_root_node(deps.as_ref().storage,  tick_id, direction).unwrap();
+        let tree = get_root_node(deps.as_ref().storage, tick_id, direction).unwrap();
         if test.print {
             print_tree("Post-rotation", test.name, &tree, &deps.as_ref());
         }
@@ -1339,7 +1271,6 @@ fn test_rotate_left() {
             nodes: vec![
                 // Root
                 TreeNode::new(
-                    
                     tick_id,
                     direction,
                     1,
@@ -1348,7 +1279,6 @@ fn test_rotate_left() {
                 .with_children(None, Some(2)),
                 // Right
                 TreeNode::new(
-                    
                     tick_id,
                     direction,
                     2,
@@ -1357,23 +1287,11 @@ fn test_rotate_left() {
                 .with_children(Some(3), Some(4))
                 .with_parent(1),
                 // Right-Left
-                TreeNode::new(
-                    
-                    tick_id,
-                    direction,
-                    3,
-                    NodeType::leaf_uint256(1u32, 1u32),
-                )
-                .with_parent(2),
+                TreeNode::new(tick_id, direction, 3, NodeType::leaf_uint256(1u32, 1u32))
+                    .with_parent(2),
                 // Right-Right
-                TreeNode::new(
-                    
-                    tick_id,
-                    direction,
-                    4,
-                    NodeType::leaf_uint256(2u32, 1u32),
-                )
-                .with_parent(2),
+                TreeNode::new(tick_id, direction, 4, NodeType::leaf_uint256(2u32, 1u32))
+                    .with_parent(2),
             ],
             expected: vec![2, 1, 3, 4],
             expected_error: None,
@@ -1399,7 +1317,6 @@ fn test_rotate_left() {
             nodes: vec![
                 // Root
                 TreeNode::new(
-                    
                     tick_id,
                     direction,
                     1,
@@ -1408,7 +1325,6 @@ fn test_rotate_left() {
                 .with_children(Some(4), Some(2)),
                 // Right
                 TreeNode::new(
-                    
                     tick_id,
                     direction,
                     2,
@@ -1417,23 +1333,11 @@ fn test_rotate_left() {
                 .with_children(Some(3), None)
                 .with_parent(1),
                 // Right-Left
-                TreeNode::new(
-                    
-                    tick_id,
-                    direction,
-                    3,
-                    NodeType::leaf_uint256(3u32, 1u32),
-                )
-                .with_parent(2),
+                TreeNode::new(tick_id, direction, 3, NodeType::leaf_uint256(3u32, 1u32))
+                    .with_parent(2),
                 // Left
-                TreeNode::new(
-                    
-                    tick_id,
-                    direction,
-                    4,
-                    NodeType::leaf_uint256(2u32, 1u32),
-                )
-                .with_parent(1),
+                TreeNode::new(tick_id, direction, 4, NodeType::leaf_uint256(2u32, 1u32))
+                    .with_parent(1),
             ],
             expected: vec![2, 1, 4, 3],
             expected_error: None,
@@ -1459,7 +1363,6 @@ fn test_rotate_left() {
             nodes: vec![
                 // Root
                 TreeNode::new(
-                    
                     tick_id,
                     direction,
                     1,
@@ -1468,7 +1371,6 @@ fn test_rotate_left() {
                 .with_children(Some(4), Some(2)),
                 // Right
                 TreeNode::new(
-                    
                     tick_id,
                     direction,
                     2,
@@ -1477,21 +1379,11 @@ fn test_rotate_left() {
                 .with_children(None, Some(3))
                 .with_parent(1),
                 // Right-Right
-                TreeNode::new(
-                    tick_id,
-                    direction,
-                    3,
-                    NodeType::leaf_uint256(3u32, 1u32),
-                )
-                .with_parent(2),
+                TreeNode::new(tick_id, direction, 3, NodeType::leaf_uint256(3u32, 1u32))
+                    .with_parent(2),
                 // Left
-                TreeNode::new(
-                    tick_id,
-                    direction,
-                    4,
-                    NodeType::leaf_uint256(2u32, 1u32),
-                )
-                .with_parent(1),
+                TreeNode::new(tick_id, direction, 4, NodeType::leaf_uint256(2u32, 1u32))
+                    .with_parent(1),
             ],
             expected: vec![2, 1, 4, 3],
             expected_error: None,
@@ -1517,7 +1409,6 @@ fn test_rotate_left() {
             nodes: vec![
                 // Root
                 TreeNode::new(
-                    
                     tick_id,
                     direction,
                     1,
@@ -1534,29 +1425,14 @@ fn test_rotate_left() {
                 .with_children(Some(3), Some(4))
                 .with_parent(1),
                 // Right-Left
-                TreeNode::new(
-                    tick_id,
-                    direction,
-                    3,
-                    NodeType::leaf_uint256(4u32, 1u32),
-                )
-                .with_parent(2),
+                TreeNode::new(tick_id, direction, 3, NodeType::leaf_uint256(4u32, 1u32))
+                    .with_parent(2),
                 // Right-Right
-                TreeNode::new(
-                    tick_id,
-                    direction,
-                    4,
-                    NodeType::leaf_uint256(5u32, 1u32),
-                )
-                .with_parent(2),
+                TreeNode::new(tick_id, direction, 4, NodeType::leaf_uint256(5u32, 1u32))
+                    .with_parent(2),
                 // Left
-                TreeNode::new(
-                    tick_id,
-                    direction,
-                    5,
-                    NodeType::leaf_uint256(3u32, 1u32),
-                )
-                .with_parent(1),
+                TreeNode::new(tick_id, direction, 5, NodeType::leaf_uint256(3u32, 1u32))
+                    .with_parent(1),
             ],
             expected: vec![2, 1, 5, 3, 4],
             expected_error: None,
@@ -1584,7 +1460,6 @@ fn test_rotate_left() {
             nodes: vec![
                 // Root
                 TreeNode::new(
-                    
                     tick_id,
                     direction,
                     1,
@@ -1593,7 +1468,6 @@ fn test_rotate_left() {
                 .with_children(Some(5), Some(2)),
                 // Right
                 TreeNode::new(
-                    
                     tick_id,
                     direction,
                     2,
@@ -1602,16 +1476,10 @@ fn test_rotate_left() {
                 .with_children(None, Some(4))
                 .with_parent(1),
                 // Right-Right
-                TreeNode::new(
-                    tick_id,
-                    direction,
-                    4,
-                    NodeType::leaf_uint256(5u32, 1u32),
-                )
-                .with_parent(2),
+                TreeNode::new(tick_id, direction, 4, NodeType::leaf_uint256(5u32, 1u32))
+                    .with_parent(2),
                 // Left
                 TreeNode::new(
-                    
                     tick_id,
                     direction,
                     5,
@@ -1620,23 +1488,11 @@ fn test_rotate_left() {
                 .with_children(Some(6), Some(7))
                 .with_parent(1),
                 // Left-Left
-                TreeNode::new(
-                    
-                    tick_id,
-                    direction,
-                    6,
-                    NodeType::leaf_uint256(3u32, 1u32),
-                )
-                .with_parent(5),
+                TreeNode::new(tick_id, direction, 6, NodeType::leaf_uint256(3u32, 1u32))
+                    .with_parent(5),
                 // Left-Right
-                TreeNode::new(
-                    
-                    tick_id,
-                    direction,
-                    7,
-                    NodeType::leaf_uint256(4u32, 1u32),
-                )
-                .with_parent(5),
+                TreeNode::new(tick_id, direction, 7, NodeType::leaf_uint256(4u32, 1u32))
+                    .with_parent(5),
             ],
             expected: vec![2, 1, 5, 6, 7, 4],
             expected_error: None,
@@ -1664,7 +1520,6 @@ fn test_rotate_left() {
             nodes: vec![
                 // Root
                 TreeNode::new(
-                    
                     tick_id,
                     direction,
                     1,
@@ -1673,7 +1528,6 @@ fn test_rotate_left() {
                 .with_children(Some(5), Some(2)),
                 // Right
                 TreeNode::new(
-                    
                     tick_id,
                     direction,
                     2,
@@ -1682,17 +1536,10 @@ fn test_rotate_left() {
                 .with_children(Some(4), None)
                 .with_parent(1),
                 // Right-Left
-                TreeNode::new(
-                    
-                    tick_id,
-                    direction,
-                    4,
-                    NodeType::leaf_uint256(5u32, 1u32),
-                )
-                .with_parent(2),
+                TreeNode::new(tick_id, direction, 4, NodeType::leaf_uint256(5u32, 1u32))
+                    .with_parent(2),
                 // Left
                 TreeNode::new(
-                    
                     tick_id,
                     direction,
                     5,
@@ -1701,23 +1548,11 @@ fn test_rotate_left() {
                 .with_children(Some(6), Some(7))
                 .with_parent(1),
                 // Left-Left
-                TreeNode::new(
-                    
-                    tick_id,
-                    direction,
-                    6,
-                    NodeType::leaf_uint256(3u32, 1u32),
-                )
-                .with_parent(5),
+                TreeNode::new(tick_id, direction, 6, NodeType::leaf_uint256(3u32, 1u32))
+                    .with_parent(5),
                 // Left-Right
-                TreeNode::new(
-                    
-                    tick_id,
-                    direction,
-                    7,
-                    NodeType::leaf_uint256(4u32, 1u32),
-                )
-                .with_parent(5),
+                TreeNode::new(tick_id, direction, 7, NodeType::leaf_uint256(4u32, 1u32))
+                    .with_parent(5),
             ],
             expected: vec![2, 1, 5, 6, 7, 4],
             expected_error: None,
@@ -1735,7 +1570,6 @@ fn test_rotate_left() {
             nodes: vec![
                 // Root
                 TreeNode::new(
-                    
                     tick_id,
                     direction,
                     1,
@@ -1744,7 +1578,6 @@ fn test_rotate_left() {
                 .with_children(Some(5), None),
                 // Left
                 TreeNode::new(
-                    
                     tick_id,
                     direction,
                     5,
@@ -1753,23 +1586,11 @@ fn test_rotate_left() {
                 .with_children(Some(6), Some(7))
                 .with_parent(1),
                 // Left-Left
-                TreeNode::new(
-                    
-                    tick_id,
-                    direction,
-                    6,
-                    NodeType::leaf_uint256(3u32, 1u32),
-                )
-                .with_parent(5),
+                TreeNode::new(tick_id, direction, 6, NodeType::leaf_uint256(3u32, 1u32))
+                    .with_parent(5),
                 // Left-Right
-                TreeNode::new(
-                    
-                    tick_id,
-                    direction,
-                    7,
-                    NodeType::leaf_uint256(4u32, 1u32),
-                )
-                .with_parent(5),
+                TreeNode::new(tick_id, direction, 7, NodeType::leaf_uint256(4u32, 1u32))
+                    .with_parent(5),
             ],
             expected: vec![],
             expected_error: Some(ContractError::InvalidNodeType),
@@ -1787,7 +1608,6 @@ fn test_rotate_left() {
             nodes: vec![
                 // Root
                 TreeNode::new(
-                    
                     tick_id,
                     direction,
                     1,
@@ -1795,17 +1615,10 @@ fn test_rotate_left() {
                 )
                 .with_children(Some(5), Some(2)),
                 // Right
-                TreeNode::new(
-                    
-                    tick_id,
-                    direction,
-                    2,
-                    NodeType::leaf_uint256(2u32, 1u32),
-                )
-                .with_parent(1),
+                TreeNode::new(tick_id, direction, 2, NodeType::leaf_uint256(2u32, 1u32))
+                    .with_parent(1),
                 // Left
                 TreeNode::new(
-                    
                     tick_id,
                     direction,
                     5,
@@ -1814,23 +1627,11 @@ fn test_rotate_left() {
                 .with_children(Some(6), Some(7))
                 .with_parent(1),
                 // Left-Left
-                TreeNode::new(
-                    
-                    tick_id,
-                    direction,
-                    6,
-                    NodeType::leaf_uint256(3u32, 1u32),
-                )
-                .with_parent(5),
+                TreeNode::new(tick_id, direction, 6, NodeType::leaf_uint256(3u32, 1u32))
+                    .with_parent(5),
                 // Left-Right
-                TreeNode::new(
-                    
-                    tick_id,
-                    direction,
-                    7,
-                    NodeType::leaf_uint256(4u32, 1u32),
-                )
-                .with_parent(5),
+                TreeNode::new(tick_id, direction, 7, NodeType::leaf_uint256(4u32, 1u32))
+                    .with_parent(5),
             ],
             expected: vec![],
             expected_error: Some(ContractError::InvalidNodeType),
@@ -1846,13 +1647,13 @@ fn test_rotate_left() {
             if idx == 0 {
                 TREE.save(
                     deps.as_mut().storage,
-                    &( tick_id, &direction.to_string()),
+                    &(tick_id, &direction.to_string()),
                     &node.key,
                 )
                 .unwrap();
             }
             NODES
-                .save(deps.as_mut().storage, &( tick_id, node.key), node)
+                .save(deps.as_mut().storage, &(tick_id, node.key), node)
                 .unwrap();
         }
 
@@ -1868,7 +1669,7 @@ fn test_rotate_left() {
                 .unwrap();
         }
 
-        let mut tree = get_root_node(deps.as_ref().storage,  tick_id, direction).unwrap();
+        let mut tree = get_root_node(deps.as_ref().storage, tick_id, direction).unwrap();
         if test.print {
             print_tree("Pre-rotation", test.name, &tree, &deps.as_ref());
         }
@@ -1881,7 +1682,7 @@ fn test_rotate_left() {
         }
 
         // Get new root node, it may have changed due to rotations
-        let tree = get_root_node(deps.as_ref().storage,  tick_id, direction).unwrap();
+        let tree = get_root_node(deps.as_ref().storage, tick_id, direction).unwrap();
         if test.print {
             print_tree("Post-rotation", test.name, &tree, &deps.as_ref());
         }
@@ -1937,13 +1738,8 @@ fn test_rebalance() {
                 )
                 .with_children(Some(2), Some(3)),
                 // Left
-                TreeNode::new(
-                    tick_id,
-                    direction,
-                    2,
-                    NodeType::leaf_uint256(1u32, 1u32),
-                )
-                .with_parent(1),
+                TreeNode::new(tick_id, direction, 2, NodeType::leaf_uint256(1u32, 1u32))
+                    .with_parent(1),
                 // Right
                 TreeNode::new(
                     tick_id,
@@ -1954,13 +1750,8 @@ fn test_rebalance() {
                 .with_children(Some(4), Some(5))
                 .with_parent(1),
                 // Right-Left
-                TreeNode::new(
-                    tick_id,
-                    direction,
-                    4,
-                    NodeType::leaf_uint256(4u32, 1u32),
-                )
-                .with_parent(3),
+                TreeNode::new(tick_id, direction, 4, NodeType::leaf_uint256(4u32, 1u32))
+                    .with_parent(3),
                 // Right-Right
                 TreeNode::new(
                     tick_id,
@@ -1971,23 +1762,11 @@ fn test_rebalance() {
                 .with_children(Some(6), Some(7))
                 .with_parent(3),
                 // Right-Right-Left
-                TreeNode::new(
-                    
-                    tick_id,
-                    direction,
-                    6,
-                    NodeType::leaf_uint256(5u32, 1u32),
-                )
-                .with_parent(5),
+                TreeNode::new(tick_id, direction, 6, NodeType::leaf_uint256(5u32, 1u32))
+                    .with_parent(5),
                 // Right-Right-Right
-                TreeNode::new(
-                    
-                    tick_id,
-                    direction,
-                    7,
-                    NodeType::leaf_uint256(6u32, 1u32),
-                )
-                .with_parent(5),
+                TreeNode::new(tick_id, direction, 7, NodeType::leaf_uint256(6u32, 1u32))
+                    .with_parent(5),
             ],
             expected: vec![3, 1, 2, 4, 5, 6, 7],
             expected_error: None,
@@ -2040,41 +1819,17 @@ fn test_rebalance() {
                 .with_children(Some(6), Some(7))
                 .with_parent(2),
                 // Left-Left-Left
-                TreeNode::new(
-                    
-                    tick_id,
-                    direction,
-                    6,
-                    NodeType::leaf_uint256(2u32, 1u32),
-                )
-                .with_parent(4),
+                TreeNode::new(tick_id, direction, 6, NodeType::leaf_uint256(2u32, 1u32))
+                    .with_parent(4),
                 // Left-Left-Right
-                TreeNode::new(
-                    
-                    tick_id,
-                    direction,
-                    7,
-                    NodeType::leaf_uint256(3u32, 1u32),
-                )
-                .with_parent(4),
+                TreeNode::new(tick_id, direction, 7, NodeType::leaf_uint256(3u32, 1u32))
+                    .with_parent(4),
                 // Left-Right
-                TreeNode::new(
-                    
-                    tick_id,
-                    direction,
-                    5,
-                    NodeType::leaf_uint256(4u32, 1u32),
-                )
-                .with_parent(2),
+                TreeNode::new(tick_id, direction, 5, NodeType::leaf_uint256(4u32, 1u32))
+                    .with_parent(2),
                 // Right
-                TreeNode::new(
-                    
-                    tick_id,
-                    direction,
-                    3,
-                    NodeType::leaf_uint256(6u32, 1u32),
-                )
-                .with_parent(1),
+                TreeNode::new(tick_id, direction, 3, NodeType::leaf_uint256(6u32, 1u32))
+                    .with_parent(1),
             ],
             expected: vec![2, 4, 6, 7, 1, 5, 3],
             expected_error: None,
@@ -2102,7 +1857,6 @@ fn test_rebalance() {
             nodes: vec![
                 // Root
                 TreeNode::new(
-                    
                     tick_id,
                     direction,
                     1,
@@ -2110,17 +1864,10 @@ fn test_rebalance() {
                 )
                 .with_children(Some(2), Some(3)),
                 // Left
-                TreeNode::new(
-                    
-                    tick_id,
-                    direction,
-                    2,
-                    NodeType::leaf_uint256(1u32, 1u32),
-                )
-                .with_parent(1),
+                TreeNode::new(tick_id, direction, 2, NodeType::leaf_uint256(1u32, 1u32))
+                    .with_parent(1),
                 // Right
                 TreeNode::new(
-                    
                     tick_id,
                     direction,
                     3,
@@ -2130,7 +1877,6 @@ fn test_rebalance() {
                 .with_parent(1),
                 // Right-Left
                 TreeNode::new(
-                    
                     tick_id,
                     direction,
                     4,
@@ -2139,32 +1885,14 @@ fn test_rebalance() {
                 .with_children(Some(6), Some(7))
                 .with_parent(3),
                 // Right-Left-Left
-                TreeNode::new(
-                    
-                    tick_id,
-                    direction,
-                    6,
-                    NodeType::leaf_uint256(2u32, 1u32),
-                )
-                .with_parent(4),
+                TreeNode::new(tick_id, direction, 6, NodeType::leaf_uint256(2u32, 1u32))
+                    .with_parent(4),
                 // Right-Left-Right
-                TreeNode::new(
-                    
-                    tick_id,
-                    direction,
-                    7,
-                    NodeType::leaf_uint256(3u32, 1u32),
-                )
-                .with_parent(4),
+                TreeNode::new(tick_id, direction, 7, NodeType::leaf_uint256(3u32, 1u32))
+                    .with_parent(4),
                 // Right-Right
-                TreeNode::new(
-                    
-                    tick_id,
-                    direction,
-                    5,
-                    NodeType::leaf_uint256(4u32, 1u32),
-                )
-                .with_parent(3),
+                TreeNode::new(tick_id, direction, 5, NodeType::leaf_uint256(4u32, 1u32))
+                    .with_parent(3),
             ],
             expected: vec![4, 1, 2, 6, 3, 7, 5],
             expected_error: None,
@@ -2217,37 +1945,17 @@ fn test_rebalance() {
                 .with_children(Some(6), Some(7))
                 .with_parent(2),
                 // Left-Left-Left
-                TreeNode::new(
-                    tick_id,
-                    direction,
-                    6,
-                    NodeType::leaf_uint256(2u32, 1u32),
-                )
-                .with_parent(4),
+                TreeNode::new(tick_id, direction, 6, NodeType::leaf_uint256(2u32, 1u32))
+                    .with_parent(4),
                 // Left-Left-Right
-                TreeNode::new(
-                    tick_id,
-                    direction,
-                    7,
-                    NodeType::leaf_uint256(3u32, 1u32),
-                )
-                .with_parent(4),
+                TreeNode::new(tick_id, direction, 7, NodeType::leaf_uint256(3u32, 1u32))
+                    .with_parent(4),
                 // Left-Right
-                TreeNode::new(
-                    tick_id,
-                    direction,
-                    5,
-                    NodeType::leaf_uint256(4u32, 1u32),
-                )
-                .with_parent(2),
+                TreeNode::new(tick_id, direction, 5, NodeType::leaf_uint256(4u32, 1u32))
+                    .with_parent(2),
                 // Right
-                TreeNode::new(
-                    tick_id,
-                    direction,
-                    3,
-                    NodeType::leaf_uint256(5u32, 1u32),
-                )
-                .with_parent(1),
+                TreeNode::new(tick_id, direction, 3, NodeType::leaf_uint256(5u32, 1u32))
+                    .with_parent(1),
             ],
             expected: vec![2, 4, 6, 7, 1, 5, 3],
             expected_error: None,
@@ -2269,7 +1977,6 @@ fn test_rebalance() {
             nodes: vec![
                 // Root
                 TreeNode::new(
-                    
                     tick_id,
                     direction,
                     1,
@@ -2277,14 +1984,8 @@ fn test_rebalance() {
                 )
                 .with_children(Some(2), None),
                 // Left
-                TreeNode::new(
-                    
-                    tick_id,
-                    direction,
-                    2,
-                    NodeType::leaf_uint256(2u32, 1u32),
-                )
-                .with_parent(1),
+                TreeNode::new(tick_id, direction, 2, NodeType::leaf_uint256(2u32, 1u32))
+                    .with_parent(1),
             ],
             expected: vec![1, 2],
             expected_error: None,
@@ -2306,7 +2007,6 @@ fn test_rebalance() {
             nodes: vec![
                 // Root
                 TreeNode::new(
-                    
                     tick_id,
                     direction,
                     1,
@@ -2314,14 +2014,8 @@ fn test_rebalance() {
                 )
                 .with_children(None, Some(2)),
                 // Right
-                TreeNode::new(
-                    
-                    tick_id,
-                    direction,
-                    2,
-                    NodeType::leaf_uint256(2u32, 1u32),
-                )
-                .with_parent(1),
+                TreeNode::new(tick_id, direction, 2, NodeType::leaf_uint256(2u32, 1u32))
+                    .with_parent(1),
             ],
             expected: vec![1, 2],
             expected_error: None,
@@ -2363,29 +2057,14 @@ fn test_rebalance() {
                 .with_children(Some(4), Some(5))
                 .with_parent(1),
                 // Left-Left
-                TreeNode::new(
-                    tick_id,
-                    direction,
-                    4,
-                    NodeType::leaf_uint256(2u32, 1u32),
-                )
-                .with_parent(2),
+                TreeNode::new(tick_id, direction, 4, NodeType::leaf_uint256(2u32, 1u32))
+                    .with_parent(2),
                 // Left-Right
-                TreeNode::new(
-                    tick_id,
-                    direction,
-                    5,
-                    NodeType::leaf_uint256(3u32, 1u32),
-                )
-                .with_parent(2),
+                TreeNode::new(tick_id, direction, 5, NodeType::leaf_uint256(3u32, 1u32))
+                    .with_parent(2),
                 // Right
-                TreeNode::new(
-                    tick_id,
-                    direction,
-                    3,
-                    NodeType::leaf_uint256(4u32, 1u32),
-                )
-                .with_parent(1),
+                TreeNode::new(tick_id, direction, 3, NodeType::leaf_uint256(4u32, 1u32))
+                    .with_parent(1),
             ],
             expected: vec![1, 2, 4, 5, 3],
             expected_error: None,
@@ -2418,13 +2097,8 @@ fn test_rebalance() {
                 )
                 .with_children(Some(2), Some(3)),
                 // Left
-                TreeNode::new(
-                    tick_id,
-                    direction,
-                    2,
-                    NodeType::leaf_uint256(1u32, 1u32),
-                )
-                .with_parent(1),
+                TreeNode::new(tick_id, direction, 2, NodeType::leaf_uint256(1u32, 1u32))
+                    .with_parent(1),
                 // Right
                 TreeNode::new(
                     tick_id,
@@ -2435,21 +2109,11 @@ fn test_rebalance() {
                 .with_children(Some(4), Some(5))
                 .with_parent(1),
                 // Right-Left
-                TreeNode::new(
-                    tick_id,
-                    direction,
-                    4,
-                    NodeType::leaf_uint256(2u32, 1u32),
-                )
-                .with_parent(3),
+                TreeNode::new(tick_id, direction, 4, NodeType::leaf_uint256(2u32, 1u32))
+                    .with_parent(3),
                 // Right-Right
-                TreeNode::new(
-                    tick_id,
-                    direction,
-                    5,
-                    NodeType::leaf_uint256(3u32, 1u32),
-                )
-                .with_parent(3),
+                TreeNode::new(tick_id, direction, 5, NodeType::leaf_uint256(3u32, 1u32))
+                    .with_parent(3),
             ],
             expected: vec![1, 2, 3, 4, 5],
             expected_error: None,
@@ -2475,7 +2139,6 @@ fn test_rebalance() {
             nodes: vec![
                 // Root
                 TreeNode::new(
-                    
                     tick_id,
                     direction,
                     1,
@@ -2484,7 +2147,6 @@ fn test_rebalance() {
                 .with_children(Some(2), Some(3)),
                 // Right
                 TreeNode::new(
-                    
                     tick_id,
                     direction,
                     2,
@@ -2493,26 +2155,13 @@ fn test_rebalance() {
                 .with_children(Some(4), Some(5))
                 .with_parent(1),
                 // Right-Left
-                TreeNode::new(
-                    
-                    tick_id,
-                    direction,
-                    4,
-                    NodeType::leaf_uint256(2u32, 1u32),
-                )
-                .with_parent(2),
+                TreeNode::new(tick_id, direction, 4, NodeType::leaf_uint256(2u32, 1u32))
+                    .with_parent(2),
                 // Right-Right
-                TreeNode::new(
-                    
-                    tick_id,
-                    direction,
-                    5,
-                    NodeType::leaf_uint256(3u32, 1u32),
-                )
-                .with_parent(2),
+                TreeNode::new(tick_id, direction, 5, NodeType::leaf_uint256(3u32, 1u32))
+                    .with_parent(2),
                 // Right
                 TreeNode::new(
-                    
                     tick_id,
                     direction,
                     3,
@@ -2521,23 +2170,11 @@ fn test_rebalance() {
                 .with_children(Some(6), Some(7))
                 .with_parent(1),
                 // Right-Left
-                TreeNode::new(
-                    
-                    tick_id,
-                    direction,
-                    6,
-                    NodeType::leaf_uint256(4u32, 1u32),
-                )
-                .with_parent(3),
+                TreeNode::new(tick_id, direction, 6, NodeType::leaf_uint256(4u32, 1u32))
+                    .with_parent(3),
                 // Right-Right
-                TreeNode::new(
-                    
-                    tick_id,
-                    direction,
-                    7,
-                    NodeType::leaf_uint256(5u32, 1u32),
-                )
-                .with_parent(3),
+                TreeNode::new(tick_id, direction, 7, NodeType::leaf_uint256(5u32, 1u32))
+                    .with_parent(3),
             ],
             expected: vec![1, 2, 4, 5, 3, 6, 7],
             expected_error: None,
@@ -2547,12 +2184,7 @@ fn test_rebalance() {
             name: "invalid node type",
             nodes: vec![
                 // Root
-                TreeNode::new(
-                    tick_id,
-                    direction,
-                    1,
-                    NodeType::leaf_uint256(1u32, 1u32),
-                ),
+                TreeNode::new(tick_id, direction, 1, NodeType::leaf_uint256(1u32, 1u32)),
             ],
             expected: vec![],
             expected_error: Some(ContractError::InvalidNodeType),
@@ -2563,7 +2195,6 @@ fn test_rebalance() {
             nodes: vec![
                 // Root
                 TreeNode::new(
-                    
                     tick_id,
                     direction,
                     1,
@@ -2584,13 +2215,13 @@ fn test_rebalance() {
             if idx == 0 {
                 TREE.save(
                     deps.as_mut().storage,
-                    &( tick_id, &direction.to_string()),
+                    &(tick_id, &direction.to_string()),
                     &node.key,
                 )
                 .unwrap();
             }
             NODES
-                .save(deps.as_mut().storage, &( tick_id, node.key), node)
+                .save(deps.as_mut().storage, &(tick_id, node.key), node)
                 .unwrap();
         }
 
@@ -2606,7 +2237,7 @@ fn test_rebalance() {
                 .unwrap();
         }
 
-        let mut tree = get_root_node(deps.as_ref().storage,  tick_id, direction).unwrap();
+        let mut tree = get_root_node(deps.as_ref().storage, tick_id, direction).unwrap();
         if test.print {
             print_tree("Pre-rotation", test.name, &tree, &deps.as_ref());
         }
@@ -2619,7 +2250,7 @@ fn test_rebalance() {
         }
 
         // Get new root node, it may have changed due to rotations
-        let tree = get_root_node(deps.as_ref().storage,  tick_id, direction).unwrap();
+        let tree = get_root_node(deps.as_ref().storage, tick_id, direction).unwrap();
         if test.print {
             print_tree("Post-rotation", test.name, &tree, &deps.as_ref());
         }
@@ -2649,7 +2280,7 @@ fn generate_nodes(
 
     let mut nodes = vec![];
     for val in range {
-        let id = generate_node_id(storage,  tick_id).unwrap();
+        let id = generate_node_id(storage, tick_id).unwrap();
         nodes.push(TreeNode::new(
             tick_id,
             direction,
@@ -2662,23 +2293,21 @@ fn generate_nodes(
 
 #[test]
 fn test_node_insert_large_quantity() {
-    
     let tick_id = 1;
     let direction = OrderDirection::Bid;
 
     let mut deps = mock_dependencies();
     // Create tree root
     let mut tree = TreeNode::new(
-        
         tick_id,
         direction,
-        generate_node_id(deps.as_mut().storage,  tick_id).unwrap(),
+        generate_node_id(deps.as_mut().storage, tick_id).unwrap(),
         NodeType::internal_uint256(0u32, (u32::MAX, u32::MIN)),
     );
 
     TREE.save(
         deps.as_mut().storage,
-        &( tick_id, &direction.to_string()),
+        &(tick_id, &direction.to_string()),
         &tree.key,
     )
     .unwrap();
@@ -2691,10 +2320,10 @@ fn test_node_insert_large_quantity() {
     // Insert nodes into tree
     for mut node in nodes {
         NODES
-            .save(deps.as_mut().storage, &( tick_id, node.key), &node)
+            .save(deps.as_mut().storage, &(tick_id, node.key), &node)
             .unwrap();
         tree.insert(deps.as_mut().storage, &mut node).unwrap();
-        tree = get_root_node(deps.as_ref().storage,  tick_id, direction).unwrap();
+        tree = get_root_node(deps.as_ref().storage, tick_id, direction).unwrap();
         // Track insertions that fall below our target ETAS
         if node.get_min_range() <= target_etas {
             expected_prefix_sum = expected_prefix_sum.checked_add(Decimal256::one()).unwrap();
@@ -2709,7 +2338,7 @@ fn test_node_insert_large_quantity() {
     assert_internal_values("Large amount of nodes", deps.as_ref(), internals, true);
 
     // Ensure prefix sum functions correctly
-    let root_node = get_root_node(deps.as_mut().storage,  tick_id, direction).unwrap();
+    let root_node = get_root_node(deps.as_mut().storage, tick_id, direction).unwrap();
 
     let prefix_sum = get_prefix_sum(deps.as_mut().storage, root_node, target_etas).unwrap();
     assert_eq!(expected_prefix_sum, prefix_sum);

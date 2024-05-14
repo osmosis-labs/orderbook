@@ -63,11 +63,7 @@ pub fn place_limit(
         RoundingDirection::Down,
     );
 
-    ensure!(
-        claimed_price.is_ok()
-            && Decimal256::from_ratio(claimed_price.unwrap(), Uint256::one()) <= Decimal256::MAX,
-        ContractError::MaxSpotPriceExceeded
-    );
+    ensure!(claimed_price.is_ok(), ContractError::MaxSpotPriceExceeded);
 
     // Determine the correct denom based on order direction
     let expected_denom = orderbook.get_expected_denom(&order_direction);

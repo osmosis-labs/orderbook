@@ -1,6 +1,7 @@
+use crate::constants::MAX_MAKER_FEE_PERCENTAGE;
 use cosmwasm_std::{
-    CheckedFromRatioError, CheckedMultiplyRatioError, CoinsError, ConversionOverflowError, Decimal,
-    DecimalRangeExceeded, DivideByZeroError, OverflowError, StdError, Uint128,
+    CheckedFromRatioError, CheckedMultiplyRatioError, CoinsError, ConversionOverflowError,
+    Decimal256, DecimalRangeExceeded, DivideByZeroError, OverflowError, StdError, Uint128,
 };
 use cw_utils::PaymentError;
 use thiserror::Error;
@@ -94,7 +95,7 @@ pub enum ContractError {
     InsufficientLiquidity,
 
     #[error("Claim bounty must be a value between 0 and 0.01 (1%). Received: {claim_bounty:?}")]
-    InvalidClaimBounty { claim_bounty: Option<Decimal> },
+    InvalidClaimBounty { claim_bounty: Option<Decimal256> },
 
     #[error(
         "Exceeded the maximum number of claims in a batch. Maximum allowed: {max_batch_claim:?}"
@@ -103,6 +104,15 @@ pub enum ContractError {
 
     #[error("Orderbook is inactive")]
     Inactive,
+
+    #[error("No maker fee recipient currently set")]
+    NoMakerFeeRecipient,
+
+    #[error("Invalid Maker Fee Recipient")]
+    InvalidMakerFeeRecipient,
+
+    #[error("Invalid Maker Fee: provided fee must be less than or equal to {MAX_MAKER_FEE_PERCENTAGE:?}")]
+    InvalidMakerFee,
 }
 
 pub type ContractResult<T> = Result<T, ContractError>;

@@ -1,20 +1,20 @@
 use crate::constants::{MAX_BATCH_CLAIM, MAX_TICK, MIN_TICK};
 use crate::error::{ContractError, ContractResult};
 use crate::state::{
-    add_directional_liquidity, new_order_id, orders, subtract_directional_liquidity, ORDERBOOK,
-    TICK_STATE,
+    add_directional_liquidity, get_maker_fee, new_order_id, orders, subtract_directional_liquidity,
+    MAKER_FEE_RECIPIENT, ORDERBOOK, TICK_STATE,
 };
 use crate::sumtree::node::{generate_node_id, NodeType, TreeNode};
 use crate::sumtree::tree::get_or_init_root_node;
 use crate::tick::sync_tick;
 use crate::tick_math::{amount_to_value, tick_to_price, RoundingDirection};
 use crate::types::{
-    LimitOrder, MarketOrder, OrderDirection, Orderbook, TickState, REPLY_ID_CLAIM,
-    REPLY_ID_CLAIM_BOUNTY, REPLY_ID_REFUND,
+    coin_u256, Coin256, LimitOrder, MarketOrder, MsgSend256, OrderDirection, Orderbook, TickState,
+    REPLY_ID_CLAIM, REPLY_ID_CLAIM_BOUNTY, REPLY_ID_MAKER_FEE, REPLY_ID_REFUND,
 };
 use cosmwasm_std::{
-    coin, ensure, ensure_eq, Addr, BankMsg, Coin, Decimal, Decimal256, DepsMut, Env, MessageInfo,
-    Order, Response, Storage, SubMsg, Uint128, Uint256,
+    coin, ensure, ensure_eq, Addr, BankMsg, Decimal256, DepsMut, Env, MessageInfo, Order, Response,
+    Storage, SubMsg, Uint128, Uint256,
 };
 use cw_storage_plus::Bound;
 use cw_utils::{must_pay, nonpayable};
@@ -27,7 +27,7 @@ pub fn place_limit(
     tick_id: i64,
     order_direction: OrderDirection,
     quantity: Uint128,
-    claim_bounty: Option<Decimal>,
+    claim_bounty: Option<Decimal256>,
 ) -> Result<Response, ContractError> {
     let mut orderbook = ORDERBOOK.load(deps.storage)?;
 
@@ -47,7 +47,8 @@ pub fn place_limit(
     // We set a conservative upper bound of 1% for claim bounties as a guardrail.
     if let Some(claim_bounty_value) = claim_bounty {
         ensure!(
-            claim_bounty_value >= Decimal::zero() && claim_bounty_value <= Decimal::percent(1),
+            claim_bounty_value >= Decimal256::zero()
+                && claim_bounty_value <= Decimal256::percent(1),
             ContractError::InvalidClaimBounty {
                 claim_bounty: Some(claim_bounty_value)
             }
@@ -215,16 +216,21 @@ pub fn cancel_limit(
 }
 
 pub fn claim_limit(
-    _deps: DepsMut,
-    _env: Env,
+    deps: DepsMut,
+    env: Env,
     info: MessageInfo,
     tick_id: i64,
     order_id: u64,
 ) -> Result<Response, ContractError> {
     nonpayable(&info)?;
 
-    let (amount_claimed, bank_msgs) =
-        claim_order(_deps.storage, info.sender.clone(), tick_id, order_id)?;
+    let (amount_claimed, bank_msgs) = claim_order(
+        deps.storage,
+        info.sender.clone(),
+        env.contract.address,
+        tick_id,
+        order_id,
+    )?;
 
     Ok(Response::new()
         .add_attribute("method", "claimMarket")
@@ -239,6 +245,7 @@ pub fn claim_limit(
 pub fn batch_claim_limits(
     deps: DepsMut,
     info: MessageInfo,
+    env: Env,
     orders: Vec<(i64, u64)>,
 ) -> Result<Response, ContractError> {
     nonpayable(&info)?;
@@ -254,7 +261,13 @@ pub fn batch_claim_limits(
 
     for (tick_id, order_id) in orders {
         // Attempt to claim each order
-        match claim_order(deps.storage, info.sender.clone(), tick_id, order_id) {
+        match claim_order(
+            deps.storage,
+            env.contract.address.clone(),
+            info.sender.clone(),
+            tick_id,
+            order_id,
+        ) {
             Ok((_, mut bank_msgs)) => {
                 responses.append(&mut bank_msgs);
             }
@@ -290,9 +303,10 @@ pub fn batch_claim_limits(
 #[allow(clippy::manual_range_contains)]
 pub fn run_market_order(
     storage: &mut dyn Storage,
+    contract_address: Addr,
     order: &mut MarketOrder,
     tick_bound: i64,
-) -> Result<(Uint128, BankMsg), ContractError> {
+) -> Result<(Uint256, MsgSend256), ContractError> {
     let PostMarketOrderState {
         output,
         tick_updates,
@@ -309,7 +323,7 @@ pub fn run_market_order(
     subtract_directional_liquidity(
         storage,
         order.order_direction.opposite(),
-        Decimal256::from_ratio(Uint256::from_uint128(output.amount), Uint256::one()),
+        Decimal256::from_ratio(output.amount, Uint256::one()),
     )?;
 
     // Update tick pointers in orderbook
@@ -317,7 +331,8 @@ pub fn run_market_order(
 
     Ok((
         output.amount,
-        BankMsg::Send {
+        MsgSend256 {
+            from_address: contract_address.to_string(),
             to_address: order.owner.to_string(),
             amount: vec![output],
         },
@@ -326,7 +341,7 @@ pub fn run_market_order(
 
 /// Defines the state changes resulting from a market order.
 pub(crate) struct PostMarketOrderState {
-    pub output: Coin,
+    pub output: Coin256,
     pub tick_updates: Vec<(i64, TickState)>,
     pub updated_orderbook: Orderbook,
 }
@@ -406,7 +421,7 @@ pub(crate) fn run_market_order_internal(
 
     // Iterate through ticks and fill the market order as appropriate.
     // Due to our sumtree-based design, this process carries only O(1) overhead per tick.
-    let mut total_output: Uint128 = Uint128::zero();
+    let mut total_output: Uint256 = Uint256::zero();
     let mut tick_updates: Vec<(i64, TickState)> = Vec::new();
 
     // The price of the last tick iterated on, if no ticks are iterated price is constant
@@ -439,8 +454,7 @@ pub(crate) fn run_market_order_internal(
             break;
         }
 
-        let output_quantity_dec =
-            Decimal256::from_ratio(Uint256::from_uint128(output_quantity), Uint256::one());
+        let output_quantity_dec = Decimal256::from_ratio(output_quantity, Uint256::one());
 
         // If order quantity is less than the current tick's liquidity, fill the whole order.
         // Otherwise, fill the whole tick.
@@ -470,13 +484,16 @@ pub(crate) fn run_market_order_internal(
             tick_price,
             RoundingDirection::Up,
         )?;
-        order.quantity = order.quantity.checked_sub(input_filled)?;
+        order.quantity = order
+            .quantity
+            // Safe conversions as amount filled should never be larger than order quantity which is upper bounded by Uint128::MAX
+            .checked_sub(Uint128::try_from(input_filled)?)?;
 
         current_tick.set_values(order.order_direction.opposite(), current_tick_values);
         // Add the updated tick state to the vector
         tick_updates.push((current_tick_id, current_tick));
 
-        total_output = total_output.checked_add(fill_amount)?;
+        total_output = total_output.checked_add(Uint256::from_uint128(fill_amount))?;
     }
 
     // Determine if filling remaining amount on the last possible tick produced any value
@@ -496,7 +513,7 @@ pub(crate) fn run_market_order_internal(
     );
 
     Ok(PostMarketOrderState {
-        output: coin(total_output.u128(), output_denom),
+        output: coin_u256(total_output, &output_denom),
         tick_updates,
         updated_orderbook: orderbook,
     })
@@ -505,10 +522,11 @@ pub(crate) fn run_market_order_internal(
 // Note: This can be called by anyone
 pub(crate) fn claim_order(
     storage: &mut dyn Storage,
+    contract_address: Addr,
     sender: Addr,
     tick_id: i64,
     order_id: u64,
-) -> ContractResult<(Uint128, Vec<SubMsg>)> {
+) -> ContractResult<(Uint256, Vec<SubMsg>)> {
     let orderbook = ORDERBOOK.load(storage)?;
     // Fetch tick values for current order direction
     let tick_state = TICK_STATE
@@ -575,6 +593,8 @@ pub(crate) fn claim_order(
         tick_price,
         RoundingDirection::Down,
     )?;
+    // Immutable amount to prevent bounty/maker fee calculations affecting each other
+    let raw_amount = amount;
 
     // Cannot send a zero amount, may be zero'd out by rounding
     ensure!(!amount.is_zero(), ContractError::ZeroClaim);
@@ -582,30 +602,56 @@ pub(crate) fn claim_order(
     let denom = orderbook.get_opposite_denom(&order.order_direction);
 
     // Send claim bounty to sender if applicable
-    let mut bounty = Uint128::zero();
+    let mut bounty = Uint256::zero();
     if let Some(claim_bounty) = order.claim_bounty {
         // Multiply by the claim bounty ratio and convert to Uint128.
         // Ensure claimed amount is updated to reflect the bounty.
         let bounty_amount =
-            Decimal::from_ratio(amount, Uint128::one()).checked_mul(claim_bounty)?;
+            Decimal256::from_ratio(amount, Uint256::one()).checked_mul(claim_bounty)?;
         bounty = bounty_amount.to_uint_floor();
         amount = amount.checked_sub(bounty)?;
     }
 
+    // Get the current maker fee for this orderbook
+    let maker_fee = get_maker_fee(storage)?;
+    let mut maker_fee_amount = Uint256::zero();
+    if !maker_fee.is_zero() {
+        // Calculate the fee amount based on the quantity originally being sent to the claimer
+        maker_fee_amount = Decimal256::from_ratio(raw_amount, 1u128)
+            .checked_mul(maker_fee)?
+            .to_uint_floor();
+        amount = amount.checked_sub(maker_fee_amount)?;
+    }
+
     // Claimed amount always goes to the order owner
-    let bank_msg = BankMsg::Send {
+    let bank_msg = MsgSend256 {
+        from_address: contract_address.to_string(),
         to_address: order.owner.to_string(),
-        amount: vec![coin(amount.u128(), denom.clone())],
+        amount: vec![coin_u256(amount, &denom)],
     };
     let mut bank_msg_vec = vec![SubMsg::reply_on_error(bank_msg, REPLY_ID_CLAIM)];
 
     if !bounty.is_zero() {
         // Bounty always goes to the sender
-        let bounty_msg = BankMsg::Send {
+        let bounty_msg = MsgSend256 {
+            from_address: contract_address.to_string(),
             to_address: sender.to_string(),
-            amount: vec![coin(bounty.u128(), denom)],
+            amount: vec![coin_u256(bounty, &denom)],
         };
         bank_msg_vec.push(SubMsg::reply_on_error(bounty_msg, REPLY_ID_CLAIM_BOUNTY));
+    }
+
+    if !maker_fee_amount.is_zero() {
+        // Maker fee recipient is controlled by contract admin/moderator
+        let maker_fee_recipient = MAKER_FEE_RECIPIENT
+            .may_load(storage)?
+            .ok_or(ContractError::NoMakerFeeRecipient)?;
+        let maker_fee_msg = MsgSend256 {
+            from_address: contract_address.to_string(),
+            to_address: maker_fee_recipient.to_string(),
+            amount: vec![coin_u256(maker_fee_amount, &denom)],
+        };
+        bank_msg_vec.push(SubMsg::reply_on_error(maker_fee_msg, REPLY_ID_MAKER_FEE));
     }
 
     Ok((amount, bank_msg_vec))

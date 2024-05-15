@@ -1,6 +1,7 @@
 use crate::types::{OrderDirection, TickState};
 use cosmwasm_schema::{cw_serde, QueryResponses};
-use cosmwasm_std::{Addr, Coin, Decimal, Uint128};
+use cosmwasm_std::{Addr, Coin, Decimal, Decimal256, Uint128, Uint256};
+use osmosis_std::types::cosmos::base::v1beta1::Coin as ProtoCoin;
 
 /// Message type for `instantiate` entry_point
 #[cw_serde]
@@ -9,6 +10,8 @@ pub struct InstantiateMsg {
     pub quote_denom: String,
     pub admin: Addr,
     pub moderator: Addr,
+    pub maker_fee: Option<Decimal>,
+    pub maker_fee_recipient: Addr,
 }
 
 /// Message type for `execute` entry_point
@@ -18,7 +21,7 @@ pub enum ExecuteMsg {
         tick_id: i64,
         order_direction: OrderDirection,
         quantity: Uint128,
-        claim_bounty: Option<Decimal>,
+        claim_bounty: Option<Decimal256>,
     },
     CancelLimit {
         tick_id: i64,
@@ -50,6 +53,8 @@ pub enum AuthExecuteMsg {
 
     // -- Shared messages --
     SetActive { active: bool },
+    SetMakerFee { fee: Decimal256 },
+    SetMakerFeeRecipient { recipient: Addr },
 }
 
 /// Message type for `migrate` entry_point
@@ -113,7 +118,7 @@ pub struct SpotPriceResponse {
 
 #[cw_serde]
 pub struct CalcOutAmtGivenInResponse {
-    pub token_out: Coin,
+    pub token_out: ProtoCoin,
 }
 
 #[cw_serde]
@@ -177,11 +182,11 @@ pub enum SudoMsg {
 #[cw_serde]
 /// Fixing token in amount makes token amount out varies
 pub struct SwapExactAmountInResponseData {
-    pub token_out_amount: Uint128,
+    pub token_out_amount: Uint256,
 }
 
 #[cw_serde]
 /// Fixing token out amount makes token amount in varies
 pub struct SwapExactAmountOutResponseData {
-    pub token_in_amount: Uint128,
+    pub token_in_amount: Uint256,
 }

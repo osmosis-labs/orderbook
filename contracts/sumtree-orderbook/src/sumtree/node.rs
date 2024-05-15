@@ -556,31 +556,46 @@ impl TreeNode {
         let accumulator = self.get_value().checked_add(new_node.get_value())?;
 
         // Determine which node goes to which side, maintaining order by ETAS
-        let (new_left, new_right) = if self.get_min_range() < new_node.get_min_range() {
+        let (new_left, new_right) = if self.below_range(new_node.clone()) {
+            // Current node is below new node
             (self.key, new_node.key)
-        } else {
+        } else if self.above_range(new_node.clone()) {
+            // Current node is above new node
             (new_node.key, self.key)
+        } else {
+            // New node overlap the current node creating an invalid sumtree
+            return Err(ContractError::NodeInsertionError);
         };
+
         // Determine the new range for the generated parent
         let (new_min, new_max) = (
             new_node.get_min_range().min(self.get_min_range()),
             new_node.get_max_range().max(self.get_max_range()),
         );
 
+        // Create new parent to be saved
         let mut new_parent = TreeNode::new(
             self.tick_id,
             self.direction,
             id,
             NodeType::internal(accumulator, (new_min, new_max)),
         );
+
+        // Both children must be leaves so the new parent has a weight of 2
         new_parent.set_weight(2)?;
 
-        // Save new key references
+        // Update key references for generated parent
         new_parent.parent = self.parent;
         new_parent.left = Some(new_left);
         new_parent.right = Some(new_right);
+
+        // Update current parent
         self.parent = Some(id);
+
+        // Update new node's parent
         new_node.parent = Some(id);
+
+        // Save all affected/generated nodes
         new_parent.save(storage)?;
         self.save(storage)?;
         new_node.save(storage)?;

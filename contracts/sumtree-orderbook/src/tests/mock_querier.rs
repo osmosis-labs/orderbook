@@ -5,7 +5,7 @@ use cosmwasm_std::{
     SupplyResponse, SystemError, SystemResult,
 };
 
-use super::test_constants::{MOCK_BASE_DENOM, MOCK_QUOTE_DENOM};
+use super::test_constants::{BASE_DENOM, QUOTE_DENOM};
 
 pub(crate) struct WasmMockQuerier {
     pub base: MockQuerier,
@@ -45,12 +45,12 @@ impl WasmMockQuerier {
     ) -> QuerierResult {
         match &request {
             QueryRequest::Bank(BankQuery::Supply { denom }) => match denom.as_str() {
-                MOCK_BASE_DENOM => {
+                BASE_DENOM => {
                     let mut resp = SupplyResponse::default();
                     resp.amount = coin(1000000000000u128, denom);
                     QuerierResult::Ok(ContractResult::Ok(to_json_binary(&resp).unwrap()))
                 }
-                MOCK_QUOTE_DENOM => {
+                QUOTE_DENOM => {
                     let mut resp = SupplyResponse::default();
                     resp.amount = coin(1000000000000u128, denom);
                     QuerierResult::Ok(ContractResult::Ok(to_json_binary(&resp).unwrap()))

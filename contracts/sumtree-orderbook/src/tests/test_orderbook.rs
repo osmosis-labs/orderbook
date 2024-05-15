@@ -4,7 +4,7 @@ use crate::{
     state::ORDERBOOK,
     tests::{
         mock_querier::mock_dependencies_custom,
-        test_constants::{MOCK_BASE_DENOM, MOCK_QUOTE_DENOM},
+        test_constants::{BASE_DENOM, QUOTE_DENOM},
     },
 };
 
@@ -13,8 +13,8 @@ fn test_create_orderbook() {
     let mut deps = mock_dependencies_custom();
 
     // Attempt to create an orderbook
-    let quote_denom = MOCK_QUOTE_DENOM.to_string();
-    let base_denom = MOCK_BASE_DENOM.to_string();
+    let quote_denom = QUOTE_DENOM.to_string();
+    let base_denom = BASE_DENOM.to_string();
     create_orderbook(deps.as_mut(), quote_denom.clone(), base_denom.clone()).unwrap();
 
     // Verify orderbook is saved correctly

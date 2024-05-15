@@ -10,12 +10,7 @@ use crate::{
     types::{LimitOrder, MarketOrder, OrderDirection},
 };
 
-use super::test_constants::{DEFAULT_OWNER, MOCK_BASE_DENOM, MOCK_QUOTE_DENOM};
-
-// Tick Price = 2
-pub(crate) const LARGE_POSITIVE_TICK: i64 = 1000000;
-// Tick Price = 0.5
-pub(crate) const LARGE_NEGATIVE_TICK: i64 = -5000000;
+use super::test_constants::{BASE_DENOM, DEFAULT_OWNER, QUOTE_DENOM};
 
 pub(crate) fn decimal256_from_u128(input: impl Into<u128>) -> Decimal256 {
     Decimal256::from_ratio(input.into(), 1u128)
@@ -61,8 +56,8 @@ impl OrderOperation {
                 let coin_vec = vec![coin(
                     limit_order.quantity.u128(),
                     match limit_order.order_direction {
-                        OrderDirection::Ask => MOCK_BASE_DENOM,
-                        OrderDirection::Bid => MOCK_QUOTE_DENOM,
+                        OrderDirection::Ask => BASE_DENOM,
+                        OrderDirection::Bid => QUOTE_DENOM,
                     },
                 )];
                 let info = mock_info(info.sender.as_str(), &coin_vec);
@@ -140,8 +135,8 @@ pub(crate) fn place_multiple_limit_orders(
         let coin_vec = vec![coin(
             order.quantity.u128(),
             match order.order_direction {
-                OrderDirection::Ask => MOCK_BASE_DENOM,
-                OrderDirection::Bid => MOCK_QUOTE_DENOM,
+                OrderDirection::Ask => BASE_DENOM,
+                OrderDirection::Bid => QUOTE_DENOM,
             },
         )];
         let info = mock_info(owner, &coin_vec);

@@ -105,6 +105,9 @@ pub enum ContractError {
     #[error("Orderbook is inactive")]
     Inactive,
 
+    #[error("Max spot price exceeded")]
+    MaxSpotPriceExceeded,
+  
     #[error("No maker fee recipient currently set")]
     NoMakerFeeRecipient,
 

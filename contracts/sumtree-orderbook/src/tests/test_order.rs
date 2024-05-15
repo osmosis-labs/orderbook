@@ -24,10 +24,10 @@ use cosmwasm_std::{
 };
 use cw_utils::PaymentError;
 
-use super::test_utils::{
+use super::{test_constants::{MOCK_BASE_DENOM, MOCK_QUOTE_DENOM}, test_utils::{
     format_test_name, generate_limit_orders, OrderOperation, LARGE_NEGATIVE_TICK,
     LARGE_POSITIVE_TICK,
-};
+}};
 
 struct PlaceLimitTestCase {
     name: &'static str,
@@ -173,9 +173,9 @@ fn test_place_limit() {
         let coin_vec = vec![coin(
             test.sent.u128(),
             if test.order_direction == OrderDirection::Ask {
-                "base"
+                MOCK_BASE_DENOM
             } else {
-                "quote"
+                MOCK_QUOTE_DENOM
             },
         )];
         let mut deps = mock_dependencies_custom();
@@ -183,9 +183,7 @@ fn test_place_limit() {
         let info = mock_info("creator", &coin_vec);
 
         // Create an orderbook to operate on
-        let quote_denom = "quote".to_string();
-        let base_denom = "base".to_string();
-        create_orderbook(deps.as_mut(), quote_denom, base_denom).unwrap();
+        create_orderbook(deps.as_mut(), MOCK_QUOTE_DENOM.to_string(), MOCK_BASE_DENOM.to_string()).unwrap();
 
         // --- System under test ---
 
@@ -324,7 +322,6 @@ fn test_place_limit() {
 
 struct CancelLimitTestCase {
     name: &'static str,
-
     tick_id: i64,
     order_id: u64,
     order_direction: OrderDirection,
@@ -362,7 +359,7 @@ fn test_cancel_limit() {
             expected_error: Some(ContractError::PaymentError(PaymentError::NonPayable {})),
             owner: "creator",
             sender: None,
-            sent: vec![coin(100, "quote")],
+            sent: vec![coin(100, MOCK_QUOTE_DENOM)],
         },
         CancelLimitTestCase {
             name: "unauthorized cancel (not owner)",
@@ -402,8 +399,8 @@ fn test_cancel_limit() {
         let info = mock_info(test.sender.unwrap_or(test.owner), test.sent.as_slice());
 
         // Create an orderbook to operate on
-        let quote_denom = "quote".to_string();
-        let base_denom = "base".to_string();
+        let quote_denom = MOCK_QUOTE_DENOM.to_string();
+        let base_denom = MOCK_BASE_DENOM.to_string();
         create_orderbook(deps.as_mut(), quote_denom.clone(), base_denom.clone()).unwrap();
 
         if test.place_order {
@@ -590,8 +587,6 @@ struct RunMarketOrderTestCase {
 
 #[test]
 fn test_run_market_order() {
-    let quote_denom = "quote";
-    let base_denom = "base";
     // TODO: move these defaults to global scope or helper file
     let default_owner = "creator";
     let default_sender = "sender";
@@ -852,8 +847,8 @@ fn test_run_market_order() {
         // Create an orderbook to operate on
         create_orderbook(
             deps.as_mut(),
-            quote_denom.to_string(),
-            base_denom.to_string(),
+            MOCK_QUOTE_DENOM.to_string(),
+            MOCK_BASE_DENOM.to_string(),
         )
         .unwrap();
 
@@ -938,8 +933,8 @@ fn test_run_market_order() {
         // We expect the output denom to be the opposite of the input denom,
         // although we derive it directly from the order direction to ensure correctness.
         let expected_denom = match test.placed_order.order_direction {
-            OrderDirection::Bid => base_denom,
-            OrderDirection::Ask => quote_denom,
+            OrderDirection::Bid => MOCK_BASE_DENOM,
+            OrderDirection::Ask => MOCK_QUOTE_DENOM,
         };
         let expected_msg = MsgSend256 {
             from_address: env.contract.address.to_string(),
@@ -1317,8 +1312,8 @@ fn test_run_market_order_moving_tick() {
     for test in test_cases {
         let mut deps = mock_dependencies_custom();
 
-        let quote_denom = "quote";
-        let base_denom = "base";
+        let quote_denom = MOCK_QUOTE_DENOM;
+        let base_denom = MOCK_BASE_DENOM;
         create_orderbook(
             deps.as_mut(),
             quote_denom.to_string(),
@@ -1359,8 +1354,8 @@ struct ClaimOrderTestCase {
 #[test]
 fn test_claim_order() {
     let valid_tick_id = 0;
-    let quote_denom = "quote";
-    let base_denom = "base";
+    let quote_denom = MOCK_QUOTE_DENOM;
+    let base_denom = MOCK_BASE_DENOM;
     let sender = Addr::unchecked("sender");
     let test_cases: Vec<ClaimOrderTestCase> = vec![
         // A tick id of 0 operates on a tick price of 1
@@ -2621,8 +2616,8 @@ struct MovingClaimOrderTestCase {
 #[test]
 fn test_claim_order_moving_tick() {
     let valid_tick_id = 0;
-    let quote_denom = "quote";
-    let base_denom = "base";
+    let quote_denom = MOCK_QUOTE_DENOM;
+    let base_denom = MOCK_BASE_DENOM;
     let sender = Addr::unchecked("sender");
     let test_cases: Vec<MovingClaimOrderTestCase> = vec![
         MovingClaimOrderTestCase {
@@ -3307,8 +3302,8 @@ struct BatchClaimOrderTestCase {
 
 #[test]
 fn test_batch_claim_order() {
-    let quote_denom = "quote";
-    let base_denom = "base";
+    let quote_denom = MOCK_QUOTE_DENOM;
+    let base_denom = MOCK_BASE_DENOM;
     let sender = Addr::unchecked("sender");
     let owner = Addr::unchecked("owner");
     let test_cases: Vec<BatchClaimOrderTestCase> = vec![
@@ -3545,8 +3540,8 @@ struct DirectionalLiquidityTestCase {
 
 #[test]
 fn test_directional_liquidity() {
-    let quote_denom = "quote";
-    let base_denom = "base";
+    let quote_denom = MOCK_QUOTE_DENOM;
+    let base_denom = MOCK_BASE_DENOM;
     let sender = Addr::unchecked("sender");
 
     let test_cases = vec![
@@ -3773,8 +3768,8 @@ struct MakerFeeTestCase {
 
 #[test]
 fn test_maker_fee() {
-    let quote_denom = "quote";
-    let base_denom = "base";
+    let quote_denom = MOCK_QUOTE_DENOM;
+    let base_denom = MOCK_BASE_DENOM;
     let sender = Addr::unchecked("sender");
     let maker_fee_recipient = Addr::unchecked("maker");
     let env = mock_env();

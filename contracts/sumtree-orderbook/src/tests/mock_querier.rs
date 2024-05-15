@@ -5,8 +5,7 @@ use cosmwasm_std::{
     SupplyResponse, SystemError, SystemResult,
 };
 
-pub(crate) const MOCK_BASE_DENOM: &str = "base";
-pub(crate) const MOCK_QUOTE_DENOM: &str = "quote";
+use super::test_constants::{MOCK_BASE_DENOM, MOCK_QUOTE_DENOM};
 
 pub(crate) struct WasmMockQuerier {
     pub base: MockQuerier,

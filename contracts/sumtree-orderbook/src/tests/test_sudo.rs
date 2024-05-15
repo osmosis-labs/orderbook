@@ -14,14 +14,17 @@ use crate::{
     sudo::{
         dispatch_swap_exact_amount_in, ensure_is_active, set_active, sudo, validate_output_amount,
     },
-    tests::mock_querier::mock_dependencies_custom,
+    tests::{mock_querier::mock_dependencies_custom, test_constants::MOCK_QUOTE_DENOM},
     types::{
         coin_u256, Coin256, LimitOrder, MsgSend256, OrderDirection, REPLY_ID_SUDO_SWAP_EXACT_IN,
     },
     ContractError,
 };
 
-use super::test_utils::{format_test_name, OrderOperation};
+use super::{
+    test_constants::MOCK_BASE_DENOM,
+    test_utils::{format_test_name, OrderOperation},
+};
 
 struct ValidateOutputAmountTestCase {
     name: &'static str,
@@ -120,8 +123,6 @@ struct SwapExactAmountInTestCase {
 #[test]
 fn test_swap_exact_amount_in() {
     let valid_tick_id = 0;
-    let quote_denom = "quote";
-    let base_denom = "base";
     let sender = Addr::unchecked("sender");
     let test_cases: Vec<SwapExactAmountInTestCase> = vec![
         SwapExactAmountInTestCase {
@@ -135,11 +136,11 @@ fn test_swap_exact_amount_in() {
                 Decimal256::zero(),
                 None,
             ))],
-            token_in: coin(100u128, quote_denom),
-            token_out_denom: base_denom,
+            token_in: coin(100u128, MOCK_QUOTE_DENOM),
+            token_out_denom: MOCK_BASE_DENOM,
             token_out_min_amount: Uint128::from(100u128),
             swap_fee: EXPECTED_SWAP_FEE,
-            expected_output: coin_u256(100u128, base_denom),
+            expected_output: coin_u256(100u128, MOCK_BASE_DENOM),
             expected_error: None,
         },
         SwapExactAmountInTestCase {
@@ -153,21 +154,21 @@ fn test_swap_exact_amount_in() {
                 Decimal256::zero(),
                 None,
             ))],
-            token_in: coin(100u128, quote_denom),
-            token_out_denom: base_denom,
+            token_in: coin(100u128, MOCK_QUOTE_DENOM),
+            token_out_denom: MOCK_BASE_DENOM,
             token_out_min_amount: Uint128::from(100u128),
             swap_fee: EXPECTED_SWAP_FEE,
-            expected_output: coin_u256(100u128, base_denom),
+            expected_output: coin_u256(100u128, MOCK_BASE_DENOM),
             expected_error: Some(ContractError::InsufficientLiquidity),
         },
         SwapExactAmountInTestCase {
             name: "BID: zero liquidity in orderbook",
             pre_operations: vec![],
-            token_in: coin(100u128, quote_denom),
-            token_out_denom: base_denom,
+            token_in: coin(100u128, MOCK_QUOTE_DENOM),
+            token_out_denom: MOCK_BASE_DENOM,
             token_out_min_amount: Uint128::from(100u128),
             swap_fee: EXPECTED_SWAP_FEE,
-            expected_output: coin_u256(100u128, base_denom),
+            expected_output: coin_u256(100u128, MOCK_BASE_DENOM),
             expected_error: Some(ContractError::InsufficientLiquidity),
         },
         SwapExactAmountInTestCase {
@@ -181,11 +182,11 @@ fn test_swap_exact_amount_in() {
                 Decimal256::zero(),
                 None,
             ))],
-            token_in: coin(100u128, base_denom),
-            token_out_denom: quote_denom,
+            token_in: coin(100u128, MOCK_BASE_DENOM),
+            token_out_denom: MOCK_QUOTE_DENOM,
             token_out_min_amount: Uint128::from(100u128),
             swap_fee: EXPECTED_SWAP_FEE,
-            expected_output: coin_u256(100u128, quote_denom),
+            expected_output: coin_u256(100u128, MOCK_QUOTE_DENOM),
             expected_error: None,
         },
         SwapExactAmountInTestCase {
@@ -199,57 +200,57 @@ fn test_swap_exact_amount_in() {
                 Decimal256::zero(),
                 None,
             ))],
-            token_in: coin(100u128, base_denom),
-            token_out_denom: quote_denom,
+            token_in: coin(100u128, MOCK_BASE_DENOM),
+            token_out_denom: MOCK_QUOTE_DENOM,
             token_out_min_amount: Uint128::from(100u128),
             swap_fee: EXPECTED_SWAP_FEE,
-            expected_output: coin_u256(100u128, quote_denom),
+            expected_output: coin_u256(100u128, MOCK_QUOTE_DENOM),
             expected_error: Some(ContractError::InsufficientLiquidity),
         },
         SwapExactAmountInTestCase {
             name: "ASK: zero liquidity in orderbook",
             pre_operations: vec![],
-            token_in: coin(100u128, base_denom),
-            token_out_denom: quote_denom,
+            token_in: coin(100u128, MOCK_BASE_DENOM),
+            token_out_denom: MOCK_QUOTE_DENOM,
             token_out_min_amount: Uint128::from(100u128),
             swap_fee: EXPECTED_SWAP_FEE,
-            expected_output: coin_u256(100u128, quote_denom),
+            expected_output: coin_u256(100u128, MOCK_QUOTE_DENOM),
             expected_error: Some(ContractError::InsufficientLiquidity),
         },
         SwapExactAmountInTestCase {
             name: "invalid in denom",
             pre_operations: vec![],
             token_in: coin(100u128, "notadenom"),
-            token_out_denom: quote_denom,
+            token_out_denom: MOCK_QUOTE_DENOM,
             token_out_min_amount: Uint128::from(100u128),
             swap_fee: EXPECTED_SWAP_FEE,
-            expected_output: coin_u256(100u128, quote_denom),
+            expected_output: coin_u256(100u128, MOCK_QUOTE_DENOM),
             expected_error: Some(ContractError::InvalidPair {
                 token_in_denom: "notadenom".to_string(),
-                token_out_denom: quote_denom.to_string(),
+                token_out_denom: MOCK_QUOTE_DENOM.to_string(),
             }),
         },
         SwapExactAmountInTestCase {
             name: "invalid out denom",
             pre_operations: vec![],
-            token_in: coin(100u128, base_denom),
+            token_in: coin(100u128, MOCK_BASE_DENOM),
             token_out_denom: "notadenom",
             token_out_min_amount: Uint128::from(100u128),
             swap_fee: EXPECTED_SWAP_FEE,
-            expected_output: coin_u256(100u128, quote_denom),
+            expected_output: coin_u256(100u128, MOCK_QUOTE_DENOM),
             expected_error: Some(ContractError::InvalidPair {
-                token_in_denom: base_denom.to_string(),
+                token_in_denom: MOCK_BASE_DENOM.to_string(),
                 token_out_denom: "notadenom".to_string(),
             }),
         },
         SwapExactAmountInTestCase {
             name: "invalid duplicate denom",
             pre_operations: vec![],
-            token_in: coin(100u128, base_denom),
-            token_out_denom: base_denom,
+            token_in: coin(100u128, MOCK_BASE_DENOM),
+            token_out_denom: MOCK_BASE_DENOM,
             token_out_min_amount: Uint128::from(100u128),
             swap_fee: EXPECTED_SWAP_FEE,
-            expected_output: coin_u256(100u128, quote_denom),
+            expected_output: coin_u256(100u128, MOCK_QUOTE_DENOM),
             expected_error: Some(ContractError::InvalidSwap {
                 error: "Input and output denoms cannot be the same".to_string(),
             }),
@@ -257,11 +258,11 @@ fn test_swap_exact_amount_in() {
         SwapExactAmountInTestCase {
             name: "invalid swap fee",
             pre_operations: vec![],
-            token_in: coin(100u128, base_denom),
+            token_in: coin(100u128, MOCK_BASE_DENOM),
             token_out_denom: "notadenom",
             token_out_min_amount: Uint128::from(100u128),
             swap_fee: Decimal::one(),
-            expected_output: coin_u256(100u128, quote_denom),
+            expected_output: coin_u256(100u128, MOCK_QUOTE_DENOM),
             expected_error: Some(ContractError::InvalidSwap {
                 error: format!(
                     "Provided swap fee does not match: expected {EXPECTED_SWAP_FEE} received {}",
@@ -278,8 +279,8 @@ fn test_swap_exact_amount_in() {
         let info = mock_info(sender.as_str(), &[]);
         create_orderbook(
             deps.as_mut(),
-            quote_denom.to_string(),
-            base_denom.to_string(),
+            MOCK_QUOTE_DENOM.to_string(),
+            MOCK_BASE_DENOM.to_string(),
         )
         .unwrap();
 
@@ -471,8 +472,6 @@ struct SetActiveExecuteTestCase {
 
 #[test]
 fn test_set_active_execute() {
-    let base_denom = "base";
-    let quote_denom = "quote";
     let test_cases = vec![
         SetActiveExecuteTestCase {
             name: "active: true, message type: order",
@@ -537,12 +536,12 @@ fn test_set_active_execute() {
         // -- Test Setup --
         let mut deps = mock_dependencies_custom();
         let env = mock_env();
-        let info = mock_info("sender", &[coin(100u128, base_denom)]);
+        let info = mock_info("sender", &[coin(100u128, MOCK_BASE_DENOM)]);
 
         create_orderbook(
             deps.as_mut(),
-            quote_denom.to_string(),
-            base_denom.to_string(),
+            MOCK_QUOTE_DENOM.to_string(),
+            MOCK_BASE_DENOM.to_string(),
         )
         .unwrap();
 

@@ -1,6 +1,6 @@
 use cosmwasm_std::{
     coin,
-    testing::{mock_dependencies, mock_env, mock_info},
+    testing::{mock_env, mock_info},
     to_json_binary, Addr, Coin, Decimal, Decimal256, StdError, SubMsg, Uint128, Uint256,
 };
 
@@ -14,6 +14,7 @@ use crate::{
     sudo::{
         dispatch_swap_exact_amount_in, ensure_is_active, set_active, sudo, validate_output_amount,
     },
+    tests::mock_querier::mock_dependencies_custom,
     types::{
         coin_u256, Coin256, LimitOrder, MsgSend256, OrderDirection, REPLY_ID_SUDO_SWAP_EXACT_IN,
     },
@@ -272,7 +273,7 @@ fn test_swap_exact_amount_in() {
 
     for test in test_cases {
         // -- Test Setup --
-        let mut deps = mock_dependencies();
+        let mut deps = mock_dependencies_custom();
         let env = mock_env();
         let info = mock_info(sender.as_str(), &[]);
         create_orderbook(
@@ -348,7 +349,7 @@ fn test_swap_exact_amount_in() {
 
 #[test]
 fn test_sudo_transfer_admin() {
-    let mut deps = mock_dependencies();
+    let mut deps = mock_dependencies_custom();
     let env = mock_env();
     let new_admin = "newadmin";
 
@@ -385,7 +386,7 @@ fn test_sudo_transfer_admin() {
 
 #[test]
 fn test_sudo_remove_admin() {
-    let mut deps = mock_dependencies();
+    let mut deps = mock_dependencies_custom();
     let env = mock_env();
     let admin = "admin";
 
@@ -432,7 +433,7 @@ fn test_set_active() {
 
     for test in test_cases {
         // -- Test Setup --
-        let mut deps = mock_dependencies();
+        let mut deps = mock_dependencies_custom();
 
         if let Some(active) = test.active_status {
             set_active(deps.as_mut(), active).unwrap();
@@ -534,7 +535,7 @@ fn test_set_active_execute() {
 
     for test in test_cases {
         // -- Test Setup --
-        let mut deps = mock_dependencies();
+        let mut deps = mock_dependencies_custom();
         let env = mock_env();
         let info = mock_info("sender", &[coin(100u128, base_denom)]);
 

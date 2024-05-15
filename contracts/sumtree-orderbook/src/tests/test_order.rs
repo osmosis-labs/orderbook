@@ -10,17 +10,16 @@ use crate::{
         node::{NodeType, TreeNode},
         tree::get_root_node,
     },
-    tests::test_utils::{decimal256_from_u128, place_multiple_limit_orders},
+    tests::{mock_querier::mock_dependencies_custom, test_utils::{decimal256_from_u128, place_multiple_limit_orders}},
     types::{
-        FilterOwnerOrders, LimitOrder, MarketOrder, OrderDirection, Orderbook, TickState, TickValues, REPLY_ID_CLAIM, REPLY_ID_CLAIM_BOUNTY, REPLY_ID_MAKER_FEE, REPLY_ID_REFUND,
-        coin_u256, MsgSend256
+        coin_u256, FilterOwnerOrders, LimitOrder, MarketOrder, MsgSend256, OrderDirection, Orderbook, TickState, TickValues, REPLY_ID_CLAIM, REPLY_ID_CLAIM_BOUNTY, REPLY_ID_MAKER_FEE, REPLY_ID_REFUND
     },
 };
 use cosmwasm_std::{
-    coin, testing::mock_dependencies, Addr, BankMsg, Coin, Empty, SubMsg, Uint128, Uint256,
+    coin, Addr, BankMsg, Coin, Empty, SubMsg, Uint128, Uint256,
 };
 use cosmwasm_std::{
-    testing::{mock_dependencies_with_balances, mock_env, mock_info},
+    testing::{mock_env, mock_info},
     Decimal256,
 };
 use cw_utils::PaymentError;
@@ -179,8 +178,7 @@ fn test_place_limit() {
                 "quote"
             },
         )];
-        let balances = [("creator", coin_vec.as_slice())];
-        let mut deps = mock_dependencies_with_balances(&balances);
+        let mut deps = mock_dependencies_custom();
         let env = mock_env();
         let info = mock_info("creator", &coin_vec);
 
@@ -344,7 +342,6 @@ fn test_cancel_limit() {
     let test_cases = vec![
         CancelLimitTestCase {
             name: "valid order cancel",
-
             tick_id: 1,
             order_id: 0,
             order_direction: OrderDirection::Ask,
@@ -357,7 +354,6 @@ fn test_cancel_limit() {
         },
         CancelLimitTestCase {
             name: "sent funds accidentally",
-
             tick_id: 1,
             order_id: 0,
             order_direction: OrderDirection::Ask,
@@ -370,7 +366,6 @@ fn test_cancel_limit() {
         },
         CancelLimitTestCase {
             name: "unauthorized cancel (not owner)",
-
             tick_id: 1,
             order_id: 0,
             order_direction: OrderDirection::Ask,
@@ -383,7 +378,6 @@ fn test_cancel_limit() {
         },
         CancelLimitTestCase {
             name: "order not found",
-
             tick_id: 1,
             order_id: 0,
             order_direction: OrderDirection::Ask,
@@ -403,8 +397,7 @@ fn test_cancel_limit() {
         // --- Setup ---
 
         // Create a mock environment and info
-        let balances = [(test.owner, test.sent.as_slice())];
-        let mut deps = mock_dependencies_with_balances(&balances);
+        let mut deps = mock_dependencies_custom();
         let env = mock_env();
         let info = mock_info(test.sender.unwrap_or(test.owner), test.sent.as_slice());
 
@@ -589,7 +582,6 @@ struct RunMarketOrderTestCase {
     placed_order: MarketOrder,
     tick_bound: i64,
     orders: Vec<LimitOrder>,
-    sent: Uint128,
     expected_output: Uint256,
     expected_tick_etas: Vec<(i64, Decimal256)>,
     expected_tick_pointers: Vec<(OrderDirection, i64)>,
@@ -607,14 +599,12 @@ fn test_run_market_order() {
     let test_cases = vec![
         RunMarketOrderTestCase {
             name: "happy path bid at negative tick",
-            sent: Uint128::new(1000),
             placed_order: MarketOrder::new(
                 Uint128::new(1000),
                 OrderDirection::Bid,
                 Addr::unchecked(default_sender),
             ),
             tick_bound: MAX_TICK,
-
             // Orders to fill against
             orders: generate_limit_orders(
                 &[-1500000],
@@ -623,7 +613,6 @@ fn test_run_market_order() {
                 default_quantity,
                 OrderDirection::Ask,
             ),
-
             // Bidding 1000 units of input into tick -1500000, which corresponds to $0.85,
             // implies 1000*0.85 = 850 units of output.
             expected_output: Uint256::from_u128(850),
@@ -633,14 +622,12 @@ fn test_run_market_order() {
         },
         RunMarketOrderTestCase {
             name: "happy path bid at positive tick",
-            sent: Uint128::new(1000),
             placed_order: MarketOrder::new(
                 Uint128::new(1000),
                 OrderDirection::Bid,
                 Addr::unchecked(default_sender),
             ),
             tick_bound: MAX_TICK,
-
             // Orders to fill against
             orders: generate_limit_orders(
                 &[40000000],
@@ -650,7 +637,6 @@ fn test_run_market_order() {
                 Uint128::new(25_000_000),
                 OrderDirection::Ask,
             ),
-
             // Bidding 1000 units of input into tick 40,000,000, which corresponds to a
             // price of $50000 (from tick math test cases).
             //
@@ -662,14 +648,12 @@ fn test_run_market_order() {
         },
         RunMarketOrderTestCase {
             name: "bid at very small negative tick",
-            sent: Uint128::new(1000),
             placed_order: MarketOrder::new(
                 Uint128::new(1000),
                 OrderDirection::Bid,
                 Addr::unchecked(default_sender),
             ),
             tick_bound: MAX_TICK,
-
             // Orders to fill against
             orders: generate_limit_orders(
                 &[-17765433],
@@ -679,7 +663,6 @@ fn test_run_market_order() {
                 Uint128::new(3),
                 OrderDirection::Ask,
             ),
-
             // Bidding 1000 units of input into tick -17765433, which corresponds to a
             // price of $0.012345670000000000 (from tick math test cases).
             //
@@ -692,14 +675,12 @@ fn test_run_market_order() {
         },
         RunMarketOrderTestCase {
             name: "bid across multiple ticks",
-            sent: Uint128::new(589 + 1),
             placed_order: MarketOrder::new(
                 Uint128::new(589 + 1),
                 OrderDirection::Bid,
                 Addr::unchecked(default_sender),
             ),
             tick_bound: MAX_TICK,
-
             // Orders to fill against
             orders: generate_limit_orders(
                 &[-1500000, 40000000],
@@ -708,7 +689,6 @@ fn test_run_market_order() {
                 default_quantity,
                 OrderDirection::Ask,
             ),
-
             // Bidding 1000 units of input into tick -1500000, which corresponds to $0.85,
             // implies 1000*0.85 = 850 units of output, but there is only 500 on the tick.
             //
@@ -730,14 +710,12 @@ fn test_run_market_order() {
         },
         RunMarketOrderTestCase {
             name: "happy path ask at positive tick",
-            sent: Uint128::new(100000),
             placed_order: MarketOrder::new(
                 Uint128::new(100000),
                 OrderDirection::Ask,
                 Addr::unchecked(default_sender),
             ),
             tick_bound: MIN_TICK,
-
             // Orders to fill against
             orders: generate_limit_orders(
                 &[40000000],
@@ -747,7 +725,6 @@ fn test_run_market_order() {
                 Uint128::new(1),
                 OrderDirection::Bid,
             ),
-
             // Asking 100,000 units of input into tick 40,000,000, which corresponds to a
             // price of $1/50000 (from tick math test cases).
             //
@@ -759,14 +736,12 @@ fn test_run_market_order() {
         },
         RunMarketOrderTestCase {
             name: "ask at negative tick",
-            sent: Uint128::new(100000),
             placed_order: MarketOrder::new(
                 Uint128::new(1000),
                 OrderDirection::Ask,
                 Addr::unchecked(default_sender),
             ),
             tick_bound: MIN_TICK,
-
             // Orders to fill against
             orders: generate_limit_orders(
                 &[-17765433],
@@ -776,7 +751,6 @@ fn test_run_market_order() {
                 Uint128::new(50_000),
                 OrderDirection::Bid,
             ),
-
             // The order asks with 1000 units of input into tick -17765433, which corresponds
             // to a price of $0.012345670000000000 (from tick math test cases).
             //
@@ -789,7 +763,6 @@ fn test_run_market_order() {
         },
         RunMarketOrderTestCase {
             name: "invalid tick bound for bid",
-            sent: Uint128::new(1000),
             placed_order: MarketOrder::new(
                 Uint128::new(1000),
                 OrderDirection::Bid,
@@ -807,7 +780,6 @@ fn test_run_market_order() {
         },
         RunMarketOrderTestCase {
             name: "invalid tick bound for ask",
-            sent: Uint128::new(1000),
             placed_order: MarketOrder::new(
                 Uint128::new(1000),
                 OrderDirection::Ask,
@@ -825,7 +797,6 @@ fn test_run_market_order() {
         },
         RunMarketOrderTestCase {
             name: "invalid tick bound due to bid direction",
-            sent: Uint128::new(1000),
             placed_order: MarketOrder::new(
                 Uint128::new(1000),
                 OrderDirection::Bid,
@@ -834,7 +805,6 @@ fn test_run_market_order() {
             // We expect the target tick for a market bid to be above the current tick,
             // but this is below.
             tick_bound: MIN_TICK,
-
             // Orders to fill against
             orders: generate_limit_orders(
                 &[-1500000],
@@ -843,7 +813,6 @@ fn test_run_market_order() {
                 default_quantity,
                 OrderDirection::Ask,
             ),
-
             expected_output: Uint256::zero(),
             expected_tick_etas: vec![(-1500000, Decimal256::zero())],
             expected_tick_pointers: vec![(OrderDirection::Ask, -1500000)],
@@ -851,14 +820,12 @@ fn test_run_market_order() {
         },
         RunMarketOrderTestCase {
             name: "insufficient liquidity on orderbook",
-            sent: Uint128::new(1000),
             placed_order: MarketOrder::new(
                 Uint128::new(1000),
                 OrderDirection::Bid,
                 Addr::unchecked(default_sender),
             ),
             tick_bound: MAX_TICK,
-
             // Orders to fill against
             orders: generate_limit_orders(
                 &[40000000],
@@ -868,7 +835,6 @@ fn test_run_market_order() {
                 Uint128::new(3),
                 OrderDirection::Ask,
             ),
-
             expected_output: Uint256::zero(),
             expected_tick_etas: vec![],
             expected_tick_pointers: vec![],
@@ -880,16 +846,7 @@ fn test_run_market_order() {
         // --- Setup ---
 
         // Create a mock environment and info
-        let coin_vec = vec![coin(
-            test.sent.u128(),
-            if test.placed_order.order_direction == OrderDirection::Ask {
-                base_denom
-            } else {
-                quote_denom
-            },
-        )];
-        let balances = [(default_sender, coin_vec.as_slice())];
-        let mut deps = mock_dependencies_with_balances(&balances);
+        let mut deps = mock_dependencies_custom();
         let env = mock_env();
 
         // Create an orderbook to operate on
@@ -1358,7 +1315,7 @@ fn test_run_market_order_moving_tick() {
     ];
 
     for test in test_cases {
-        let mut deps = mock_dependencies();
+        let mut deps = mock_dependencies_custom();
 
         let quote_denom = "quote";
         let base_denom = "base";
@@ -2582,7 +2539,7 @@ fn test_claim_order() {
 
     for test in test_cases {
         // Test Setup
-        let mut deps = mock_dependencies();
+        let mut deps = mock_dependencies_custom();
         let env = mock_env();
         let info = mock_info("sender", &[]);
         create_orderbook(
@@ -3284,7 +3241,7 @@ fn test_claim_order_moving_tick() {
 
     for test in test_cases {
         // Test Setup
-        let mut deps = mock_dependencies();
+        let mut deps = mock_dependencies_custom();
         let env = mock_env();
         let info = mock_info("sender", &[]);
         create_orderbook(
@@ -3502,7 +3459,7 @@ fn test_batch_claim_order() {
 
     for test in test_cases {
         // Test Setup
-        let mut deps = mock_dependencies();
+        let mut deps = mock_dependencies_custom();
         let env = mock_env();
         let info = mock_info(owner.as_str(), &[]);
         create_orderbook(
@@ -3767,7 +3724,7 @@ fn test_directional_liquidity() {
 
     for test in test_cases {
         // -- Test Setup --
-        let mut deps = mock_dependencies();
+        let mut deps = mock_dependencies_custom();
         let env = mock_env();
         let info = mock_info("sender", &[]);
 
@@ -3920,7 +3877,7 @@ fn test_maker_fee() {
 
     for test in test_cases {
         // -- Test Setup --
-        let mut deps = mock_dependencies();
+        let mut deps = mock_dependencies_custom();
 
         // Save the orderbook to be used
         ORDERBOOK.save(deps.as_mut().storage, &Orderbook::new(quote_denom.to_string(), base_denom.to_string(), 0, 0, 0)).unwrap();

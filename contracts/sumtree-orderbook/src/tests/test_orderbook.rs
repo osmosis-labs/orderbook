@@ -2,12 +2,12 @@ use crate::{
     constants::{MAX_TICK, MIN_TICK},
     orderbook::*,
     state::ORDERBOOK,
+    tests::mock_querier::mock_dependencies_custom,
 };
-use cosmwasm_std::testing::mock_dependencies;
 
 #[test]
 fn test_create_orderbook() {
-    let mut deps = mock_dependencies();
+    let mut deps = mock_dependencies_custom();
 
     // Attempt to create an orderbook
     let quote_denom = "quote".to_string();

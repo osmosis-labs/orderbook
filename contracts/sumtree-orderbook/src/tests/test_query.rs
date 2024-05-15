@@ -1,6 +1,6 @@
 use cosmwasm_std::{
     coin,
-    testing::{mock_dependencies, mock_env, mock_info},
+    testing::{mock_env, mock_info},
     Addr, Coin, Decimal, Decimal256, Uint128,
 };
 
@@ -9,6 +9,7 @@ use crate::{
     orderbook::create_orderbook,
     query,
     state::IS_ACTIVE,
+    tests::mock_querier::mock_dependencies_custom,
     types::{coin_u256, Coin256, LimitOrder, MarketOrder, OrderDirection, TickState, TickValues},
     ContractError,
 };
@@ -292,7 +293,7 @@ fn test_query_spot_price() {
 
     for test in test_cases {
         // -- Test Setup --
-        let mut deps = mock_dependencies();
+        let mut deps = mock_dependencies_custom();
         let env = mock_env();
         let info = mock_info(sender.as_str(), &[]);
 
@@ -572,7 +573,7 @@ fn test_calc_out_amount_given_in() {
 
     for test in test_cases {
         // -- Test Setup --
-        let mut deps = mock_dependencies();
+        let mut deps = mock_dependencies_custom();
         let env = mock_env();
         let info = mock_info(sender.as_str(), &[]);
 
@@ -703,7 +704,7 @@ fn test_total_pool_liquidity() {
 
     for test in test_cases {
         // -- Test Setup --
-        let mut deps = mock_dependencies();
+        let mut deps = mock_dependencies_custom();
         let env = mock_env();
         let info = mock_info(sender.as_str(), &[]);
 
@@ -1087,7 +1088,7 @@ fn test_all_ticks() {
 
     for test in test_cases {
         // -- Test Setup --
-        let mut deps = mock_dependencies();
+        let mut deps = mock_dependencies_custom();
         let env = mock_env();
         let info = mock_info(sender.as_str(), &[]);
 
@@ -1149,7 +1150,7 @@ fn test_is_active() {
 
     for test in test_cases {
         // -- Test Setup --
-        let mut deps = mock_dependencies();
+        let mut deps = mock_dependencies_custom();
 
         // Setup state variables
         if let Some(active) = test.is_active {

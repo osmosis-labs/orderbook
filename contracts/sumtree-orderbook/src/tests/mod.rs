@@ -1,3 +1,4 @@
+mod mock_querier;
 pub mod test_auth;
 pub mod test_order;
 pub mod test_orderbook;

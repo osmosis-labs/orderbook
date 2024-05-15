@@ -1,4 +1,4 @@
-use crate::constants::{max_spot_price, MAX_BATCH_CLAIM, MAX_TICK, MIN_TICK};
+use crate::constants::{MAX_BATCH_CLAIM, MAX_SPOT_PRICE, MAX_TICK, MIN_TICK};
 use crate::error::{ContractError, ContractResult};
 use crate::state::{
     add_directional_liquidity, get_maker_fee, new_order_id, orders, subtract_directional_liquidity,
@@ -55,11 +55,10 @@ pub fn place_limit(
         );
     }
 
-    let max_spot_price = max_spot_price();
     let claimed_price = amount_to_value(
         order_direction,
         quantity,
-        max_spot_price,
+        *MAX_SPOT_PRICE,
         RoundingDirection::Down,
     );
 

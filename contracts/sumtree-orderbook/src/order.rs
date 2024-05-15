@@ -1,4 +1,4 @@
-use crate::constants::{MAX_BATCH_CLAIM, MAX_SPOT_PRICE, MAX_TICK, MIN_TICK};
+use crate::constants::{MAX_BATCH_CLAIM, MAX_SPOT_PRICE, MAX_TICK, MIN_SPOT_PRICE, MIN_TICK};
 use crate::error::{ContractError, ContractResult};
 use crate::state::{
     add_directional_liquidity, get_maker_fee, new_order_id, orders, subtract_directional_liquidity,
@@ -55,13 +55,20 @@ pub fn place_limit(
         );
     }
 
+    // The boundary max/min spot price given order direction
+    let boundary_spot_price = match order_direction {
+        OrderDirection::Bid => *MAX_SPOT_PRICE,
+        OrderDirection::Ask => *MIN_SPOT_PRICE,
+    };
+    // The epxected price when this order is claimed
     let claimed_price = amount_to_value(
         order_direction,
         quantity,
-        *MAX_SPOT_PRICE,
+        boundary_spot_price,
         RoundingDirection::Down,
     );
 
+    // If claimed_price returns an error then the order cannot be claimed
     ensure!(claimed_price.is_ok(), ContractError::MaxSpotPriceExceeded);
 
     // Determine the correct denom based on order direction

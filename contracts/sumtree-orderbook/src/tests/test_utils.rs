@@ -10,7 +10,7 @@ use crate::{
     types::{LimitOrder, MarketOrder, OrderDirection},
 };
 
-use super::test_constants::{MOCK_BASE_DENOM, MOCK_QUOTE_DENOM};
+use super::test_constants::{DEFAULT_OWNER, MOCK_BASE_DENOM, MOCK_QUOTE_DENOM};
 
 // Tick Price = 2
 pub(crate) const LARGE_POSITIVE_TICK: i64 = 1000000;
@@ -116,9 +116,8 @@ pub(crate) fn generate_limit_orders(
             let order = LimitOrder {
                 tick_id,
                 order_direction,
-                owner: Addr::unchecked("creator"),
+                owner: Addr::unchecked(DEFAULT_OWNER),
                 quantity: quantity_per_order,
-
                 // We set these values to zero since they will be unused anyway
                 order_id: 0,
                 etas: Decimal256::zero(),

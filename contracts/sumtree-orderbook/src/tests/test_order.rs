@@ -24,7 +24,7 @@ use cosmwasm_std::{
 };
 use cw_utils::PaymentError;
 
-use super::{test_constants::{MOCK_BASE_DENOM, MOCK_QUOTE_DENOM}, test_utils::{
+use super::{test_constants::{DEFAULT_OWNER, DEFAULT_SENDER, MOCK_BASE_DENOM, MOCK_QUOTE_DENOM}, test_utils::{
     format_test_name, generate_limit_orders, OrderOperation, LARGE_NEGATIVE_TICK,
     LARGE_POSITIVE_TICK,
 }};
@@ -180,7 +180,7 @@ fn test_place_limit() {
         )];
         let mut deps = mock_dependencies_custom();
         let env = mock_env();
-        let info = mock_info("creator", &coin_vec);
+        let info = mock_info(DEFAULT_OWNER, &coin_vec);
 
         // Create an orderbook to operate on
         create_orderbook(deps.as_mut(), MOCK_QUOTE_DENOM.to_string(), MOCK_BASE_DENOM.to_string()).unwrap();
@@ -239,7 +239,7 @@ fn test_place_limit() {
         );
         assert_eq!(
             response.attributes[1],
-            ("owner", "creator"),
+            ("owner", DEFAULT_OWNER),
             "{}",
             format_test_name(test.name)
         );
@@ -282,7 +282,7 @@ fn test_place_limit() {
         );
         assert_eq!(
             order.owner,
-            Addr::unchecked("creator"),
+            Addr::unchecked(DEFAULT_OWNER),
             "{}",
             format_test_name(test.name)
         );
@@ -345,7 +345,7 @@ fn test_cancel_limit() {
             quantity: Uint128::from(100u128),
             place_order: true,
             expected_error: None,
-            owner: "creator",
+            owner: DEFAULT_OWNER,
             sender: None,
             sent: vec![],
         },
@@ -357,7 +357,7 @@ fn test_cancel_limit() {
             quantity: Uint128::from(100u128),
             place_order: true,
             expected_error: Some(ContractError::PaymentError(PaymentError::NonPayable {})),
-            owner: "creator",
+            owner: DEFAULT_OWNER,
             sender: None,
             sent: vec![coin(100, MOCK_QUOTE_DENOM)],
         },
@@ -369,7 +369,7 @@ fn test_cancel_limit() {
             quantity: Uint128::from(100u128),
             place_order: true,
             expected_error: Some(ContractError::Unauthorized {}),
-            owner: "creator",
+            owner: DEFAULT_OWNER,
             sender: Some("malicious_user"),
             sent: vec![],
         },
@@ -384,7 +384,7 @@ fn test_cancel_limit() {
                 tick_id: 1,
                 order_id: 0,
             }),
-            owner: "creator",
+            owner: DEFAULT_OWNER,
             sender: None,
             sent: vec![],
         },
@@ -587,9 +587,6 @@ struct RunMarketOrderTestCase {
 
 #[test]
 fn test_run_market_order() {
-    // TODO: move these defaults to global scope or helper file
-    let default_owner = "creator";
-    let default_sender = "sender";
     let default_quantity = Uint128::new(100);
     let test_cases = vec![
         RunMarketOrderTestCase {
@@ -597,7 +594,7 @@ fn test_run_market_order() {
             placed_order: MarketOrder::new(
                 Uint128::new(1000),
                 OrderDirection::Bid,
-                Addr::unchecked(default_sender),
+                Addr::unchecked(DEFAULT_SENDER),
             ),
             tick_bound: MAX_TICK,
             // Orders to fill against
@@ -620,7 +617,7 @@ fn test_run_market_order() {
             placed_order: MarketOrder::new(
                 Uint128::new(1000),
                 OrderDirection::Bid,
-                Addr::unchecked(default_sender),
+                Addr::unchecked(DEFAULT_SENDER),
             ),
             tick_bound: MAX_TICK,
             // Orders to fill against
@@ -646,7 +643,7 @@ fn test_run_market_order() {
             placed_order: MarketOrder::new(
                 Uint128::new(1000),
                 OrderDirection::Bid,
-                Addr::unchecked(default_sender),
+                Addr::unchecked(DEFAULT_SENDER),
             ),
             tick_bound: MAX_TICK,
             // Orders to fill against
@@ -673,7 +670,7 @@ fn test_run_market_order() {
             placed_order: MarketOrder::new(
                 Uint128::new(589 + 1),
                 OrderDirection::Bid,
-                Addr::unchecked(default_sender),
+                Addr::unchecked(DEFAULT_SENDER),
             ),
             tick_bound: MAX_TICK,
             // Orders to fill against
@@ -708,7 +705,7 @@ fn test_run_market_order() {
             placed_order: MarketOrder::new(
                 Uint128::new(100000),
                 OrderDirection::Ask,
-                Addr::unchecked(default_sender),
+                Addr::unchecked(DEFAULT_SENDER),
             ),
             tick_bound: MIN_TICK,
             // Orders to fill against
@@ -734,7 +731,7 @@ fn test_run_market_order() {
             placed_order: MarketOrder::new(
                 Uint128::new(1000),
                 OrderDirection::Ask,
-                Addr::unchecked(default_sender),
+                Addr::unchecked(DEFAULT_SENDER),
             ),
             tick_bound: MIN_TICK,
             // Orders to fill against
@@ -761,7 +758,7 @@ fn test_run_market_order() {
             placed_order: MarketOrder::new(
                 Uint128::new(1000),
                 OrderDirection::Bid,
-                Addr::unchecked(default_sender),
+                Addr::unchecked(DEFAULT_SENDER),
             ),
             tick_bound: MIN_TICK - 1,
             // Orders we expect to not get touched
@@ -778,7 +775,7 @@ fn test_run_market_order() {
             placed_order: MarketOrder::new(
                 Uint128::new(1000),
                 OrderDirection::Ask,
-                Addr::unchecked(default_sender),
+                Addr::unchecked(DEFAULT_SENDER),
             ),
             tick_bound: MAX_TICK + 1,
             // Orders we expect to not get touched
@@ -795,7 +792,7 @@ fn test_run_market_order() {
             placed_order: MarketOrder::new(
                 Uint128::new(1000),
                 OrderDirection::Bid,
-                Addr::unchecked(default_sender),
+                Addr::unchecked(DEFAULT_SENDER),
             ),
             // We expect the target tick for a market bid to be above the current tick,
             // but this is below.
@@ -818,7 +815,7 @@ fn test_run_market_order() {
             placed_order: MarketOrder::new(
                 Uint128::new(1000),
                 OrderDirection::Bid,
-                Addr::unchecked(default_sender),
+                Addr::unchecked(DEFAULT_SENDER),
             ),
             tick_bound: MAX_TICK,
             // Orders to fill against
@@ -853,13 +850,13 @@ fn test_run_market_order() {
         .unwrap();
 
         // Place limit orders on orderbook
-        place_multiple_limit_orders(&mut deps.as_mut(), env.clone(), default_owner, test.orders)
+        place_multiple_limit_orders(&mut deps.as_mut(), env.clone(), DEFAULT_OWNER, test.orders)
             .unwrap();
 
         // We store order state before to run assertions later
         let orders_before = get_orders_by_owner(
             &deps.storage,
-            FilterOwnerOrders::all(Addr::unchecked(default_owner)),
+            FilterOwnerOrders::all(Addr::unchecked(DEFAULT_OWNER)),
             None,
             None,
             None,
@@ -917,7 +914,7 @@ fn test_run_market_order() {
         // Regardless of whether we error, orders should not be modified.
         let orders_after = get_orders_by_owner(
             &deps.storage,
-            FilterOwnerOrders::all(Addr::unchecked(default_owner)),
+            FilterOwnerOrders::all(Addr::unchecked(DEFAULT_OWNER)),
             None,
             None,
             None,
@@ -938,7 +935,7 @@ fn test_run_market_order() {
         };
         let expected_msg = MsgSend256 {
             from_address: env.contract.address.to_string(),
-            to_address: default_sender.to_string(),
+            to_address: DEFAULT_SENDER.to_string(),
             amount: vec![coin_u256(test.expected_output, expected_denom)],
         };
 
@@ -963,7 +960,7 @@ struct RunMarketOrderMovingTickTestCase {
 #[test]
 fn test_run_market_order_moving_tick() {
     let env = mock_env();
-    let info = mock_info("sender", &[]);
+    let info = mock_info(DEFAULT_SENDER, &[]);
     let test_cases: Vec<RunMarketOrderMovingTickTestCase> = vec![
         RunMarketOrderMovingTickTestCase {
             name: "positive tick movement on filled market bid",
@@ -1356,7 +1353,7 @@ fn test_claim_order() {
     let valid_tick_id = 0;
     let quote_denom = MOCK_QUOTE_DENOM;
     let base_denom = MOCK_BASE_DENOM;
-    let sender = Addr::unchecked("sender");
+    let sender = Addr::unchecked(DEFAULT_SENDER);
     let test_cases: Vec<ClaimOrderTestCase> = vec![
         // A tick id of 0 operates on a tick price of 1
         ClaimOrderTestCase {
@@ -2536,7 +2533,7 @@ fn test_claim_order() {
         // Test Setup
         let mut deps = mock_dependencies_custom();
         let env = mock_env();
-        let info = mock_info("sender", &[]);
+        let info = mock_info(DEFAULT_SENDER, &[]);
         create_orderbook(
             deps.as_mut(),
             quote_denom.to_string(),
@@ -2618,7 +2615,7 @@ fn test_claim_order_moving_tick() {
     let valid_tick_id = 0;
     let quote_denom = MOCK_QUOTE_DENOM;
     let base_denom = MOCK_BASE_DENOM;
-    let sender = Addr::unchecked("sender");
+    let sender = Addr::unchecked(DEFAULT_SENDER);
     let test_cases: Vec<MovingClaimOrderTestCase> = vec![
         MovingClaimOrderTestCase {
             name: "ASK: single tick movement full claim",
@@ -3238,7 +3235,7 @@ fn test_claim_order_moving_tick() {
         // Test Setup
         let mut deps = mock_dependencies_custom();
         let env = mock_env();
-        let info = mock_info("sender", &[]);
+        let info = mock_info(DEFAULT_SENDER, &[]);
         create_orderbook(
             deps.as_mut(),
             quote_denom.to_string(),
@@ -3304,8 +3301,8 @@ struct BatchClaimOrderTestCase {
 fn test_batch_claim_order() {
     let quote_denom = MOCK_QUOTE_DENOM;
     let base_denom = MOCK_BASE_DENOM;
-    let sender = Addr::unchecked("sender");
-    let owner = Addr::unchecked("owner");
+    let sender = Addr::unchecked(DEFAULT_SENDER);
+    let owner = Addr::unchecked(DEFAULT_OWNER);
     let test_cases: Vec<BatchClaimOrderTestCase> = vec![
         BatchClaimOrderTestCase {
             name: "Batch claim orders happy path",
@@ -3542,7 +3539,7 @@ struct DirectionalLiquidityTestCase {
 fn test_directional_liquidity() {
     let quote_denom = MOCK_QUOTE_DENOM;
     let base_denom = MOCK_BASE_DENOM;
-    let sender = Addr::unchecked("sender");
+    let sender = Addr::unchecked(DEFAULT_SENDER);
 
     let test_cases = vec![
         DirectionalLiquidityTestCase {
@@ -3721,7 +3718,7 @@ fn test_directional_liquidity() {
         // -- Test Setup --
         let mut deps = mock_dependencies_custom();
         let env = mock_env();
-        let info = mock_info("sender", &[]);
+        let info = mock_info(DEFAULT_SENDER, &[]);
 
         create_orderbook(
             deps.as_mut(),
@@ -3770,7 +3767,7 @@ struct MakerFeeTestCase {
 fn test_maker_fee() {
     let quote_denom = MOCK_QUOTE_DENOM;
     let base_denom = MOCK_BASE_DENOM;
-    let sender = Addr::unchecked("sender");
+    let sender = Addr::unchecked(DEFAULT_SENDER);
     let maker_fee_recipient = Addr::unchecked("maker");
     let env = mock_env();
     let test_cases = vec![

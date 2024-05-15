@@ -15,7 +15,7 @@ use crate::{
 };
 
 use super::{
-    test_constants::{MOCK_BASE_DENOM, MOCK_QUOTE_DENOM},
+    test_constants::{DEFAULT_SENDER, MOCK_BASE_DENOM, MOCK_QUOTE_DENOM},
     test_utils::{
         decimal256_from_u128, format_test_name, generate_tick_ids, OrderOperation,
         LARGE_NEGATIVE_TICK, LARGE_POSITIVE_TICK,
@@ -33,7 +33,7 @@ struct SpotPriceTestCase {
 
 #[test]
 fn test_query_spot_price() {
-    let sender = Addr::unchecked("sender");
+    let sender = Addr::unchecked(DEFAULT_SENDER);
     let test_cases: Vec<SpotPriceTestCase> = vec![
         SpotPriceTestCase {
             name: "BID: basic price 1 query",
@@ -347,7 +347,7 @@ struct CalcOutAmountGivenInTestCase {
 
 #[test]
 fn test_calc_out_amount_given_in() {
-    let sender = Addr::unchecked("sender");
+    let sender = Addr::unchecked(DEFAULT_SENDER);
 
     let test_cases = vec![
         CalcOutAmountGivenInTestCase {
@@ -628,7 +628,7 @@ struct TotalPoolLiquidityTestCase {
 
 #[test]
 fn test_total_pool_liquidity() {
-    let sender = Addr::unchecked("sender");
+    let sender = Addr::unchecked(DEFAULT_SENDER);
 
     let test_cases = vec![
         TotalPoolLiquidityTestCase {
@@ -753,7 +753,7 @@ struct AllTicksTestCase {
 
 #[test]
 fn test_all_ticks() {
-    let sender = Addr::unchecked("sender");
+    let sender = Addr::unchecked(DEFAULT_SENDER);
 
     let test_cases: Vec<AllTicksTestCase> = vec![
         AllTicksTestCase {

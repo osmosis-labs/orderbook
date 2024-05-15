@@ -18,6 +18,8 @@ use crate::{
     ContractError,
 };
 
+use super::test_constants::DEFAULT_SENDER;
+
 struct TransferAdminTestCase {
     name: &'static str,
     current_admin: &'static str,
@@ -27,12 +29,11 @@ struct TransferAdminTestCase {
 
 #[test]
 fn test_transfer_admin() {
-    let sender = "sender";
     let new_admin = "new_admin";
     let test_cases = vec![
         TransferAdminTestCase {
             name: "valid transfer",
-            current_admin: sender,
+            current_admin: DEFAULT_SENDER,
             new_admin,
             expected_error: None,
         },
@@ -47,7 +48,7 @@ fn test_transfer_admin() {
     for test in test_cases {
         // -- Test Setup --
         let mut deps = mock_dependencies();
-        let info = mock_info(sender, &[]);
+        let info = mock_info(DEFAULT_SENDER, &[]);
 
         // Store current admin
         ADMIN
@@ -93,12 +94,11 @@ struct CancelAdminTransferTestCase {
 
 #[test]
 fn test_cancel_admin_transfer() {
-    let sender = "sender";
     let new_admin = "new_admin";
     let test_cases = vec![
         CancelAdminTransferTestCase {
             name: "valid transfer",
-            current_admin: sender,
+            current_admin: DEFAULT_SENDER,
             new_admin,
             expected_error: None,
         },
@@ -113,7 +113,7 @@ fn test_cancel_admin_transfer() {
     for test in test_cases {
         // -- Test Setup --
         let mut deps = mock_dependencies();
-        let info = mock_info(sender, &[]);
+        let info = mock_info(DEFAULT_SENDER, &[]);
 
         // Store current admin
         ADMIN

@@ -22,7 +22,7 @@ use crate::{
 };
 
 use super::{
-    test_constants::MOCK_BASE_DENOM,
+    test_constants::{DEFAULT_SENDER, MOCK_BASE_DENOM},
     test_utils::{format_test_name, OrderOperation},
 };
 
@@ -123,7 +123,7 @@ struct SwapExactAmountInTestCase {
 #[test]
 fn test_swap_exact_amount_in() {
     let valid_tick_id = 0;
-    let sender = Addr::unchecked("sender");
+    let sender = Addr::unchecked(DEFAULT_SENDER);
     let test_cases: Vec<SwapExactAmountInTestCase> = vec![
         SwapExactAmountInTestCase {
             name: "BID: valid basic swap",
@@ -536,7 +536,7 @@ fn test_set_active_execute() {
         // -- Test Setup --
         let mut deps = mock_dependencies_custom();
         let env = mock_env();
-        let info = mock_info("sender", &[coin(100u128, MOCK_BASE_DENOM)]);
+        let info = mock_info(DEFAULT_SENDER, &[coin(100u128, MOCK_BASE_DENOM)]);
 
         create_orderbook(
             deps.as_mut(),
@@ -546,7 +546,7 @@ fn test_set_active_execute() {
         .unwrap();
 
         ADMIN
-            .save(deps.as_mut().storage, &Addr::unchecked("sender"))
+            .save(deps.as_mut().storage, &Addr::unchecked(DEFAULT_SENDER))
             .unwrap();
         if let Some(active) = test.active_status {
             set_active(deps.as_mut(), active).unwrap();

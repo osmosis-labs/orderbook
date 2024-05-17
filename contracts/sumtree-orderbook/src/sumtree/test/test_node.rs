@@ -428,7 +428,7 @@ fn test_left_empty_right_non_empty() {
             direction,
             generate_node_id(deps.as_mut().storage,  tick_id).unwrap(),
             NodeType::leaf_uint256(11u32, 10u32),
-        ),
+        ).with_parent(1),
     ];
     // Insert new node, position in tree is irrelevant as insertion should error
     let mut new_node = TreeNode::new(tick_id, direction, generate_node_id(deps.as_mut().storage, tick_id).unwrap(), NodeType::leaf_uint256(21u32, 10u32));

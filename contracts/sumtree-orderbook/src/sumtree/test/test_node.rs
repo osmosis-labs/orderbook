@@ -415,12 +415,14 @@ fn test_left_empty_right_non_empty() {
     let mut deps = mock_dependencies();
     // Create tree with one child on right side and left side empty
     let tree = vec![
+        // Root
         TreeNode::new(
             tick_id,
             direction,
             generate_node_id(deps.as_mut().storage,  tick_id).unwrap(),
             NodeType::internal_uint256(Uint256::zero(), (u32::MAX, u32::MIN)),
         ).with_children(None, Some(2)),
+        // Right
         TreeNode::new(
             tick_id,
             direction,

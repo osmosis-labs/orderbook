@@ -294,16 +294,6 @@ fn test_node_insert_cases() {
             expected: vec![1, 3, 2],
             print: true,
         },
-        // TODO: Explicitly build trees in this test to allow testing case 7
-        // TestNodeInsertCase {
-        //     name: "Case 7: Left node is empty, new node is higher than right node, move right node to left and insert right",
-        //     nodes: vec![
-        //         NodeType::leaf_uint256(12u32, 10u32),
-        //         NodeType::leaf_uint256(1u32, 10u32),
-        //     ],
-        //     expected: vec![1, 3, 2],
-        //     print: true,
-        // },
         
         // Pre
         // ---
@@ -315,7 +305,7 @@ fn test_node_insert_cases() {
         //     ┌────────
         // ->2: 1 10
         TestNodeInsertCase {
-            name: "Case 8: Left node is empty, insert left",
+            name: "Case 7: Left node is empty, insert left",
             nodes: vec![NodeType::leaf_uint256(1u32, 10u32)],
             expected: vec![1, 2],
             print: true,
@@ -332,7 +322,7 @@ fn test_node_insert_cases() {
         //     ┌────────────────┐
         // 2: 1 10         ->3: 12 10
         TestNodeInsertCase {
-            name: "Case 9: Right is empty, insert right",
+            name: "Case 8: Right is empty, insert right",
             nodes: vec![
                 NodeType::leaf_uint256(1u32, 10u32),
                 NodeType::leaf_uint256(12u32, 10u32),
@@ -415,6 +405,54 @@ fn test_node_insert_cases() {
         let internals: Vec<&TreeNode> = result.iter().filter(|x| x.is_internal()).collect();
         assert_internal_values(test.name, deps.as_ref(), internals, true);
     }
+}
+
+#[test]
+fn test_left_empty_right_non_empty() {
+    // -- Test Setup --
+    let tick_id = 1;
+    let direction = OrderDirection::Bid;
+    let mut deps = mock_dependencies();
+    // Create tree with one child on right side and left side empty
+    let tree = vec![
+        TreeNode::new(
+            tick_id,
+            direction,
+            generate_node_id(deps.as_mut().storage,  tick_id).unwrap(),
+            NodeType::internal_uint256(Uint256::zero(), (u32::MAX, u32::MIN)),
+        ).with_children(None, Some(2)),
+        TreeNode::new(
+            tick_id,
+            direction,
+            generate_node_id(deps.as_mut().storage,  tick_id).unwrap(),
+            NodeType::leaf_uint256(11u32, 10u32),
+        ),
+    ];
+    // Insert new node, position in tree is irrelevant as insertion should error
+    let mut new_node = TreeNode::new(tick_id, direction, generate_node_id(deps.as_mut().storage, tick_id).unwrap(), NodeType::leaf_uint256(21u32, 10u32));
+    
+    // Save all nodes in state and reference root node in `TREE` state
+    TREE.save(deps.as_mut().storage, &(tick_id, &direction.to_string()), &tree[0].key).unwrap();
+    for node in tree {
+        NODES
+            .save(
+                deps.as_mut().storage,
+                &( tick_id, node.key),
+                &node,
+            )
+            .unwrap();
+    }
+
+    // -- System under test --
+    let mut root =  get_root_node(deps.as_ref().storage, tick_id, direction).unwrap();
+    // Attempt to insert new node
+    let res = root.insert(deps.as_mut().storage, &mut new_node).unwrap_err();
+
+    // -- Post test assertions --
+
+    // Insertion should error as left node is empty and right is non-empty
+    let expected_res = ContractError::InvalidSumtree { error: "Right child is non-empty and left node is empty".to_string() };
+    assert_eq!(res, expected_res);
 }
 
 struct NodeDeletionTestCase {

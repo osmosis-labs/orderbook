@@ -7,8 +7,8 @@ use crate::{
     constants::{MAX_TICK, MIN_TICK},
     error::ContractResult,
     msg::{
-        AllTicksResponse, CalcOutAmtGivenInResponse, GetTotalPoolLiquidityResponse,
-        SpotPriceResponse, TickIdAndState,
+        AllTicksResponse, CalcOutAmtGivenInResponse, GetSwapFeeResponse,
+        GetTotalPoolLiquidityResponse, SpotPriceResponse, TickIdAndState,
     },
     order,
     state::{get_directional_liquidity, IS_ACTIVE, ORDERBOOK, TICK_STATE},
@@ -180,4 +180,11 @@ pub(crate) fn all_ticks(
 pub(crate) fn is_active(deps: Deps) -> ContractResult<bool> {
     let is_active = IS_ACTIVE.may_load(deps.storage)?;
     Ok(is_active.unwrap_or(true))
+}
+
+/// Returns zero as the swap fee/spread factor for the orderbook
+pub(crate) fn get_swap_fee() -> ContractResult<GetSwapFeeResponse> {
+    Ok(GetSwapFeeResponse {
+        swap_fee: Decimal::zero(),
+    })
 }

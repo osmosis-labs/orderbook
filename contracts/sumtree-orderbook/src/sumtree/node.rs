@@ -369,10 +369,9 @@ impl TreeNode {
     /// 5. New node does not fit in left range (or is greater than or equal to left.max when left is a leaf) and right node is a leaf, split right
     /// Reordering conditions:
     /// 6. Right node is empty, new node is lower than left node, move left node to right and insert left
-    /// 7. Left node is empty, new node is higher than right node, move right node to left and insert right
     /// Empty conditions:
-    /// 8. Left node is empty, insert left
-    /// 9. Right is empty, insert right
+    /// 7. Left node is empty, insert left
+    /// 8. Right is empty, insert right
     pub fn insert(
         &mut self,
         storage: &mut dyn Storage,
@@ -388,6 +387,16 @@ impl TreeNode {
         // Either node may be empty
         let maybe_left = self.get_left(storage)?;
         let maybe_right = self.get_right(storage)?;
+
+        // As a guardrail to prevent invalid sumtree constructions, we ensure that
+        // a node can never be in a state where it has a right child but no left child,
+        // as this violates our left-leaning AVL tree invariants.
+        ensure!(
+            !(maybe_left.is_none() && maybe_right.is_some()),
+            ContractError::InvalidSumtree {
+                error: "Right child is non-empty and left node is empty".to_string()
+            }
+        );
 
         // Either node can be internal
         let is_left_internal = maybe_left.clone().map_or(false, |l| l.is_internal());
@@ -411,11 +420,6 @@ impl TreeNode {
             .clone()
             // As node ranges may overlap on equality comparisons (i.e. left_node.max == right_node.min) we check strictly here
             .map_or(false, |left| new_node.below_range(left));
-        // Check if new node's min is greater than right node's max
-        let is_greater_than_right = maybe_right
-            .clone()
-            // As node ranges may overlap on equality comparisons (i.e. left_node.max == right_node.min) we check non-strictly here
-            .map_or(false, |right| new_node.above_range(right));
 
         // Internal conditions
         // One node is internal and the new node fits in its range, or both are internal and the new node does not fit in either range
@@ -485,23 +489,11 @@ impl TreeNode {
             return Ok(());
         }
 
-        // TODO: Add edge case test for this
-        // Case 7: Left node is empty, new node is higher than right node, move right node to left and insert right
-        if maybe_left.is_none() && is_greater_than_right {
-            self.left = self.right;
-            self.right = Some(new_node.key);
-            new_node.parent = Some(self.key);
-            new_node.save(storage)?;
-            self.save(storage)?;
-            self.rebalance(storage)?;
-            return Ok(());
-        }
-
         // Empty conditions
         // No conditions are met for inserting to an internal, reodering nodes or splitting a leaf
         // In this case one of the nodes must be empty
 
-        // Case 8: Left node is empty, insert left
+        // Case 7: Left node is empty, insert left
         if maybe_left.is_none() {
             self.left = Some(new_node.key);
             new_node.parent = Some(self.key);
@@ -511,7 +503,7 @@ impl TreeNode {
             return Ok(());
         }
 
-        // Case 9: Right node is empty, insert right
+        // Case 8: Right node is empty, insert right
         if maybe_right.is_none() {
             self.right = Some(new_node.key);
             new_node.parent = Some(self.key);

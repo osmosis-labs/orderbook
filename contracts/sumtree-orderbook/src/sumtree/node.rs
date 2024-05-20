@@ -388,15 +388,15 @@ impl TreeNode {
         let maybe_left = self.get_left(storage)?;
         let maybe_right = self.get_right(storage)?;
 
-        // If right node exists then left must also exist
-        if maybe_right.is_some() {
-            ensure!(
-                maybe_left.is_some(),
-                ContractError::InvalidSumtree {
-                    error: "Right child is non-empty and left node is empty".to_string()
-                }
-            );
-        }
+        // As a guardrail to prevent invalid sumtree constructions, we ensure that
+        // a node can never be in a state where it has a right child but no left child,
+        // as this violates our left-leaning AVL tree invariants.
+        ensure!(
+            !(maybe_left.is_none() && maybe_right.is_some()),
+            ContractError::InvalidSumtree {
+                error: "Right child is non-empty and left node is empty".to_string()
+            }
+        );
 
         // Either node can be internal
         let is_left_internal = maybe_left.clone().map_or(false, |l| l.is_internal());

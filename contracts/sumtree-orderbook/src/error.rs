@@ -116,6 +116,9 @@ pub enum ContractError {
 
     #[error("Invalid Maker Fee: provided fee must be less than or equal to {MAX_MAKER_FEE_PERCENTAGE:?}")]
     InvalidMakerFee,
+
+    #[error("Invalid sumtree: {error}")]
+    InvalidSumtree { error: String },
 }
 
 pub type ContractResult<T> = Result<T, ContractError>;

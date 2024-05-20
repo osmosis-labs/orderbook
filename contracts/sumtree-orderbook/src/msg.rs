@@ -82,6 +82,8 @@ pub enum QueryMsg {
     /// NO-OP QUERY
     #[returns(CalcInAmtGivenOutResponse)]
     CalcInAmtGivenOut {},
+    #[returns(GetSwapFeeResponse)]
+    GetSwapFee {},
 
     // -- SQS Queries --
     #[returns(AllTicksResponse)]
@@ -129,6 +131,11 @@ pub struct CalcInAmtGivenOutResponse {
 #[cw_serde]
 pub struct GetTotalPoolLiquidityResponse {
     pub total_pool_liquidity: Vec<Coin>,
+}
+
+#[cw_serde]
+pub struct GetSwapFeeResponse {
+    pub swap_fee: Decimal,
 }
 
 #[cw_serde]

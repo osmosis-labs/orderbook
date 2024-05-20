@@ -16,7 +16,7 @@ struct TickToPriceTestCase {
 fn test_tick_to_price() {
     // This constant is used to test price iterations near max tick.
     // It essentially derives the amount we expect price to increment by,
-    // which with an EXPONENT_AT_PRICE_ONE of -6 should be 10^31.
+    // which with an EXPONENT_AT_PRICE_ONE of -6 should be 10^14.
     let min_increment_near_max_price = Decimal256::from_ratio(
         Uint256::from(10u8)
             .checked_pow((20 + EXPONENT_AT_PRICE_ONE) as u32)

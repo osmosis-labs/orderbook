@@ -33,6 +33,24 @@ pub fn sudo(deps: DepsMut, env: Env, msg: SudoMsg) -> ContractResult<Response> {
             token_out_denom,
             token_out_min_amount,
             swap_fee,
+            None,
+        ),
+        SudoMsg::SwapToTick {
+            sender,
+            token_in,
+            token_out_denom,
+            token_out_min_amount,
+            swap_fee,
+            target_tick,
+        } => dispatch_swap_exact_amount_in(
+            deps,
+            env,
+            sender,
+            token_in,
+            token_out_denom,
+            token_out_min_amount,
+            swap_fee,
+            Some(target_tick),
         ),
         SudoMsg::SwapExactAmountOut {
             sender,
@@ -83,6 +101,7 @@ pub(crate) fn dispatch_swap_exact_amount_in(
     token_out_denom: String,
     token_out_min_amount: Uint128,
     swap_fee: Decimal,
+    target_tick: Option<i64>,
 ) -> ContractResult<Response> {
     // Ensure the provided swap fee matches what is expected
     ensure_swap_fee(swap_fee)?;
@@ -111,10 +130,10 @@ pub(crate) fn dispatch_swap_exact_amount_in(
     );
 
     // Market orders always run until either the input is filled or the orderbook is exhausted.
-    let tick_bound = match order_direction {
+    let tick_bound = target_tick.unwrap_or(match order_direction {
         OrderDirection::Bid => MAX_TICK,
         OrderDirection::Ask => MIN_TICK,
-    };
+    });
 
     // Run market order against orderbook
     let (output, bank_msg) =

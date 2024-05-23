@@ -162,6 +162,16 @@ pub enum SudoMsg {
         token_out_min_amount: Uint128,
         swap_fee: Decimal,
     },
+    // SwapToTick functions exactly as SwapExactAmountIn, but it terminates the swap when the target tick
+    // is reached.
+    SwapToTick {
+        sender: String,
+        token_in: Coin,
+        token_out_denom: String,
+        token_out_min_amount: Uint128,
+        swap_fee: Decimal,
+        target_tick: i64,
+    },
     /// SwapExactAmountOut swaps as many tokens in as possible for an exact amount of tokens out.
     /// The amount of tokens in is determined by the current exchange rate and the swap fee.
     /// The user specifies a maximum amount of tokens in, and the transaction will revert if that amount of tokens

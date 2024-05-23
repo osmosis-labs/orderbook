@@ -280,7 +280,7 @@ fn test_swap_exact_amount_in() {
             }),
         },
         SwapExactAmountInTestCase {
-            name: "BID: valid basic swap",
+            name: "BID: valid basic swap to tick",
             pre_operations: vec![
                 OrderOperation::PlaceLimit(LimitOrder::new(
                     valid_tick_id,

@@ -71,6 +71,12 @@ impl LimitOrder {
             placed_quantity: quantity,
         }
     }
+
+    #[cfg(test)]
+    pub(crate) fn with_placed_quantity(mut self, quantity: impl Into<Uint128>) -> Self {
+        self.placed_quantity = quantity.into();
+        self
+    }
 }
 
 #[cw_serde]

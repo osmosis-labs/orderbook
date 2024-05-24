@@ -303,6 +303,7 @@ fn generate_claimed_order_event(sender: Addr, order: LimitOrder, amount_claimed:
         ("owner", order.owner.as_str()),
         ("order_direction", &order.order_direction.to_string()),
         ("amount_claimed", &amount_claimed.to_string()),
+        ("placed_quantity", &order.placed_quantity.to_string()),
         ("fully_claimed", &order.quantity.is_zero().to_string()),
     ])
 }

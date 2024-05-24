@@ -107,7 +107,7 @@ pub enum QueryMsg {
     OrdersByOwner {
         // The address of the order maker
         owner: Addr,
-        // For indexed based pagination (tick_id, order_id), inclusive
+        // For indexed based pagination (tick_id, order_id), exclusive
         start_from: Option<(i64, u64)>,
         // For indexed based pagination (tick_id, order_id), inclusive
         end_at: Option<(i64, u64)>,

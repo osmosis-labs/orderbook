@@ -190,7 +190,7 @@ pub(crate) fn get_swap_fee() -> ContractResult<GetSwapFeeResponse> {
 }
 
 /// Returns all active orders for a given address
-pub(crate) fn all_orders_by_owner(
+pub(crate) fn orders_by_owner(
     deps: Deps,
     owner: Addr,
     start_from: Option<(i64, u64)>,

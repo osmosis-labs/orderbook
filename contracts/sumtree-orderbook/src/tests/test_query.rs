@@ -1168,3 +1168,222 @@ fn test_is_active() {
         );
     }
 }
+
+struct OrdersByOwnerTestCase {
+    name: &'static str,
+    pre_operations: Vec<OrderOperation>,
+    expected_output: Vec<LimitOrder>,
+    owner: Addr,
+    start_from: Option<(i64, u64)>,
+    end_at: Option<(i64, u64)>,
+    limit: Option<u8>,
+    expected_error: Option<ContractError>,
+}
+
+#[test]
+fn test_orders_by_owner() {
+    let quote_denom = "quote";
+    let base_denom = "base";
+
+    let test_cases = vec![
+        OrdersByOwnerTestCase {
+            name: "no orders",
+            pre_operations: vec![],
+            expected_output: vec![],
+            owner: Addr::unchecked("sender"),
+            start_from: None,
+            end_at: None,
+            limit: None,
+            expected_error: None,
+        },
+        OrdersByOwnerTestCase {
+            name: "single order",
+            pre_operations: vec![OrderOperation::PlaceLimit(LimitOrder::new(
+                0,
+                0,
+                OrderDirection::Bid,
+                Addr::unchecked("sender"),
+                Uint128::from(100u128),
+                Decimal256::zero(),
+                None,
+            ))],
+            expected_output: vec![LimitOrder::new(
+                0,
+                0,
+                OrderDirection::Bid,
+                Addr::unchecked("sender"),
+                Uint128::from(100u128),
+                Decimal256::zero(),
+                None,
+            )],
+            owner: Addr::unchecked("sender"),
+            start_from: None,
+            end_at: None,
+            limit: None,
+            expected_error: None,
+        },
+        OrdersByOwnerTestCase {
+            name: "multiple orders, pagination limit",
+            pre_operations: vec![
+                OrderOperation::PlaceLimit(LimitOrder::new(
+                    0,
+                    0,
+                    OrderDirection::Ask,
+                    Addr::unchecked("sender"),
+                    Uint128::from(50u128),
+                    Decimal256::zero(),
+                    None,
+                )),
+                OrderOperation::PlaceLimit(LimitOrder::new(
+                    1,
+                    1,
+                    OrderDirection::Bid,
+                    Addr::unchecked("sender"),
+                    Uint128::from(150u128),
+                    Decimal256::zero(),
+                    None,
+                )),
+            ],
+            expected_output: vec![LimitOrder::new(
+                0,
+                0,
+                OrderDirection::Ask,
+                Addr::unchecked("sender"),
+                Uint128::from(50u128),
+                Decimal256::zero(),
+                None,
+            )],
+            owner: Addr::unchecked("sender"),
+            start_from: None,
+            end_at: None,
+            limit: Some(1),
+            expected_error: None,
+        },
+        OrdersByOwnerTestCase {
+            name: "multiple orders, start_from",
+            pre_operations: vec![
+                OrderOperation::PlaceLimit(LimitOrder::new(
+                    0,
+                    0,
+                    OrderDirection::Ask,
+                    Addr::unchecked("sender"),
+                    Uint128::from(50u128),
+                    Decimal256::zero(),
+                    None,
+                )),
+                OrderOperation::PlaceLimit(LimitOrder::new(
+                    1,
+                    1,
+                    OrderDirection::Bid,
+                    Addr::unchecked("sender"),
+                    Uint128::from(150u128),
+                    Decimal256::zero(),
+                    None,
+                )),
+            ],
+            expected_output: vec![LimitOrder::new(
+                1,
+                1,
+                OrderDirection::Bid,
+                Addr::unchecked("sender"),
+                Uint128::from(150u128),
+                Decimal256::zero(),
+                None,
+            )],
+            owner: Addr::unchecked("sender"),
+            start_from: Some((0, 0)),
+            end_at: None,
+            limit: None,
+            expected_error: None,
+        },
+        OrdersByOwnerTestCase {
+            name: "multiple orders, end_at",
+            pre_operations: vec![
+                OrderOperation::PlaceLimit(LimitOrder::new(
+                    0,
+                    0,
+                    OrderDirection::Ask,
+                    Addr::unchecked("sender"),
+                    Uint128::from(50u128),
+                    Decimal256::zero(),
+                    None,
+                )),
+                OrderOperation::PlaceLimit(LimitOrder::new(
+                    1,
+                    1,
+                    OrderDirection::Bid,
+                    Addr::unchecked("sender"),
+                    Uint128::from(150u128),
+                    Decimal256::zero(),
+                    None,
+                )),
+            ],
+            expected_output: vec![LimitOrder::new(
+                0,
+                0,
+                OrderDirection::Ask,
+                Addr::unchecked("sender"),
+                Uint128::from(50u128),
+                Decimal256::zero(),
+                None,
+            )],
+            owner: Addr::unchecked("sender"),
+            start_from: None,
+            end_at: Some((0, 0)),
+            limit: None,
+            expected_error: None,
+        },
+    ];
+
+    for test in test_cases {
+        // -- Test Setup --
+        let mut deps = mock_dependencies();
+        let env = mock_env();
+        let info = mock_info(test.owner.as_str(), &[]);
+
+        create_orderbook(
+            deps.as_mut(),
+            quote_denom.to_string(),
+            base_denom.to_string(),
+        )
+        .unwrap();
+
+        for operation in test.pre_operations {
+            operation
+                .run(deps.as_mut(), env.clone(), info.clone())
+                .unwrap();
+        }
+
+        // -- System under test --
+        let res = query::orders_by_owner(
+            deps.as_ref(),
+            test.owner,
+            test.start_from,
+            test.end_at,
+            test.limit,
+        );
+
+        if let Some(err) = test.expected_error {
+            assert_eq!(
+                res.unwrap_err(),
+                err,
+                "{}: did not receive expected error",
+                test.name
+            );
+
+            continue;
+        }
+
+        let res = res.unwrap_or_else(|_| {
+            panic!(
+                "{}: orders_by_owner returned an unexpected error",
+                test.name
+            );
+        });
+        assert_eq!(
+            res, test.expected_output,
+            "{}: output did not match",
+            test.name
+        );
+    }
+}

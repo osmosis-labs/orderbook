@@ -135,7 +135,7 @@ pub fn query(deps: Deps, _env: Env, msg: QueryMsg) -> ContractResult<Binary> {
             start_from,
             end_at,
             limit,
-        } => Ok(to_json_binary(&query::all_orders_by_owner(
+        } => Ok(to_json_binary(&query::orders_by_owner(
             deps, owner, start_from, end_at, limit,
         )?)?),
 

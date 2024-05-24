@@ -1,12 +1,7 @@
 use std::str::FromStr;
 
 use crate::{
-    constants::{MAX_TICK, MIN_TICK},
-    error::ContractError,
-    order::*,
-    orderbook::*,
-    state::*,
-    sumtree::{
+    constants::{MAX_TICK, MIN_TICK}, error::ContractError, order::*, orderbook::*, state::*, sumtree::{
         node::{NodeType, TreeNode},
         tree::get_root_node,
     },
@@ -162,6 +157,24 @@ fn test_place_limit() {
                 sent: Uint128::new(500),
                 required: Uint128::new(100),
             }),
+        },
+        PlaceLimitTestCase {
+            name: "max amount on max tick",
+            tick_id: MAX_TICK,
+            quantity: Uint128::MAX,
+            sent: Uint128::MAX,
+            order_direction: OrderDirection::Bid,
+            claim_bounty: None,
+            expected_error: None,
+        },
+        PlaceLimitTestCase {
+            name: "max amount on min tick",
+            tick_id: MIN_TICK,
+            quantity: Uint128::MAX,
+            sent: Uint128::MAX,
+            order_direction: OrderDirection::Ask,
+            claim_bounty: None,
+            expected_error: None,
         },
     ];
 
@@ -3926,4 +3939,3 @@ fn test_maker_fee() {
     }
 
 }
-

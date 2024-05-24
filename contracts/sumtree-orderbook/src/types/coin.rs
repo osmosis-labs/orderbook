@@ -2,9 +2,8 @@ use std::str::FromStr;
 
 use cosmwasm_schema::cw_serde;
 use cosmwasm_std::{Coin, CosmosMsg, Uint128, Uint256};
+use osmosis_std::types::cosmos::bank::v1beta1::MsgSend;
 use osmosis_std::types::cosmos::base::v1beta1::Coin as ProtoCoin;
-
-use crate::proto::MsgSend;
 
 /// A replication of `cosmwasmstd::coin` using `Uint256`.
 pub fn coin_u256(amount: impl Into<Uint256>, denom: &str) -> Coin256 {

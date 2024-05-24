@@ -514,6 +514,7 @@ fn test_cancel_limit() {
             "{}",
             format_test_name(test.name)
         );
+        
         assert_eq!(
             response.attributes[1],
             ("owner", test.owner),
@@ -529,6 +530,18 @@ fn test_cancel_limit() {
         assert_eq!(
             response.attributes[3],
             ("order_id", test.order_id.to_string()),
+            "{}",
+            format_test_name(test.name)
+        );
+        assert_eq!(
+            response.attributes[4],
+            ("quantity", test.quantity.to_string()),
+            "{}",
+            format_test_name(test.name)
+        );
+        assert_eq!(
+            response.attributes[5],
+            ("order_direction", test.order_direction.to_string()),
             "{}",
             format_test_name(test.name)
         );
@@ -3975,7 +3988,7 @@ fn test_maker_fee() {
             continue;
         } 
 
-        let (_, msgs) = result.unwrap();
+        let (_, msgs, _) = result.unwrap();
 
         // The claimer's message is always first in the array of bank messages
         let claimer_msg = msgs.first().unwrap();

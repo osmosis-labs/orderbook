@@ -21,8 +21,6 @@ pub struct LimitOrder {
     pub order_direction: OrderDirection,
     pub owner: Addr,
     pub quantity: Uint128,
-    // Immutable quantity of the order when placed
-    pub placed_quantity: Uint128,
 }
 
 impl LimitOrder {
@@ -41,7 +39,6 @@ impl LimitOrder {
             order_direction,
             owner,
             quantity,
-            placed_quantity: quantity,
         }
     }
 

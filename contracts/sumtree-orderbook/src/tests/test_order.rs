@@ -546,6 +546,13 @@ fn test_cancel_limit() {
             format_test_name(test.name)
         );
         assert_eq!(
+            response.attributes[6],
+            // Since this test does not cover partial fills, the remaining quantity is the same as the initial placed quantity
+            ("initial_quantity", test.quantity.to_string()),
+            "{}",
+            format_test_name(test.name)
+        );
+        assert_eq!(
             response.messages.len(),
             1,
             "{}",

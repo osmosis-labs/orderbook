@@ -215,6 +215,7 @@ pub fn cancel_limit(
             ("order_id", &order_id.to_string()),
             ("quantity", &order.quantity.to_string()),
             ("order_direction", &order.order_direction.to_string()),
+            ("initial_quantity", &order.placed_quantity.to_string()),
         ])
         .add_submessage(refund_msg))
 }

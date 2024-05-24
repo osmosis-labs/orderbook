@@ -20,9 +20,9 @@ pub const MAKER_FEE: Item<Decimal256> = Item::new("maker_fee");
 pub const MAKER_FEE_RECIPIENT: Item<Addr> = Item::new("maker_fee_recipient");
 
 pub struct OrderIndexes {
-    // Index by owner; Generic types: MultiIndex<Index Key: owner, Input Data: LimitOrder, Map Key: ( tick, order_id)>
+    // Index by owner; Generic types: MultiIndex<Index Key: owner, Input Data: LimitOrder, Map Key: (tick_id, order_id)>
     pub owner: MultiIndex<'static, Addr, LimitOrder, (i64, u64)>,
-    // Index by tick and owner; Generic types: MultiIndex<Index Key: (tick_id, owner), Input Data: LimitOrder, Map Key: (tick, order_id)>
+    // Index by tick and owner; Generic types: MultiIndex<Index Key: (tick_id, owner), Input Data: LimitOrder, Map Key: (tick_id, order_id)>
     pub tick_and_owner: MultiIndex<'static, (i64, Addr), LimitOrder, (i64, u64)>,
 }
 

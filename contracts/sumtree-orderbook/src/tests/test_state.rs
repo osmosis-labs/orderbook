@@ -44,15 +44,15 @@ fn test_order_iteration() {
     let tick = 0;
     for i in 0..order_amount {
         let order_id = new_order_id(&mut storage).unwrap();
-        let order = LimitOrder {
-            tick_id: tick,
+        let order = LimitOrder::new(
+            tick,
             order_id,
-            owner: Addr::unchecked(format!("maker{i}")),
-            quantity: Uint128::new(i as u128),
-            order_direction: OrderDirection::Ask,
-            etas: Decimal256::zero(),
-            claim_bounty: None,
-        };
+            OrderDirection::Ask,
+            Addr::unchecked(format!("maker{i}")),
+            Uint128::new(i as u128),
+            Decimal256::zero(),
+            None,
+        );
         orders().save(&mut storage, &(tick, i), &order).unwrap();
     }
 

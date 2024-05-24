@@ -45,6 +45,8 @@ pub struct LimitOrder {
     pub quantity: Uint128,
     pub etas: Decimal256,
     pub claim_bounty: Option<Decimal256>,
+    // Immutable quantity of the order when placed
+    pub placed_quantity: Uint128,
 }
 
 impl LimitOrder {
@@ -66,7 +68,14 @@ impl LimitOrder {
             quantity,
             etas,
             claim_bounty,
+            placed_quantity: quantity,
         }
+    }
+
+    #[cfg(test)]
+    pub(crate) fn with_placed_quantity(mut self, quantity: impl Into<Uint128>) -> Self {
+        self.placed_quantity = quantity.into();
+        self
     }
 }
 

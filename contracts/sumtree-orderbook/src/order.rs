@@ -210,10 +210,10 @@ pub fn cancel_limit(
     Ok(Response::new()
         .add_attributes(vec![
             ("method", "cancelLimit"),
+            ("owner", info.sender.as_str()),
             ("tick_id", &tick_id.to_string()),
             ("order_id", &order_id.to_string()),
             ("quantity", &order.quantity.to_string()),
-            ("owner", info.sender.as_str()),
             ("order_direction", &order.order_direction.to_string()),
         ])
         .add_submessage(refund_msg))

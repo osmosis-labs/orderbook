@@ -11,10 +11,10 @@ use crate::{
         GetTotalPoolLiquidityResponse, SpotPriceResponse, TickIdAndState,
     },
     order,
-    state::{get_directional_liquidity, IS_ACTIVE, ORDERBOOK, TICK_STATE},
+    state::{get_directional_liquidity, get_orders_by_owner, IS_ACTIVE, ORDERBOOK, TICK_STATE},
     sudo::ensure_swap_fee,
     tick_math::tick_to_price,
-    types::{MarketOrder, OrderDirection},
+    types::{FilterOwnerOrders, LimitOrder, MarketOrder, OrderDirection},
     ContractError,
 };
 
@@ -187,4 +187,22 @@ pub(crate) fn get_swap_fee() -> ContractResult<GetSwapFeeResponse> {
     Ok(GetSwapFeeResponse {
         swap_fee: Decimal::zero(),
     })
+}
+
+/// Returns all active orders for a given address
+pub(crate) fn all_orders_by_owner(
+    deps: Deps,
+    owner: Addr,
+    start_from: Option<(i64, u64)>,
+    end_at: Option<(i64, u64)>,
+    limit: Option<u8>,
+) -> ContractResult<Vec<LimitOrder>> {
+    let orders = get_orders_by_owner(
+        deps.storage,
+        FilterOwnerOrders::all(owner),
+        start_from,
+        end_at,
+        limit,
+    )?;
+    Ok(orders)
 }

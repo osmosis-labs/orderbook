@@ -138,6 +138,7 @@ pub fn query(deps: Deps, _env: Env, msg: QueryMsg) -> ContractResult<Binary> {
         } => Ok(to_json_binary(&query::orders_by_owner(
             deps, owner, start_from, end_at, limit,
         )?)?),
+        QueryMsg::Denoms {} => Ok(to_json_binary(&query::denoms(deps)?)?),
 
         // -- Auth Queries --
         QueryMsg::Auth(msg) => Ok(to_json_binary(&auth::query(deps, msg)?)?),

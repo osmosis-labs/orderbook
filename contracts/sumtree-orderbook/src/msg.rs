@@ -61,6 +61,12 @@ pub enum AuthExecuteMsg {
 #[cw_serde]
 pub enum MigrateMsg {}
 
+#[cw_serde]
+pub struct DenomsResponse {
+    pub quote_denom: String,
+    pub base_denom: String,
+}
+
 /// Message type for `query` entry_point
 #[cw_serde]
 #[derive(QueryResponses)]
@@ -114,6 +120,9 @@ pub enum QueryMsg {
         // Defaults to 100
         limit: Option<u8>,
     },
+
+    #[returns(DenomsResponse)]
+    Denoms {},
 }
 
 #[cw_serde]

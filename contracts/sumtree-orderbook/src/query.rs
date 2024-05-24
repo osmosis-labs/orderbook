@@ -7,7 +7,7 @@ use crate::{
     constants::{MAX_TICK, MIN_TICK},
     error::ContractResult,
     msg::{
-        AllTicksResponse, CalcOutAmtGivenInResponse, GetSwapFeeResponse,
+        AllTicksResponse, CalcOutAmtGivenInResponse, DenomsResponse, GetSwapFeeResponse,
         GetTotalPoolLiquidityResponse, SpotPriceResponse, TickIdAndState,
     },
     order,
@@ -205,4 +205,12 @@ pub(crate) fn orders_by_owner(
         limit,
     )?;
     Ok(orders)
+}
+
+pub(crate) fn denoms(deps: Deps) -> ContractResult<DenomsResponse> {
+    let orderbook = ORDERBOOK.load(deps.storage)?;
+    Ok(DenomsResponse {
+        quote_denom: orderbook.quote_denom,
+        base_denom: orderbook.base_denom,
+    })
 }

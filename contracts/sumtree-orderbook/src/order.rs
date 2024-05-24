@@ -13,8 +13,8 @@ use crate::types::{
     REPLY_ID_CLAIM, REPLY_ID_CLAIM_BOUNTY, REPLY_ID_MAKER_FEE, REPLY_ID_REFUND,
 };
 use cosmwasm_std::{
-    coin, ensure, ensure_eq, Addr, BankMsg, Decimal256, DepsMut, Env, MessageInfo, Order, Response,
-    Storage, SubMsg, Uint128, Uint256,
+    coin, ensure, ensure_eq, Addr, BankMsg, Decimal256, DepsMut, Env, Event, MessageInfo, Order,
+    Response, Storage, SubMsg, Uint128, Uint256,
 };
 use cw_storage_plus::Bound;
 use cw_utils::{must_pay, nonpayable};
@@ -208,10 +208,14 @@ pub fn cancel_limit(
     tree.save(deps.storage)?;
 
     Ok(Response::new()
-        .add_attribute("method", "cancelLimit")
-        .add_attribute("owner", info.sender)
-        .add_attribute("tick_id", tick_id.to_string())
-        .add_attribute("order_id", order_id.to_string())
+        .add_attributes(vec![
+            ("method", "cancelLimit"),
+            ("tick_id", &tick_id.to_string()),
+            ("order_id", &order_id.to_string()),
+            ("quantity", &order.quantity.to_string()),
+            ("owner", info.sender.as_str()),
+            ("order_direction", &order.order_direction.to_string()),
+        ])
         .add_submessage(refund_msg))
 }
 
@@ -224,7 +228,7 @@ pub fn claim_limit(
 ) -> Result<Response, ContractError> {
     nonpayable(&info)?;
 
-    let (amount_claimed, bank_msgs) = claim_order(
+    let (amount_claimed, bank_msgs, order) = claim_order(
         deps.storage,
         info.sender.clone(),
         env.contract.address,
@@ -232,12 +236,11 @@ pub fn claim_limit(
         order_id,
     )?;
 
+    let event = generate_claimed_order_event(info.sender, order, amount_claimed);
+
     Ok(Response::new()
-        .add_attribute("method", "claimMarket")
-        .add_attribute("sender", info.sender)
-        .add_attribute("tick_id", tick_id.to_string())
-        .add_attribute("order_id", order_id.to_string())
-        .add_attribute("amount_claimed", amount_claimed.to_string())
+        .add_attribute("method", "claimLimit")
+        .add_event(event)
         .add_submessages(bank_msgs))
 }
 
@@ -258,6 +261,7 @@ pub fn batch_claim_limits(
     );
 
     let mut responses: Vec<SubMsg> = Vec::new();
+    let mut events: Vec<Event> = Vec::new();
 
     for (tick_id, order_id) in orders {
         // Attempt to claim each order
@@ -268,8 +272,11 @@ pub fn batch_claim_limits(
             tick_id,
             order_id,
         ) {
-            Ok((_, mut bank_msgs)) => {
+            Ok((amount_claimed, mut bank_msgs, order)) => {
+                let event =
+                    generate_claimed_order_event(info.sender.clone(), order, amount_claimed);
                 responses.append(&mut bank_msgs);
+                events.push(event);
             }
             Err(_) => {
                 // We fail silently on errors to allow for the valid claims to be processed
@@ -280,9 +287,24 @@ pub fn batch_claim_limits(
     }
 
     Ok(Response::new()
-        .add_attribute("method", "batchClaim")
+        .add_attribute("method", "batchClaimLimit")
         .add_attribute("sender", info.sender)
+        .add_events(events)
         .add_submessages(responses))
+}
+
+/// Generates an event when an order is claimed to help with indexing
+fn generate_claimed_order_event(sender: Addr, order: LimitOrder, amount_claimed: Uint256) -> Event {
+    Event::new("limitClaimed").add_attributes(vec![
+        ("sender", sender.as_str()),
+        ("tick_id", &order.tick_id.to_string()),
+        ("order_id", &order.order_id.to_string()),
+        ("quantity_remaining", &order.quantity.to_string()),
+        ("owner", order.owner.as_str()),
+        ("order_direction", &order.order_direction.to_string()),
+        ("amount_claimed", &amount_claimed.to_string()),
+        ("fully_claimed", &order.quantity.is_zero().to_string()),
+    ])
 }
 
 // run_market_order processes a market order from the current active tick on the order's orderbook
@@ -526,7 +548,7 @@ pub(crate) fn claim_order(
     sender: Addr,
     tick_id: i64,
     order_id: u64,
-) -> ContractResult<(Uint256, Vec<SubMsg>)> {
+) -> ContractResult<(Uint256, Vec<SubMsg>, LimitOrder)> {
     let orderbook = ORDERBOOK.load(storage)?;
     // Fetch tick values for current order direction
     let tick_state = TICK_STATE
@@ -654,5 +676,5 @@ pub(crate) fn claim_order(
         bank_msg_vec.push(SubMsg::reply_on_error(maker_fee_msg, REPLY_ID_MAKER_FEE));
     }
 
-    Ok((amount, bank_msg_vec))
+    Ok((amount, bank_msg_vec, order))
 }

@@ -3976,7 +3976,7 @@ fn test_maker_fee() {
             continue;
         } 
 
-        let (_, msgs) = result.unwrap();
+        let (_, msgs, _) = result.unwrap();
 
         // The claimer's message is always first in the array of bank messages
         let claimer_msg = msgs.first().unwrap();

@@ -1,7 +1,8 @@
 use cosmwasm_std::{
     coin,
     testing::{mock_dependencies, mock_env, mock_info},
-    to_json_binary, Addr, Coin, Decimal, Decimal256, StdError, SubMsg, Uint128, Uint256,
+    to_json_binary, Addr, BankMsg, Coin, Decimal, Decimal256, Empty, StdError, SubMsg, Uint128,
+    Uint256,
 };
 
 use crate::{
@@ -15,7 +16,8 @@ use crate::{
         dispatch_swap_exact_amount_in, ensure_is_active, set_active, sudo, validate_output_amount,
     },
     types::{
-        coin_u256, Coin256, LimitOrder, MsgSend256, OrderDirection, REPLY_ID_SUDO_SWAP_EXACT_IN,
+        coin_u256, Coin256, LimitOrder, MsgSend256, OrderDirection, REPLY_ID_REFUND,
+        REPLY_ID_SUDO_SWAP_EXACT_IN,
     },
     ContractError,
 };
@@ -115,6 +117,7 @@ struct SwapExactAmountInTestCase {
     target_tick: Option<i64>,
     expected_output: Coin256,
     expected_num_msgs: usize,
+    expected_refund_msg: Option<SubMsg<Empty>>,
     expected_error: Option<ContractError>,
 }
 
@@ -143,6 +146,7 @@ fn test_swap_exact_amount_in() {
             target_tick: None,
             expected_output: coin_u256(100u128, base_denom),
             expected_num_msgs: 1,
+            expected_refund_msg: None,
             expected_error: None,
         },
         SwapExactAmountInTestCase {
@@ -163,6 +167,7 @@ fn test_swap_exact_amount_in() {
             target_tick: None,
             expected_output: coin_u256(100u128, base_denom),
             expected_num_msgs: 1,
+            expected_refund_msg: None,
             expected_error: Some(ContractError::InsufficientLiquidity),
         },
         SwapExactAmountInTestCase {
@@ -175,6 +180,7 @@ fn test_swap_exact_amount_in() {
             target_tick: None,
             expected_output: coin_u256(100u128, base_denom),
             expected_num_msgs: 1,
+            expected_refund_msg: None,
             expected_error: Some(ContractError::InsufficientLiquidity),
         },
         SwapExactAmountInTestCase {
@@ -195,6 +201,7 @@ fn test_swap_exact_amount_in() {
             target_tick: None,
             expected_output: coin_u256(100u128, quote_denom),
             expected_num_msgs: 1,
+            expected_refund_msg: None,
             expected_error: None,
         },
         SwapExactAmountInTestCase {
@@ -215,6 +222,7 @@ fn test_swap_exact_amount_in() {
             target_tick: None,
             expected_output: coin_u256(100u128, quote_denom),
             expected_num_msgs: 1,
+            expected_refund_msg: None,
             expected_error: Some(ContractError::InsufficientLiquidity),
         },
         SwapExactAmountInTestCase {
@@ -227,6 +235,7 @@ fn test_swap_exact_amount_in() {
             target_tick: None,
             expected_output: coin_u256(100u128, quote_denom),
             expected_num_msgs: 1,
+            expected_refund_msg: None,
             expected_error: Some(ContractError::InsufficientLiquidity),
         },
         SwapExactAmountInTestCase {
@@ -239,6 +248,7 @@ fn test_swap_exact_amount_in() {
             target_tick: None,
             expected_output: coin_u256(100u128, quote_denom),
             expected_num_msgs: 1,
+            expected_refund_msg: None,
             expected_error: Some(ContractError::InvalidPair {
                 token_in_denom: "notadenom".to_string(),
                 token_out_denom: quote_denom.to_string(),
@@ -254,6 +264,7 @@ fn test_swap_exact_amount_in() {
             target_tick: None,
             expected_output: coin_u256(100u128, quote_denom),
             expected_num_msgs: 1,
+            expected_refund_msg: None,
             expected_error: Some(ContractError::InvalidPair {
                 token_in_denom: base_denom.to_string(),
                 token_out_denom: "notadenom".to_string(),
@@ -269,6 +280,7 @@ fn test_swap_exact_amount_in() {
             target_tick: None,
             expected_output: coin_u256(100u128, quote_denom),
             expected_num_msgs: 1,
+            expected_refund_msg: None,
             expected_error: Some(ContractError::InvalidSwap {
                 error: "Input and output denoms cannot be the same".to_string(),
             }),
@@ -283,6 +295,7 @@ fn test_swap_exact_amount_in() {
             target_tick: None,
             expected_output: coin_u256(100u128, quote_denom),
             expected_num_msgs: 1,
+            expected_refund_msg: None,
             expected_error: Some(ContractError::InvalidSwap {
                 error: format!(
                     "Provided swap fee does not match: expected {EXPECTED_SWAP_FEE} received {}",
@@ -321,8 +334,15 @@ fn test_swap_exact_amount_in() {
             // Past the tick with 90 units of liquidity, but before the tick with the remaining 10
             target_tick: Some(5),
             expected_output: coin_u256(90u128, base_denom),
-            // We expect a refund message as well
             expected_num_msgs: 2,
+            expected_refund_msg: Some(SubMsg::reply_on_error(
+                BankMsg::Send {
+                    to_address: sender.to_string(),
+                    // We expect 10 units of the input to be leftover
+                    amount: vec![coin(10u128, quote_denom)],
+                },
+                REPLY_ID_REFUND,
+            )),
             expected_error: None,
         },
     ];
@@ -394,6 +414,16 @@ fn test_swap_exact_amount_in() {
             "{}: did not receive expected output message",
             format_test_name(test.name)
         );
+
+        if test.expected_refund_msg.is_some() {
+            let refund_msg = &response.messages[1];
+            assert_eq!(
+                &test.expected_refund_msg.unwrap(),
+                refund_msg,
+                "{}: did not receive expected refund message",
+                format_test_name(test.name)
+            );
+        }
 
         let expected_data = to_json_binary(&SwapExactAmountInResponseData {
             token_out_amount: test.expected_output.amount,

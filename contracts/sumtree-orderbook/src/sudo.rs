@@ -1,6 +1,6 @@
 use cosmwasm_std::{
-    ensure, entry_point, to_json_binary, Coin, Decimal, Deps, DepsMut, Env, Response, SubMsg,
-    Uint128, Uint256,
+    coin, ensure, entry_point, to_json_binary, BankMsg, Coin, Decimal, Deps, DepsMut, Env,
+    Response, SubMsg, Uint128, Uint256,
 };
 
 use crate::{
@@ -11,7 +11,8 @@ use crate::{
     order::run_market_order,
     state::{IS_ACTIVE, ORDERBOOK},
     types::{
-        coin_u256, Coin256, MarketOrder, MsgSend256, OrderDirection, REPLY_ID_SUDO_SWAP_EXACT_IN,
+        coin_u256, Coin256, MarketOrder, MsgSend256, OrderDirection, REPLY_ID_REFUND,
+        REPLY_ID_SUDO_SWAP_EXACT_IN,
     },
     ContractError,
 };
@@ -151,11 +152,23 @@ pub(crate) fn dispatch_swap_exact_amount_in(
         output_amt,
     )?;
 
+    let mut bank_msgs = vec![SubMsg::reply_on_error(
+        bank_msg,
+        REPLY_ID_SUDO_SWAP_EXACT_IN,
+    )];
+
+    if !order.quantity.is_zero() {
+        bank_msgs.push(SubMsg::reply_on_error(
+            BankMsg::Send {
+                to_address: order.owner.to_string(),
+                amount: vec![coin(order.quantity.u128(), token_in.clone().denom)],
+            },
+            REPLY_ID_REFUND,
+        ));
+    }
+
     Ok(Response::default()
-        .add_submessage(SubMsg::reply_on_error(
-            bank_msg,
-            REPLY_ID_SUDO_SWAP_EXACT_IN,
-        ))
+        .add_submessages(bank_msgs)
         .add_attributes(vec![
             ("method", "swapExactAmountIn"),
             ("sender", &sender),

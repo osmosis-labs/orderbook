@@ -95,6 +95,8 @@ pub enum QueryMsg {
         /// The limit for amount of items to return
         limit: Option<usize>,
     },
+    #[returns(MakerFee)]
+    GetMakerFee {},
 
     // -- Auth Queries --
     #[returns(Option<Addr>)]
@@ -136,6 +138,11 @@ pub struct GetTotalPoolLiquidityResponse {
 #[cw_serde]
 pub struct GetSwapFeeResponse {
     pub swap_fee: Decimal,
+}
+
+#[cw_serde]
+pub struct MakerFee {
+    pub maker_fee: Decimal256,
 }
 
 #[cw_serde]

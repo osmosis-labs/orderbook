@@ -8,8 +8,7 @@ pub const ORDER_ID: Item<u64> = Item::new("order_id");
 pub const ORDERBOOK_ID: Item<u64> = Item::new("orderbook_id");
 
 // Pagination constants for queries
-const MAX_PAGE_SIZE: u8 = 100;
-const DEFAULT_PAGE_SIZE: u8 = 50;
+const DEFAULT_PAGE_SIZE: u64 = 100;
 
 pub const ORDERBOOKS: Map<&u64, Orderbook> = Map::new("orderbooks");
 /// Key: (orderbook_id, tick)
@@ -109,9 +108,9 @@ pub fn get_orders_by_owner(
     filter: FilterOwnerOrders,
     min: Option<(u64, i64, u64)>,
     max: Option<(u64, i64, u64)>,
-    page_size: Option<u8>,
+    page_size: Option<u64>,
 ) -> StdResult<Vec<LimitOrder>> {
-    let page_size = page_size.map(|page_size| page_size.min(MAX_PAGE_SIZE));
+    let page_size = page_size.unwrap_or(DEFAULT_PAGE_SIZE);
     let min = min.map(Bound::exclusive);
     let max = max.map(Bound::exclusive);
 
@@ -127,21 +126,13 @@ pub fn get_orders_by_owner(
             .prefix((book_id, tick_id, owner)),
     };
 
-    let order_iter = iter.range(storage, min, max, Order::Ascending);
-
     // Get orders based on pagination
-    let orders = if let Some(page_size) = page_size {
-        order_iter
-            .take(page_size as usize)
-            .filter_map(|item| item.ok())
-            .map(|(_, order)| order)
-            .collect()
-    } else {
-        order_iter
-            .filter_map(|item| item.ok())
-            .map(|(_, order)| order)
-            .collect()
-    };
+    let orders: Vec<LimitOrder> = iter
+        .range(storage, min, max, Order::Ascending)
+        .take(page_size as usize)
+        .filter_map(|item| item.ok())
+        .map(|(_, order)| order)
+        .collect();
 
     Ok(orders)
 }

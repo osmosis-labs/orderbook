@@ -1,7 +1,7 @@
 [workspace]
 
 members = [
-  'contracts/*',
+  'contracts/sumtree-orderbook',
 ]
 
 [profile.release]

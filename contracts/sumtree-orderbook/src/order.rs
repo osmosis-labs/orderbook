@@ -529,10 +529,21 @@ pub(crate) fn run_market_order_internal(
         RoundingDirection::Down,
     )?;
 
+    // Since full market orders must have their bound set at MIN_TICK or MAX_TICK,
+    // we identify partial market orders efficiently by checking if the order diverges
+    // from this pattern.
+    let partial_market_order = match order.order_direction {
+        OrderDirection::Ask => tick_bound > MIN_TICK,
+        OrderDirection::Bid => tick_bound < MAX_TICK,
+    };
+
     // If, after iterating through all remaining ticks, the order quantity is still not filled (excluding dust),
     // we error out as the orderbook has insufficient liquidity to fill the order.
+    //
+    // We bypass this check if the order is a partial market order, which is allowed to have remaining input after
+    // completion.
     ensure!(
-        remaining_balance.is_zero(),
+        remaining_balance.is_zero() || partial_market_order,
         ContractError::InsufficientLiquidity
     );
 

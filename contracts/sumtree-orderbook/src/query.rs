@@ -7,14 +7,14 @@ use crate::{
     constants::{MAX_TICK, MIN_TICK},
     error::ContractResult,
     msg::{
-        AllTicksResponse, CalcOutAmtGivenInResponse, GetSwapFeeResponse,
+        AllTicksResponse, CalcOutAmtGivenInResponse, DenomsResponse, GetSwapFeeResponse,
         GetTotalPoolLiquidityResponse, SpotPriceResponse, TickIdAndState,
     },
     order,
-    state::{get_directional_liquidity, IS_ACTIVE, ORDERBOOK, TICK_STATE},
+    state::{get_directional_liquidity, get_orders_by_owner, IS_ACTIVE, ORDERBOOK, TICK_STATE},
     sudo::ensure_swap_fee,
     tick_math::tick_to_price,
-    types::{MarketOrder, OrderDirection},
+    types::{FilterOwnerOrders, LimitOrder, MarketOrder, OrderDirection},
     ContractError,
 };
 
@@ -186,5 +186,31 @@ pub(crate) fn is_active(deps: Deps) -> ContractResult<bool> {
 pub(crate) fn get_swap_fee() -> ContractResult<GetSwapFeeResponse> {
     Ok(GetSwapFeeResponse {
         swap_fee: Decimal::zero(),
+    })
+}
+
+/// Returns all active orders for a given address
+pub(crate) fn orders_by_owner(
+    deps: Deps,
+    owner: Addr,
+    start_from: Option<(i64, u64)>,
+    end_at: Option<(i64, u64)>,
+    limit: Option<u64>,
+) -> ContractResult<Vec<LimitOrder>> {
+    let orders = get_orders_by_owner(
+        deps.storage,
+        FilterOwnerOrders::all(owner),
+        start_from,
+        end_at,
+        limit,
+    )?;
+    Ok(orders)
+}
+
+pub(crate) fn denoms(deps: Deps) -> ContractResult<DenomsResponse> {
+    let orderbook = ORDERBOOK.load(deps.storage)?;
+    Ok(DenomsResponse {
+        quote_denom: orderbook.quote_denom,
+        base_denom: orderbook.base_denom,
     })
 }

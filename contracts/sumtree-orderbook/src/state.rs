@@ -8,8 +8,7 @@ use cw_storage_plus::{Bound, Index, IndexList, IndexedMap, Item, Map, MultiIndex
 pub const ORDER_ID: Item<u64> = Item::new("order_id");
 
 // Pagination constants for queries
-const MAX_PAGE_SIZE: u8 = 100;
-const DEFAULT_PAGE_SIZE: u8 = 50;
+const DEFAULT_PAGE_SIZE: u64 = 100;
 
 pub const ORDERBOOK: Item<Orderbook> = Item::new("orderbook");
 pub const TICK_STATE: Map<i64, TickState> = Map::new("tick_state");
@@ -21,9 +20,9 @@ pub const MAKER_FEE: Item<Decimal256> = Item::new("maker_fee");
 pub const MAKER_FEE_RECIPIENT: Item<Addr> = Item::new("maker_fee_recipient");
 
 pub struct OrderIndexes {
-    // Index by owner; Generic types: MultiIndex<Index Key: owner, Input Data: LimitOrder, Map Key: ( tick, order_id)>
+    // Index by owner; Generic types: MultiIndex<Index Key: owner, Input Data: LimitOrder, Map Key: (tick_id, order_id)>
     pub owner: MultiIndex<'static, Addr, LimitOrder, (i64, u64)>,
-    // Index by tick and owner; Generic types: MultiIndex<Index Key: (tick_id, owner), Input Data: LimitOrder, Map Key: (tick, order_id)>
+    // Index by tick and owner; Generic types: MultiIndex<Index Key: (tick_id, owner), Input Data: LimitOrder, Map Key: (tick_id, order_id)>
     pub tick_and_owner: MultiIndex<'static, (i64, Addr), LimitOrder, (i64, u64)>,
 }
 
@@ -81,11 +80,11 @@ pub fn get_orders_by_owner(
     filter: FilterOwnerOrders,
     min: Option<(i64, u64)>,
     max: Option<(i64, u64)>,
-    page_size: Option<u8>,
+    page_size: Option<u64>,
 ) -> StdResult<Vec<LimitOrder>> {
-    let page_size = page_size.unwrap_or(DEFAULT_PAGE_SIZE).min(MAX_PAGE_SIZE) as usize;
+    let page_size = page_size.unwrap_or(DEFAULT_PAGE_SIZE) as usize;
     let min = min.map(Bound::exclusive);
-    let max = max.map(Bound::exclusive);
+    let max = max.map(Bound::inclusive);
 
     // Define the prefix iterator based on the filter
     let iter = match filter {

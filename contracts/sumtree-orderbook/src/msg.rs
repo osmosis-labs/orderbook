@@ -61,6 +61,12 @@ pub enum AuthExecuteMsg {
 #[cw_serde]
 pub enum MigrateMsg {}
 
+#[cw_serde]
+pub struct DenomsResponse {
+    pub quote_denom: String,
+    pub base_denom: String,
+}
+
 /// Message type for `query` entry_point
 #[cw_serde]
 #[derive(QueryResponses)]
@@ -104,6 +110,21 @@ pub enum QueryMsg {
 
     #[returns(bool)]
     IsActive {},
+
+    #[returns(Vec<crate::types::LimitOrder>)]
+    OrdersByOwner {
+        // The address of the order maker
+        owner: Addr,
+        // For indexed based pagination (tick_id, order_id), exclusive
+        start_from: Option<(i64, u64)>,
+        // For indexed based pagination (tick_id, order_id), inclusive
+        end_at: Option<(i64, u64)>,
+        // Defaults to 100
+        limit: Option<u64>,
+    },
+
+    #[returns(DenomsResponse)]
+    Denoms {},
 }
 
 #[cw_serde]

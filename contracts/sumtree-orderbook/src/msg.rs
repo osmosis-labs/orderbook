@@ -61,6 +61,12 @@ pub enum AuthExecuteMsg {
 #[cw_serde]
 pub enum MigrateMsg {}
 
+#[cw_serde]
+pub struct DenomsResponse {
+    pub quote_denom: String,
+    pub base_denom: String,
+}
+
 /// Message type for `query` entry_point
 #[cw_serde]
 #[derive(QueryResponses)]
@@ -95,6 +101,8 @@ pub enum QueryMsg {
         /// The limit for amount of items to return
         limit: Option<usize>,
     },
+    #[returns(MakerFee)]
+    GetMakerFee {},
 
     // -- Auth Queries --
     #[returns(Option<Addr>)]
@@ -102,6 +110,21 @@ pub enum QueryMsg {
 
     #[returns(bool)]
     IsActive {},
+
+    #[returns(Vec<crate::types::LimitOrder>)]
+    OrdersByOwner {
+        // The address of the order maker
+        owner: Addr,
+        // For indexed based pagination (tick_id, order_id), exclusive
+        start_from: Option<(i64, u64)>,
+        // For indexed based pagination (tick_id, order_id), inclusive
+        end_at: Option<(i64, u64)>,
+        // Defaults to 100
+        limit: Option<u64>,
+    },
+
+    #[returns(DenomsResponse)]
+    Denoms {},
 }
 
 #[cw_serde]
@@ -139,6 +162,11 @@ pub struct GetSwapFeeResponse {
 }
 
 #[cw_serde]
+pub struct MakerFee {
+    pub maker_fee: Decimal256,
+}
+
+#[cw_serde]
 pub struct TickIdAndState {
     pub tick_id: i64,
     pub tick_state: TickState,
@@ -161,6 +189,16 @@ pub enum SudoMsg {
         token_out_denom: String,
         token_out_min_amount: Uint128,
         swap_fee: Decimal,
+    },
+    // SwapToTick functions exactly as SwapExactAmountIn, but it terminates the swap when the target tick
+    // is reached.
+    SwapToTick {
+        sender: String,
+        token_in: Coin,
+        token_out_denom: String,
+        token_out_min_amount: Uint128,
+        swap_fee: Decimal,
+        target_tick: i64,
     },
     /// SwapExactAmountOut swaps as many tokens in as possible for an exact amount of tokens out.
     /// The amount of tokens in is determined by the current exchange rate and the swap fee.

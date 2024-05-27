@@ -195,7 +195,7 @@ pub(crate) fn orders_by_owner(
     owner: Addr,
     start_from: Option<(i64, u64)>,
     end_at: Option<(i64, u64)>,
-    limit: Option<u8>,
+    limit: Option<u64>,
 ) -> ContractResult<Vec<LimitOrder>> {
     let orders = get_orders_by_owner(
         deps.storage,

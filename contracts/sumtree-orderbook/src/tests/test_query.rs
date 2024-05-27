@@ -1176,7 +1176,7 @@ struct OrdersByOwnerTestCase {
     owner: Addr,
     start_from: Option<(i64, u64)>,
     end_at: Option<(i64, u64)>,
-    limit: Option<u8>,
+    limit: Option<u64>,
     expected_error: Option<ContractError>,
 }
 

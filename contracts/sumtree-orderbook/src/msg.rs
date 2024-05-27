@@ -118,7 +118,7 @@ pub enum QueryMsg {
         // For indexed based pagination (tick_id, order_id), inclusive
         end_at: Option<(i64, u64)>,
         // Defaults to 100
-        limit: Option<u8>,
+        limit: Option<u64>,
     },
 
     #[returns(DenomsResponse)]

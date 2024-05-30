@@ -504,6 +504,7 @@ fn test_cancel_limit() {
             "{}",
             format_test_name(test.name)
         );
+        
         assert_eq!(
             response.attributes[1],
             ("owner", test.owner),
@@ -519,6 +520,25 @@ fn test_cancel_limit() {
         assert_eq!(
             response.attributes[3],
             ("order_id", test.order_id.to_string()),
+            "{}",
+            format_test_name(test.name)
+        );
+        assert_eq!(
+            response.attributes[4],
+            ("quantity", test.quantity.to_string()),
+            "{}",
+            format_test_name(test.name)
+        );
+        assert_eq!(
+            response.attributes[5],
+            ("order_direction", test.order_direction.to_string()),
+            "{}",
+            format_test_name(test.name)
+        );
+        assert_eq!(
+            response.attributes[6],
+            // Since this test does not cover partial fills, the remaining quantity is the same as the initial placed quantity
+            ("initial_quantity", test.quantity.to_string()),
             "{}",
             format_test_name(test.name)
         );
@@ -1468,7 +1488,7 @@ fn test_claim_order() {
                 Uint128::from(5u128),
                 decimal256_from_u128(5u128),
                 None,
-            )),
+            ).with_placed_quantity(10u128)),  // Added placed quantity to expected order state
             expected_error: None,
         },
         ClaimOrderTestCase {
@@ -1675,7 +1695,7 @@ fn test_claim_order() {
                 Uint128::from(6u128),
                 decimal256_from_u128(4u128),
                 None,
-            )),
+            ).with_placed_quantity(10u128)),
             expected_error: None,
         },
         ClaimOrderTestCase {
@@ -1794,7 +1814,7 @@ fn test_claim_order() {
                 Uint128::from(50u128),
                 decimal256_from_u128(50u128),
                 None,
-            )),
+            ).with_placed_quantity(100u128)),
             expected_error: None,
         },
         ClaimOrderTestCase {
@@ -1924,7 +1944,7 @@ fn test_claim_order() {
                 Uint128::from(7u128),
                 decimal256_from_u128(3u128),
                 None,
-            )),
+            ).with_placed_quantity(10u128)),
             expected_error: None,
         },
         // A tick id of 0 operates on a tick price of 1
@@ -2001,7 +2021,7 @@ fn test_claim_order() {
                 Uint128::from(5u128),
                 decimal256_from_u128(5u128),
                 None,
-            )),
+            ).with_placed_quantity(10u128)),
             expected_error: None,
         },
         ClaimOrderTestCase {
@@ -2119,7 +2139,7 @@ fn test_claim_order() {
                 Uint128::from(5u128),
                 decimal256_from_u128(5u128),
                 None,
-            )),
+            ).with_placed_quantity(10u128)),
             expected_error: None,
         },
         ClaimOrderTestCase {
@@ -2237,7 +2257,7 @@ fn test_claim_order() {
                 Uint128::from(50u128),
                 decimal256_from_u128(50u128),
                 None,
-            )),
+            ).with_placed_quantity(100u128)),
             expected_error: None,
         },
         ClaimOrderTestCase {
@@ -2727,7 +2747,7 @@ fn test_claim_order_moving_tick() {
                 Uint128::from(25u128),
                 decimal256_from_u128(25u128),
                 None,
-            )),
+            ).with_placed_quantity(50u128)),
             expected_error: None,
         },
         MovingClaimOrderTestCase {
@@ -2799,7 +2819,7 @@ fn test_claim_order_moving_tick() {
                 Uint128::from(25u128),
                 decimal256_from_u128(50u128),
                 None,
-            )),
+            ).with_placed_quantity(50u128)),
             expected_error: None,
         },
         MovingClaimOrderTestCase {
@@ -2837,7 +2857,6 @@ fn test_claim_order_moving_tick() {
                 )),
             ],
             order_id: 1,
-
             tick_id: valid_tick_id,
             expected_output: SubMsg::reply_on_error(
                 MsgSend256 {
@@ -2855,7 +2874,7 @@ fn test_claim_order_moving_tick() {
                 Uint128::from(25u128),
                 decimal256_from_u128(25u128),
                 None,
-            )),
+            ).with_placed_quantity(50u128)),
             expected_error: None,
         },
         MovingClaimOrderTestCase {
@@ -3035,7 +3054,7 @@ fn test_claim_order_moving_tick() {
                 Uint128::from(25u128),
                 decimal256_from_u128(25u128),
                 None,
-            )),
+            ).with_placed_quantity(50u128)),
             expected_error: None,
         },
         MovingClaimOrderTestCase {
@@ -3107,7 +3126,7 @@ fn test_claim_order_moving_tick() {
                 Uint128::from(25u128),
                 decimal256_from_u128(50u128),
                 None,
-            )),
+            ).with_placed_quantity(50u128)),
             expected_error: None,
         },
         MovingClaimOrderTestCase {
@@ -3163,7 +3182,7 @@ fn test_claim_order_moving_tick() {
                 Uint128::from(25u128),
                 decimal256_from_u128(25u128),
                 None,
-            )),
+            ).with_placed_quantity(50u128)),
             expected_error: None,
         },
         MovingClaimOrderTestCase {
@@ -3913,7 +3932,7 @@ fn test_maker_fee() {
             continue;
         } 
 
-        let (_, msgs) = result.unwrap();
+        let (_, msgs, _) = result.unwrap();
 
         // The claimer's message is always first in the array of bank messages
         let claimer_msg = msgs.first().unwrap();

@@ -44,15 +44,15 @@ fn test_order_iteration() {
     let tick = 0;
     for i in 0..order_amount {
         let order_id = new_order_id(&mut storage).unwrap();
-        let order = LimitOrder {
-            tick_id: tick,
+        let order = LimitOrder::new(
+            tick,
             order_id,
-            owner: Addr::unchecked(format!("maker{i}")),
-            quantity: Uint128::new(i as u128),
-            order_direction: OrderDirection::Ask,
-            etas: Decimal256::zero(),
-            claim_bounty: None,
-        };
+            OrderDirection::Ask,
+            Addr::unchecked(format!("maker{i}")),
+            Uint128::new(i as u128),
+            Decimal256::zero(),
+            None,
+        );
         orders().save(&mut storage, &(tick, i), &order).unwrap();
     }
 
@@ -103,6 +103,43 @@ fn test_get_orders_by_owner_all() {
     .unwrap();
 
     assert_eq!(owner_orders.len(), order_amount / 2 + 1);
+    owner_orders.iter().for_each(|order| {
+        assert_eq!(order.owner, Addr::unchecked(owner));
+    });
+}
+
+#[test]
+fn test_get_orders_by_owner_all_larger_than_default_page_size() {
+    let mut storage = MockStorage::new();
+    let order_amount = 400;
+    let owner = "owner1";
+
+    (0..order_amount).for_each(|i| {
+        let order_id = new_order_id(&mut storage).unwrap();
+        let other_owner = &format!("owner{i}");
+        let current_owner = Addr::unchecked(if i % 2 == 0 { owner } else { other_owner });
+        let order = LimitOrder::new(
+            0,
+            order_id,
+            OrderDirection::Ask,
+            current_owner,
+            Uint128::new(i as u128),
+            Decimal256::zero(),
+            None,
+        );
+        orders().save(&mut storage, &(0, i as u64), &order).unwrap();
+    });
+
+    let owner_orders: Vec<LimitOrder> = get_orders_by_owner(
+        &storage,
+        FilterOwnerOrders::All(Addr::unchecked(owner)),
+        None,
+        None,
+        Some(150),
+    )
+    .unwrap();
+
+    assert_eq!(owner_orders.len(), 150);
     owner_orders.iter().for_each(|order| {
         assert_eq!(order.owner, Addr::unchecked(owner));
     });

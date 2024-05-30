@@ -113,6 +113,7 @@ pub(crate) fn generate_limit_orders(
                 order_direction,
                 owner: Addr::unchecked(DEFAULT_OWNER),
                 quantity: quantity_per_order,
+                placed_quantity: quantity_per_order,
                 // We set these values to zero since they will be unused anyway
                 order_id: 0,
                 etas: Decimal256::zero(),

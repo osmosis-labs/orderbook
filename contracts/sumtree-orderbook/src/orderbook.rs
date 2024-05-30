@@ -12,6 +12,8 @@ pub fn create_orderbook(
 ) -> ContractResult<()> {
     let denoms = [quote_denom.clone(), base_denom.clone()];
 
+    ensure!(quote_denom != base_denom, ContractError::DuplicateDenoms {});
+
     for denom in denoms {
         let maybe_supply = deps.querier.query_supply(denom.clone());
 

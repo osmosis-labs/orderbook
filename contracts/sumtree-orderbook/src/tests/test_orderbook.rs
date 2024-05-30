@@ -49,6 +49,12 @@ fn test_create_orderbook() {
                 denom: "".to_string(),
             }),
         },
+        CreateOrderbookTestCase {
+            name: "duplicate denoms",
+            quote_denom: QUOTE_DENOM.to_string(),
+            base_denom: QUOTE_DENOM.to_string(),
+            expected_error: Some(ContractError::DuplicateDenoms {}),
+        },
     ];
 
     for test in test_cases {

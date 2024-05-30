@@ -60,6 +60,9 @@ pub enum ContractError {
     #[error("Invalid denom")]
     InvalidDenom { denom: String },
 
+    #[error("Base and quote denoms cannot be the same")]
+    DuplicateDenoms {},
+
     #[error("Order not found: {tick_id:?}, {order_id:?}")]
     OrderNotFound { tick_id: i64, order_id: u64 },
 
@@ -107,7 +110,7 @@ pub enum ContractError {
 
     #[error("Max spot price exceeded")]
     MaxSpotPriceExceeded,
-  
+
     #[error("No maker fee recipient currently set")]
     NoMakerFeeRecipient,
 

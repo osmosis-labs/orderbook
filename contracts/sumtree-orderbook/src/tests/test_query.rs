@@ -1408,7 +1408,7 @@ fn test_orders_by_owner() {
 
     for test in test_cases {
         // -- Test Setup --
-        let mut deps = mock_dependencies();
+        let mut deps = mock_dependencies_custom();
         let env = mock_env();
         let info = mock_info(test.owner.as_str(), &[]);
 

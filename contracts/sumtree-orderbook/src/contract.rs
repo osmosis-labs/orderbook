@@ -155,7 +155,7 @@ pub fn reply(_deps: DepsMut, _env: Env, msg: Reply) -> Result<Response, Contract
             error: msg.result.unwrap_err(),
         }
     );
-    todo!()
+    Ok(Response::default())
 }
 
 #[allow(clippy::too_many_arguments)]

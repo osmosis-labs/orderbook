@@ -1,6 +1,6 @@
 use cosmwasm_std::{
     coin,
-    testing::{mock_dependencies, mock_env, mock_info},
+    testing::{mock_env, mock_info},
     Addr, Coin, Decimal, Decimal256, Uint128,
 };
 
@@ -9,13 +9,16 @@ use crate::{
     orderbook::create_orderbook,
     query,
     state::IS_ACTIVE,
+    tests::mock_querier::mock_dependencies_custom,
     types::{coin_u256, Coin256, LimitOrder, MarketOrder, OrderDirection, TickState, TickValues},
     ContractError,
 };
 
-use super::test_utils::{
-    decimal256_from_u128, format_test_name, generate_tick_ids, OrderOperation, LARGE_NEGATIVE_TICK,
-    LARGE_POSITIVE_TICK,
+use super::{
+    test_constants::{
+        BASE_DENOM, DEFAULT_SENDER, LARGE_NEGATIVE_TICK, LARGE_POSITIVE_TICK, QUOTE_DENOM,
+    },
+    test_utils::{decimal256_from_u128, format_test_name, generate_tick_ids, OrderOperation},
 };
 
 struct SpotPriceTestCase {
@@ -29,9 +32,7 @@ struct SpotPriceTestCase {
 
 #[test]
 fn test_query_spot_price() {
-    let sender = Addr::unchecked("sender");
-    let base_denom = "base";
-    let quote_denom = "quote";
+    let sender = Addr::unchecked(DEFAULT_SENDER);
     let test_cases: Vec<SpotPriceTestCase> = vec![
         SpotPriceTestCase {
             name: "BID: basic price 1 query",
@@ -44,8 +45,8 @@ fn test_query_spot_price() {
                 Decimal256::zero(),
                 None,
             ))],
-            base_denom: base_denom.to_string(),
-            quote_denom: quote_denom.to_string(),
+            base_denom: BASE_DENOM.to_string(),
+            quote_denom: QUOTE_DENOM.to_string(),
             expected_price: Decimal::one(),
             expected_error: None,
         },
@@ -80,8 +81,8 @@ fn test_query_spot_price() {
                     None,
                 )),
             ],
-            base_denom: base_denom.to_string(),
-            quote_denom: quote_denom.to_string(),
+            base_denom: BASE_DENOM.to_string(),
+            quote_denom: QUOTE_DENOM.to_string(),
             expected_price: Decimal::one(),
             expected_error: None,
         },
@@ -107,8 +108,8 @@ fn test_query_spot_price() {
                     None,
                 )),
             ],
-            base_denom: base_denom.to_string(),
-            quote_denom: quote_denom.to_string(),
+            base_denom: BASE_DENOM.to_string(),
+            quote_denom: QUOTE_DENOM.to_string(),
             expected_price: Decimal::one(),
             expected_error: None,
         },
@@ -139,8 +140,8 @@ fn test_query_spot_price() {
                     sender.clone(),
                 )),
             ],
-            base_denom: base_denom.to_string(),
-            quote_denom: quote_denom.to_string(),
+            base_denom: BASE_DENOM.to_string(),
+            quote_denom: QUOTE_DENOM.to_string(),
             expected_price: Decimal::percent(200),
             expected_error: None,
         },
@@ -155,8 +156,8 @@ fn test_query_spot_price() {
                 Decimal256::zero(),
                 None,
             ))],
-            base_denom: quote_denom.to_string(),
-            quote_denom: base_denom.to_string(),
+            base_denom: QUOTE_DENOM.to_string(),
+            quote_denom: BASE_DENOM.to_string(),
             expected_price: Decimal::one(),
             expected_error: None,
         },
@@ -191,8 +192,8 @@ fn test_query_spot_price() {
                     None,
                 )),
             ],
-            base_denom: quote_denom.to_string(),
-            quote_denom: base_denom.to_string(),
+            base_denom: QUOTE_DENOM.to_string(),
+            quote_denom: BASE_DENOM.to_string(),
             expected_price: Decimal::one(),
             expected_error: None,
         },
@@ -218,8 +219,8 @@ fn test_query_spot_price() {
                     None,
                 )),
             ],
-            base_denom: quote_denom.to_string(),
-            quote_denom: base_denom.to_string(),
+            base_denom: QUOTE_DENOM.to_string(),
+            quote_denom: BASE_DENOM.to_string(),
             expected_price: Decimal::one(),
             expected_error: None,
         },
@@ -250,41 +251,41 @@ fn test_query_spot_price() {
                     sender.clone(),
                 )),
             ],
-            base_denom: quote_denom.to_string(),
-            quote_denom: base_denom.to_string(),
+            base_denom: QUOTE_DENOM.to_string(),
+            quote_denom: BASE_DENOM.to_string(),
             expected_price: Decimal::percent(50),
             expected_error: None,
         },
         SpotPriceTestCase {
             name: "invalid: duplicate denom",
             pre_operations: vec![],
-            base_denom: base_denom.to_string(),
-            quote_denom: base_denom.to_string(),
+            base_denom: BASE_DENOM.to_string(),
+            quote_denom: BASE_DENOM.to_string(),
             expected_price: Decimal::percent(50),
             expected_error: Some(ContractError::InvalidPair {
-                token_in_denom: base_denom.to_string(),
-                token_out_denom: base_denom.to_string(),
+                token_in_denom: BASE_DENOM.to_string(),
+                token_out_denom: BASE_DENOM.to_string(),
             }),
         },
         SpotPriceTestCase {
             name: "invalid: incorrect base denom",
             pre_operations: vec![],
             base_denom: "notadenom".to_string(),
-            quote_denom: quote_denom.to_string(),
+            quote_denom: QUOTE_DENOM.to_string(),
             expected_price: Decimal::percent(50),
             expected_error: Some(ContractError::InvalidPair {
-                token_in_denom: quote_denom.to_string(),
+                token_in_denom: QUOTE_DENOM.to_string(),
                 token_out_denom: "notadenom".to_string(),
             }),
         },
         SpotPriceTestCase {
             name: "invalid: incorrect quote denom",
             pre_operations: vec![],
-            base_denom: base_denom.to_string(),
+            base_denom: BASE_DENOM.to_string(),
             quote_denom: "notadenom".to_string(),
             expected_price: Decimal::percent(50),
             expected_error: Some(ContractError::InvalidPair {
-                token_out_denom: base_denom.to_string(),
+                token_out_denom: BASE_DENOM.to_string(),
                 token_in_denom: "notadenom".to_string(),
             }),
         },
@@ -292,14 +293,14 @@ fn test_query_spot_price() {
 
     for test in test_cases {
         // -- Test Setup --
-        let mut deps = mock_dependencies();
+        let mut deps = mock_dependencies_custom();
         let env = mock_env();
         let info = mock_info(sender.as_str(), &[]);
 
         create_orderbook(
             deps.as_mut(),
-            quote_denom.to_string(),
-            base_denom.to_string(),
+            QUOTE_DENOM.to_string(),
+            BASE_DENOM.to_string(),
         )
         .unwrap();
 
@@ -337,7 +338,7 @@ struct CalcOutAmountGivenInTestCase {
     name: &'static str,
     pre_operations: Vec<OrderOperation>,
     token_in: Coin,
-    token_out_denom: String,
+    token_out_denom: &'static str,
     swap_fee: Decimal,
     expected_output: Coin256,
     expected_error: Option<ContractError>,
@@ -345,9 +346,7 @@ struct CalcOutAmountGivenInTestCase {
 
 #[test]
 fn test_calc_out_amount_given_in() {
-    let sender = Addr::unchecked("sender");
-    let quote_denom = "quote".to_string();
-    let base_denom = "base".to_string();
+    let sender = Addr::unchecked(DEFAULT_SENDER);
 
     let test_cases = vec![
         CalcOutAmountGivenInTestCase {
@@ -361,10 +360,10 @@ fn test_calc_out_amount_given_in() {
                 Decimal256::percent(0),
                 None,
             ))],
-            token_in: coin(100, &quote_denom),
-            token_out_denom: base_denom.clone(),
+            token_in: coin(100, QUOTE_DENOM),
+            token_out_denom: BASE_DENOM,
             swap_fee: EXPECTED_SWAP_FEE,
-            expected_output: coin_u256(100u128, &base_denom),
+            expected_output: coin_u256(100u128, BASE_DENOM),
             expected_error: None,
         },
         CalcOutAmountGivenInTestCase {
@@ -378,10 +377,10 @@ fn test_calc_out_amount_given_in() {
                 Decimal256::percent(0),
                 None,
             ))],
-            token_in: coin(150, &quote_denom),
-            token_out_denom: base_denom.clone(),
+            token_in: coin(150, QUOTE_DENOM),
+            token_out_denom: BASE_DENOM,
             swap_fee: EXPECTED_SWAP_FEE,
-            expected_output: coin_u256(0u128, &base_denom),
+            expected_output: coin_u256(0u128, BASE_DENOM),
             expected_error: Some(ContractError::InsufficientLiquidity {}),
         },
         CalcOutAmountGivenInTestCase {
@@ -424,11 +423,11 @@ fn test_calc_out_amount_given_in() {
                     None,
                 )),
             ],
-            token_in: coin(150, &quote_denom),
-            token_out_denom: base_denom.clone(),
+            token_in: coin(150, QUOTE_DENOM),
+            token_out_denom: BASE_DENOM,
             swap_fee: EXPECTED_SWAP_FEE,
             // Output: 100*1 (tick: 0) + 50*2 (tick: LARGE_POSITIVE_TICK) = 200
-            expected_output: coin_u256(200u128, &base_denom),
+            expected_output: coin_u256(200u128, BASE_DENOM),
             expected_error: None,
         },
         CalcOutAmountGivenInTestCase {
@@ -442,10 +441,10 @@ fn test_calc_out_amount_given_in() {
                 Decimal256::percent(0),
                 None,
             ))],
-            token_in: coin(100, &base_denom),
-            token_out_denom: quote_denom.clone(),
+            token_in: coin(100, BASE_DENOM),
+            token_out_denom: QUOTE_DENOM,
             swap_fee: EXPECTED_SWAP_FEE,
-            expected_output: coin_u256(100u128, &quote_denom),
+            expected_output: coin_u256(100u128, QUOTE_DENOM),
             expected_error: None,
         },
         CalcOutAmountGivenInTestCase {
@@ -459,10 +458,10 @@ fn test_calc_out_amount_given_in() {
                 Decimal256::percent(0),
                 None,
             ))],
-            token_in: coin(150, &base_denom),
-            token_out_denom: quote_denom.clone(),
+            token_in: coin(150, BASE_DENOM),
+            token_out_denom: QUOTE_DENOM,
             swap_fee: EXPECTED_SWAP_FEE,
-            expected_output: coin_u256(0u128, &quote_denom),
+            expected_output: coin_u256(0u128, QUOTE_DENOM),
             expected_error: Some(ContractError::InsufficientLiquidity {}),
         },
         CalcOutAmountGivenInTestCase {
@@ -505,65 +504,65 @@ fn test_calc_out_amount_given_in() {
                     None,
                 )),
             ],
-            token_in: coin(150, &base_denom),
-            token_out_denom: quote_denom.clone(),
+            token_in: coin(150, BASE_DENOM),
+            token_out_denom: QUOTE_DENOM,
             swap_fee: EXPECTED_SWAP_FEE,
             // Output: 25 at 0.5 tick price + 100 at 1 tick price = 125
-            expected_output: coin_u256(125u128, &quote_denom),
+            expected_output: coin_u256(125u128, QUOTE_DENOM),
             expected_error: None,
         },
         CalcOutAmountGivenInTestCase {
             name: "insufficient liquidity",
             pre_operations: vec![],
-            token_in: coin(100, &quote_denom),
-            token_out_denom: base_denom.clone(),
+            token_in: coin(100, QUOTE_DENOM),
+            token_out_denom: BASE_DENOM,
             swap_fee: EXPECTED_SWAP_FEE,
-            expected_output: coin_u256(0u128, &base_denom),
+            expected_output: coin_u256(0u128, BASE_DENOM),
             expected_error: Some(ContractError::InsufficientLiquidity {}),
         },
         CalcOutAmountGivenInTestCase {
             name: "invalid duplicate denom",
             pre_operations: vec![],
-            token_in: coin(100, &base_denom),
-            token_out_denom: base_denom.clone(),
+            token_in: coin(100, BASE_DENOM),
+            token_out_denom: BASE_DENOM,
             swap_fee: EXPECTED_SWAP_FEE,
-            expected_output: coin_u256(0u128, &base_denom),
+            expected_output: coin_u256(0u128, BASE_DENOM),
             expected_error: Some(ContractError::InvalidPair {
-                token_in_denom: base_denom.to_string(),
-                token_out_denom: base_denom.to_string(),
+                token_in_denom: BASE_DENOM.to_string(),
+                token_out_denom: BASE_DENOM.to_string(),
             }),
         },
         CalcOutAmountGivenInTestCase {
             name: "invalid in denom",
             pre_operations: vec![],
             token_in: coin(100, "notadenom"),
-            token_out_denom: base_denom.clone(),
+            token_out_denom: BASE_DENOM,
             swap_fee: EXPECTED_SWAP_FEE,
-            expected_output: coin_u256(0u128, &base_denom),
+            expected_output: coin_u256(0u128, BASE_DENOM),
             expected_error: Some(ContractError::InvalidPair {
                 token_in_denom: "notadenom".to_string(),
-                token_out_denom: base_denom.to_string(),
+                token_out_denom: BASE_DENOM.to_string(),
             }),
         },
         CalcOutAmountGivenInTestCase {
             name: "invalid out denom",
             pre_operations: vec![],
-            token_in: coin(100, &base_denom),
-            token_out_denom: "notadenom".to_string(),
+            token_in: coin(100, BASE_DENOM),
+            token_out_denom: "notadenom",
             swap_fee: EXPECTED_SWAP_FEE,
-            expected_output: coin_u256(0u128, &base_denom),
+            expected_output: coin_u256(0u128, BASE_DENOM),
             expected_error: Some(ContractError::InvalidPair {
-                token_in_denom: base_denom.to_string(),
+                token_in_denom: BASE_DENOM.to_string(),
                 token_out_denom: "notadenom".to_string(),
             }),
         },
         CalcOutAmountGivenInTestCase {
             name: "invalid zero amount",
             pre_operations: vec![],
-            token_in: coin(0, &base_denom),
-            token_out_denom: quote_denom.to_string(),
+            token_in: coin(0, BASE_DENOM),
+            token_out_denom: QUOTE_DENOM,
             swap_fee: EXPECTED_SWAP_FEE,
-            expected_output: coin_u256(0u128, &base_denom),
+            expected_output: coin_u256(0u128, BASE_DENOM),
             expected_error: Some(ContractError::InvalidSwap {
                 error: "Input amount cannot be zero".to_string(),
             }),
@@ -572,14 +571,14 @@ fn test_calc_out_amount_given_in() {
 
     for test in test_cases {
         // -- Test Setup --
-        let mut deps = mock_dependencies();
+        let mut deps = mock_dependencies_custom();
         let env = mock_env();
         let info = mock_info(sender.as_str(), &[]);
 
         create_orderbook(
             deps.as_mut(),
-            quote_denom.to_string(),
-            base_denom.to_string(),
+            QUOTE_DENOM.to_string(),
+            BASE_DENOM.to_string(),
         )
         .unwrap();
 
@@ -593,7 +592,7 @@ fn test_calc_out_amount_given_in() {
         let res = query::calc_out_amount_given_in(
             deps.as_ref(),
             test.token_in.clone(),
-            test.token_out_denom.clone(),
+            test.token_out_denom.to_string(),
             test.swap_fee,
         );
 
@@ -628,15 +627,13 @@ struct TotalPoolLiquidityTestCase {
 
 #[test]
 fn test_total_pool_liquidity() {
-    let sender = Addr::unchecked("sender");
-    let quote_denom = "quote".to_string();
-    let base_denom = "base".to_string();
+    let sender = Addr::unchecked(DEFAULT_SENDER);
 
     let test_cases = vec![
         TotalPoolLiquidityTestCase {
             name: "simple test",
             pre_operations: vec![],
-            expected_output: vec![coin(0, &base_denom), coin(0, &quote_denom)],
+            expected_output: vec![coin(0, BASE_DENOM), coin(0, QUOTE_DENOM)],
             expected_error: None,
         },
         TotalPoolLiquidityTestCase {
@@ -661,7 +658,7 @@ fn test_total_pool_liquidity() {
                     None,
                 )),
             ],
-            expected_output: vec![coin(100, &base_denom), coin(100, &quote_denom)],
+            expected_output: vec![coin(100, BASE_DENOM), coin(100, QUOTE_DENOM)],
             expected_error: None,
         },
         TotalPoolLiquidityTestCase {
@@ -696,21 +693,21 @@ fn test_total_pool_liquidity() {
             ],
             // Base: 11 ticks at 110*100 = 11000*11 = 121000
             // Quote: 11 ticks at 50*100 = 5000*11 = 55000
-            expected_output: vec![coin(121000, &base_denom), coin(55000, &quote_denom)],
+            expected_output: vec![coin(121000, BASE_DENOM), coin(55000, QUOTE_DENOM)],
             expected_error: None,
         },
     ];
 
     for test in test_cases {
         // -- Test Setup --
-        let mut deps = mock_dependencies();
+        let mut deps = mock_dependencies_custom();
         let env = mock_env();
         let info = mock_info(sender.as_str(), &[]);
 
         create_orderbook(
             deps.as_mut(),
-            quote_denom.to_string(),
-            base_denom.to_string(),
+            QUOTE_DENOM.to_string(),
+            BASE_DENOM.to_string(),
         )
         .unwrap();
 
@@ -755,9 +752,7 @@ struct AllTicksTestCase {
 
 #[test]
 fn test_all_ticks() {
-    let sender = Addr::unchecked("sender");
-    let quote_denom = "quote".to_string();
-    let base_denom = "base".to_string();
+    let sender = Addr::unchecked(DEFAULT_SENDER);
 
     let test_cases: Vec<AllTicksTestCase> = vec![
         AllTicksTestCase {
@@ -1087,14 +1082,14 @@ fn test_all_ticks() {
 
     for test in test_cases {
         // -- Test Setup --
-        let mut deps = mock_dependencies();
+        let mut deps = mock_dependencies_custom();
         let env = mock_env();
         let info = mock_info(sender.as_str(), &[]);
 
         create_orderbook(
             deps.as_mut(),
-            quote_denom.to_string(),
-            base_denom.to_string(),
+            QUOTE_DENOM.to_string(),
+            BASE_DENOM.to_string(),
         )
         .unwrap();
 
@@ -1149,7 +1144,7 @@ fn test_is_active() {
 
     for test in test_cases {
         // -- Test Setup --
-        let mut deps = mock_dependencies();
+        let mut deps = mock_dependencies_custom();
 
         // Setup state variables
         if let Some(active) = test.is_active {
@@ -1413,7 +1408,7 @@ fn test_orders_by_owner() {
 
     for test in test_cases {
         // -- Test Setup --
-        let mut deps = mock_dependencies();
+        let mut deps = mock_dependencies_custom();
         let env = mock_env();
         let info = mock_info(test.owner.as_str(), &[]);
 

@@ -4,23 +4,24 @@ use crate::{
     constants::{MAX_TICK, MIN_TICK}, error::ContractError, order::*, orderbook::*, state::*, sumtree::{
         node::{NodeType, TreeNode},
         tree::get_root_node,
-    }, tests::test_utils::{decimal256_from_u128, place_multiple_limit_orders}, types::{
+    },
+    tests::{mock_querier::mock_dependencies_custom, test_utils::{decimal256_from_u128, place_multiple_limit_orders}},
+    types::{
         coin_u256, FilterOwnerOrders, LimitOrder, MarketOrder, MsgSend256, OrderDirection, Orderbook, TickState, TickValues, REPLY_ID_CLAIM, REPLY_ID_CLAIM_BOUNTY, REPLY_ID_MAKER_FEE, REPLY_ID_REFUND
-    }
+    },
 };
 use cosmwasm_std::{
-    coin, testing::mock_dependencies, Addr, BankMsg, Coin, Empty, SubMsg, Uint128, Uint256,
+    coin, Addr, BankMsg, Coin, Empty, SubMsg, Uint128, Uint256,
 };
 use cosmwasm_std::{
-    testing::{mock_dependencies_with_balances, mock_env, mock_info},
+    testing::{mock_env, mock_info},
     Decimal256,
 };
 use cw_utils::PaymentError;
 
-use super::test_utils::{
-    format_test_name, generate_limit_orders, OrderOperation, LARGE_NEGATIVE_TICK,
-    LARGE_POSITIVE_TICK,
-};
+use super::{test_constants::{DEFAULT_OWNER, DEFAULT_SENDER, BASE_DENOM, QUOTE_DENOM, LARGE_POSITIVE_TICK, LARGE_NEGATIVE_TICK}, test_utils::{
+    format_test_name, generate_limit_orders, OrderOperation,
+}};
 
 struct PlaceLimitTestCase {
     name: &'static str,
@@ -184,20 +185,17 @@ fn test_place_limit() {
         let coin_vec = vec![coin(
             test.sent.u128(),
             if test.order_direction == OrderDirection::Ask {
-                "base"
+                BASE_DENOM
             } else {
-                "quote"
+                QUOTE_DENOM
             },
         )];
-        let balances = [("creator", coin_vec.as_slice())];
-        let mut deps = mock_dependencies_with_balances(&balances);
+        let mut deps = mock_dependencies_custom();
         let env = mock_env();
-        let info = mock_info("creator", &coin_vec);
+        let info = mock_info(DEFAULT_OWNER, &coin_vec);
 
         // Create an orderbook to operate on
-        let quote_denom = "quote".to_string();
-        let base_denom = "base".to_string();
-        create_orderbook(deps.as_mut(), quote_denom, base_denom).unwrap();
+        create_orderbook(deps.as_mut(), QUOTE_DENOM.to_string(), BASE_DENOM.to_string()).unwrap();
 
         // --- System under test ---
 
@@ -253,7 +251,7 @@ fn test_place_limit() {
         );
         assert_eq!(
             response.attributes[1],
-            ("owner", "creator"),
+            ("owner", DEFAULT_OWNER),
             "{}",
             format_test_name(test.name)
         );
@@ -296,7 +294,7 @@ fn test_place_limit() {
         );
         assert_eq!(
             order.owner,
-            Addr::unchecked("creator"),
+            Addr::unchecked(DEFAULT_OWNER),
             "{}",
             format_test_name(test.name)
         );
@@ -336,7 +334,6 @@ fn test_place_limit() {
 
 struct CancelLimitTestCase {
     name: &'static str,
-
     tick_id: i64,
     order_id: u64,
     order_direction: OrderDirection,
@@ -354,46 +351,42 @@ fn test_cancel_limit() {
     let test_cases = vec![
         CancelLimitTestCase {
             name: "valid order cancel",
-
             tick_id: 1,
             order_id: 0,
             order_direction: OrderDirection::Ask,
             quantity: Uint128::from(100u128),
             place_order: true,
             expected_error: None,
-            owner: "creator",
+            owner: DEFAULT_OWNER,
             sender: None,
             sent: vec![],
         },
         CancelLimitTestCase {
             name: "sent funds accidentally",
-
             tick_id: 1,
             order_id: 0,
             order_direction: OrderDirection::Ask,
             quantity: Uint128::from(100u128),
             place_order: true,
             expected_error: Some(ContractError::PaymentError(PaymentError::NonPayable {})),
-            owner: "creator",
+            owner: DEFAULT_OWNER,
             sender: None,
-            sent: vec![coin(100, "quote")],
+            sent: vec![coin(100, QUOTE_DENOM)],
         },
         CancelLimitTestCase {
             name: "unauthorized cancel (not owner)",
-
             tick_id: 1,
             order_id: 0,
             order_direction: OrderDirection::Ask,
             quantity: Uint128::from(100u128),
             place_order: true,
             expected_error: Some(ContractError::Unauthorized {}),
-            owner: "creator",
+            owner: DEFAULT_OWNER,
             sender: Some("malicious_user"),
             sent: vec![],
         },
         CancelLimitTestCase {
             name: "order not found",
-
             tick_id: 1,
             order_id: 0,
             order_direction: OrderDirection::Ask,
@@ -403,7 +396,7 @@ fn test_cancel_limit() {
                 tick_id: 1,
                 order_id: 0,
             }),
-            owner: "creator",
+            owner: DEFAULT_OWNER,
             sender: None,
             sent: vec![],
         },
@@ -413,20 +406,17 @@ fn test_cancel_limit() {
         // --- Setup ---
 
         // Create a mock environment and info
-        let balances = [(test.owner, test.sent.as_slice())];
-        let mut deps = mock_dependencies_with_balances(&balances);
+        let mut deps = mock_dependencies_custom();
         let env = mock_env();
         let info = mock_info(test.sender.unwrap_or(test.owner), test.sent.as_slice());
 
         // Create an orderbook to operate on
-        let quote_denom = "quote".to_string();
-        let base_denom = "base".to_string();
-        create_orderbook(deps.as_mut(), quote_denom.clone(), base_denom.clone()).unwrap();
+        create_orderbook(deps.as_mut(), QUOTE_DENOM.to_string(), BASE_DENOM.to_string()).unwrap();
 
         if test.place_order {
             let place_info = mock_info(
                 test.owner,
-                &[coin(test.quantity.u128(), base_denom.clone())],
+                &[coin(test.quantity.u128(), BASE_DENOM)],
             );
             place_limit(
                 &mut deps.as_mut(),
@@ -496,8 +486,8 @@ fn test_cancel_limit() {
         // Assert no error and retrieve response contents
         let response = response.unwrap();
         let refund_denom = match test.order_direction {
-            OrderDirection::Bid => quote_denom.clone(),
-            OrderDirection::Ask => base_denom.clone(),
+            OrderDirection::Bid => QUOTE_DENOM,
+            OrderDirection::Ask => BASE_DENOM,
         };
         let expected_refund_msg: SubMsg<Empty> = SubMsg::reply_on_error(
             BankMsg::Send {
@@ -619,7 +609,6 @@ struct RunMarketOrderTestCase {
     placed_order: MarketOrder,
     tick_bound: i64,
     orders: Vec<LimitOrder>,
-    sent: Uint128,
     expected_output: Uint256,
     expected_tick_etas: Vec<(i64, Decimal256)>,
     expected_tick_pointers: Vec<(OrderDirection, i64)>,
@@ -628,23 +617,16 @@ struct RunMarketOrderTestCase {
 
 #[test]
 fn test_run_market_order() {
-    let quote_denom = "quote";
-    let base_denom = "base";
-    // TODO: move these defaults to global scope or helper file
-    let default_owner = "creator";
-    let default_sender = "sender";
     let default_quantity = Uint128::new(100);
     let test_cases = vec![
         RunMarketOrderTestCase {
             name: "happy path bid at negative tick",
-            sent: Uint128::new(1000),
             placed_order: MarketOrder::new(
                 Uint128::new(1000),
                 OrderDirection::Bid,
-                Addr::unchecked(default_sender),
+                Addr::unchecked(DEFAULT_SENDER),
             ),
             tick_bound: MAX_TICK,
-
             // Orders to fill against
             orders: generate_limit_orders(
                 &[-1500000],
@@ -653,7 +635,6 @@ fn test_run_market_order() {
                 default_quantity,
                 OrderDirection::Ask,
             ),
-
             // Bidding 1000 units of input into tick -1500000, which corresponds to $0.85,
             // implies 1000*0.85 = 850 units of output.
             expected_output: Uint256::from_u128(850),
@@ -663,14 +644,12 @@ fn test_run_market_order() {
         },
         RunMarketOrderTestCase {
             name: "happy path bid at positive tick",
-            sent: Uint128::new(1000),
             placed_order: MarketOrder::new(
                 Uint128::new(1000),
                 OrderDirection::Bid,
-                Addr::unchecked(default_sender),
+                Addr::unchecked(DEFAULT_SENDER),
             ),
             tick_bound: MAX_TICK,
-
             // Orders to fill against
             orders: generate_limit_orders(
                 &[40000000],
@@ -680,7 +659,6 @@ fn test_run_market_order() {
                 Uint128::new(25_000_000),
                 OrderDirection::Ask,
             ),
-
             // Bidding 1000 units of input into tick 40,000,000, which corresponds to a
             // price of $50000 (from tick math test cases).
             //
@@ -692,14 +670,12 @@ fn test_run_market_order() {
         },
         RunMarketOrderTestCase {
             name: "bid at very small negative tick",
-            sent: Uint128::new(1000),
             placed_order: MarketOrder::new(
                 Uint128::new(1000),
                 OrderDirection::Bid,
-                Addr::unchecked(default_sender),
+                Addr::unchecked(DEFAULT_SENDER),
             ),
             tick_bound: MAX_TICK,
-
             // Orders to fill against
             orders: generate_limit_orders(
                 &[-17765433],
@@ -709,7 +685,6 @@ fn test_run_market_order() {
                 Uint128::new(3),
                 OrderDirection::Ask,
             ),
-
             // Bidding 1000 units of input into tick -17765433, which corresponds to a
             // price of $0.012345670000000000 (from tick math test cases).
             //
@@ -722,14 +697,12 @@ fn test_run_market_order() {
         },
         RunMarketOrderTestCase {
             name: "bid across multiple ticks",
-            sent: Uint128::new(589 + 1),
             placed_order: MarketOrder::new(
                 Uint128::new(589 + 1),
                 OrderDirection::Bid,
-                Addr::unchecked(default_sender),
+                Addr::unchecked(DEFAULT_SENDER),
             ),
             tick_bound: MAX_TICK,
-
             // Orders to fill against
             orders: generate_limit_orders(
                 &[-1500000, 40000000],
@@ -738,7 +711,6 @@ fn test_run_market_order() {
                 default_quantity,
                 OrderDirection::Ask,
             ),
-
             // Bidding 1000 units of input into tick -1500000, which corresponds to $0.85,
             // implies 1000*0.85 = 850 units of output, but there is only 500 on the tick.
             //
@@ -760,14 +732,12 @@ fn test_run_market_order() {
         },
         RunMarketOrderTestCase {
             name: "happy path ask at positive tick",
-            sent: Uint128::new(100000),
             placed_order: MarketOrder::new(
                 Uint128::new(100000),
                 OrderDirection::Ask,
-                Addr::unchecked(default_sender),
+                Addr::unchecked(DEFAULT_SENDER),
             ),
             tick_bound: MIN_TICK,
-
             // Orders to fill against
             orders: generate_limit_orders(
                 &[40000000],
@@ -777,7 +747,6 @@ fn test_run_market_order() {
                 Uint128::new(1),
                 OrderDirection::Bid,
             ),
-
             // Asking 100,000 units of input into tick 40,000,000, which corresponds to a
             // price of $1/50000 (from tick math test cases).
             //
@@ -789,14 +758,12 @@ fn test_run_market_order() {
         },
         RunMarketOrderTestCase {
             name: "ask at negative tick",
-            sent: Uint128::new(100000),
             placed_order: MarketOrder::new(
                 Uint128::new(1000),
                 OrderDirection::Ask,
-                Addr::unchecked(default_sender),
+                Addr::unchecked(DEFAULT_SENDER),
             ),
             tick_bound: MIN_TICK,
-
             // Orders to fill against
             orders: generate_limit_orders(
                 &[-17765433],
@@ -806,7 +773,6 @@ fn test_run_market_order() {
                 Uint128::new(50_000),
                 OrderDirection::Bid,
             ),
-
             // The order asks with 1000 units of input into tick -17765433, which corresponds
             // to a price of $0.012345670000000000 (from tick math test cases).
             //
@@ -819,11 +785,10 @@ fn test_run_market_order() {
         },
         RunMarketOrderTestCase {
             name: "invalid tick bound for bid",
-            sent: Uint128::new(1000),
             placed_order: MarketOrder::new(
                 Uint128::new(1000),
                 OrderDirection::Bid,
-                Addr::unchecked(default_sender),
+                Addr::unchecked(DEFAULT_SENDER),
             ),
             tick_bound: MIN_TICK - 1,
             // Orders we expect to not get touched
@@ -837,11 +802,10 @@ fn test_run_market_order() {
         },
         RunMarketOrderTestCase {
             name: "invalid tick bound for ask",
-            sent: Uint128::new(1000),
             placed_order: MarketOrder::new(
                 Uint128::new(1000),
                 OrderDirection::Ask,
-                Addr::unchecked(default_sender),
+                Addr::unchecked(DEFAULT_SENDER),
             ),
             tick_bound: MAX_TICK + 1,
             // Orders we expect to not get touched
@@ -855,16 +819,14 @@ fn test_run_market_order() {
         },
         RunMarketOrderTestCase {
             name: "invalid tick bound due to bid direction",
-            sent: Uint128::new(1000),
             placed_order: MarketOrder::new(
                 Uint128::new(1000),
                 OrderDirection::Bid,
-                Addr::unchecked(default_sender),
+                Addr::unchecked(DEFAULT_SENDER),
             ),
             // We expect the target tick for a market bid to be above the current tick,
             // but this is below.
             tick_bound: MIN_TICK,
-
             // Orders to fill against
             orders: generate_limit_orders(
                 &[-1500000],
@@ -873,7 +835,6 @@ fn test_run_market_order() {
                 default_quantity,
                 OrderDirection::Ask,
             ),
-
             expected_output: Uint256::zero(),
             expected_tick_etas: vec![(-1500000, Decimal256::zero())],
             expected_tick_pointers: vec![(OrderDirection::Ask, -1500000)],
@@ -881,14 +842,12 @@ fn test_run_market_order() {
         },
         RunMarketOrderTestCase {
             name: "insufficient liquidity on orderbook",
-            sent: Uint128::new(1000),
             placed_order: MarketOrder::new(
                 Uint128::new(1000),
                 OrderDirection::Bid,
-                Addr::unchecked(default_sender),
+                Addr::unchecked(DEFAULT_SENDER),
             ),
             tick_bound: MAX_TICK,
-
             // Orders to fill against
             orders: generate_limit_orders(
                 &[40000000],
@@ -898,7 +857,6 @@ fn test_run_market_order() {
                 Uint128::new(3),
                 OrderDirection::Ask,
             ),
-
             expected_output: Uint256::zero(),
             expected_tick_etas: vec![],
             expected_tick_pointers: vec![],
@@ -910,34 +868,25 @@ fn test_run_market_order() {
         // --- Setup ---
 
         // Create a mock environment and info
-        let coin_vec = vec![coin(
-            test.sent.u128(),
-            if test.placed_order.order_direction == OrderDirection::Ask {
-                base_denom
-            } else {
-                quote_denom
-            },
-        )];
-        let balances = [(default_sender, coin_vec.as_slice())];
-        let mut deps = mock_dependencies_with_balances(&balances);
+        let mut deps = mock_dependencies_custom();
         let env = mock_env();
 
         // Create an orderbook to operate on
         create_orderbook(
             deps.as_mut(),
-            quote_denom.to_string(),
-            base_denom.to_string(),
+            QUOTE_DENOM.to_string(),
+            BASE_DENOM.to_string(),
         )
         .unwrap();
 
         // Place limit orders on orderbook
-        place_multiple_limit_orders(&mut deps.as_mut(), env.clone(), default_owner, test.orders)
+        place_multiple_limit_orders(&mut deps.as_mut(), env.clone(), DEFAULT_OWNER, test.orders)
             .unwrap();
 
         // We store order state before to run assertions later
         let orders_before = get_orders_by_owner(
             &deps.storage,
-            FilterOwnerOrders::all(Addr::unchecked(default_owner)),
+            FilterOwnerOrders::all(Addr::unchecked(DEFAULT_OWNER)),
             None,
             None,
             None,
@@ -995,7 +944,7 @@ fn test_run_market_order() {
         // Regardless of whether we error, orders should not be modified.
         let orders_after = get_orders_by_owner(
             &deps.storage,
-            FilterOwnerOrders::all(Addr::unchecked(default_owner)),
+            FilterOwnerOrders::all(Addr::unchecked(DEFAULT_OWNER)),
             None,
             None,
             None,
@@ -1011,12 +960,12 @@ fn test_run_market_order() {
         // We expect the output denom to be the opposite of the input denom,
         // although we derive it directly from the order direction to ensure correctness.
         let expected_denom = match test.placed_order.order_direction {
-            OrderDirection::Bid => base_denom,
-            OrderDirection::Ask => quote_denom,
+            OrderDirection::Bid => BASE_DENOM,
+            OrderDirection::Ask => QUOTE_DENOM,
         };
         let expected_msg = MsgSend256 {
             from_address: env.contract.address.to_string(),
-            to_address: default_sender.to_string(),
+            to_address: DEFAULT_SENDER.to_string(),
             amount: vec![coin_u256(test.expected_output, expected_denom)],
         };
 
@@ -1041,7 +990,7 @@ struct RunMarketOrderMovingTickTestCase {
 #[test]
 fn test_run_market_order_moving_tick() {
     let env = mock_env();
-    let info = mock_info("sender", &[]);
+    let info = mock_info(DEFAULT_SENDER, &[]);
     let test_cases: Vec<RunMarketOrderMovingTickTestCase> = vec![
         RunMarketOrderMovingTickTestCase {
             name: "positive tick movement on filled market bid",
@@ -1388,14 +1337,12 @@ fn test_run_market_order_moving_tick() {
     ];
 
     for test in test_cases {
-        let mut deps = mock_dependencies();
+        let mut deps = mock_dependencies_custom();
 
-        let quote_denom = "quote";
-        let base_denom = "base";
         create_orderbook(
             deps.as_mut(),
-            quote_denom.to_string(),
-            base_denom.to_string(),
+            QUOTE_DENOM.to_string(),
+            BASE_DENOM.to_string(),
         )
         .unwrap();
 
@@ -1432,9 +1379,7 @@ struct ClaimOrderTestCase {
 #[test]
 fn test_claim_order() {
     let valid_tick_id = 0;
-    let quote_denom = "quote";
-    let base_denom = "base";
-    let sender = Addr::unchecked("sender");
+    let sender = Addr::unchecked(DEFAULT_SENDER);
     let test_cases: Vec<ClaimOrderTestCase> = vec![
         // A tick id of 0 operates on a tick price of 1
         ClaimOrderTestCase {
@@ -1463,7 +1408,7 @@ fn test_claim_order() {
                 MsgSend256 {
                     from_address: "cosmos2contract".to_string(),
                     to_address: sender.to_string(),
-                    amount: vec![coin_u256(Uint256::from(10u128), quote_denom)],
+                    amount: vec![coin_u256(Uint256::from(10u128), QUOTE_DENOM)],
                 },
                 REPLY_ID_CLAIM,
             ),
@@ -1497,7 +1442,7 @@ fn test_claim_order() {
                 MsgSend256 {
                     from_address: "cosmos2contract".to_string(),
                     to_address: sender.to_string(),
-                    amount: vec![coin_u256(Uint256::from(10u128), quote_denom)],
+                    amount: vec![coin_u256(Uint256::from(10u128), QUOTE_DENOM)],
                 },
                 REPLY_ID_CLAIM,
             ),
@@ -1530,7 +1475,7 @@ fn test_claim_order() {
                 MsgSend256 {
                     from_address: "cosmos2contract".to_string(),
                     to_address: sender.to_string(),
-                    amount: vec![coin_u256(Uint256::from(5u128), quote_denom)],
+                    amount: vec![coin_u256(Uint256::from(5u128), QUOTE_DENOM)],
                 },
                 REPLY_ID_CLAIM,
             ),
@@ -1577,7 +1522,7 @@ fn test_claim_order() {
                 MsgSend256 {
                     from_address: "cosmos2contract".to_string(),
                     to_address: sender.to_string(),
-                    amount: vec![coin_u256(Uint256::from(3u128), quote_denom)],
+                    amount: vec![coin_u256(Uint256::from(3u128), QUOTE_DENOM)],
                 },
                 REPLY_ID_CLAIM,
             ),
@@ -1611,7 +1556,7 @@ fn test_claim_order() {
                     from_address: "cosmos2contract".to_string(),
                     to_address: sender.to_string(),
                     // 1% of the claimed amount goes to the bounty
-                    amount: vec![coin_u256(Uint256::from(99u128), quote_denom)],
+                    amount: vec![coin_u256(Uint256::from(99u128), QUOTE_DENOM)],
                 },
                 REPLY_ID_CLAIM,
             ),
@@ -1619,7 +1564,7 @@ fn test_claim_order() {
                 MsgSend256 {
                     from_address: "cosmos2contract".to_string(),
                     to_address: "claimer".to_string(),
-                    amount: vec![coin_u256(Uint256::from(1u128), quote_denom)],
+                    amount: vec![coin_u256(Uint256::from(1u128), QUOTE_DENOM)],
                 },
                 REPLY_ID_CLAIM_BOUNTY,
             )),
@@ -1660,7 +1605,7 @@ fn test_claim_order() {
                     from_address: "cosmos2contract".to_string(),
                     to_address: sender.to_string(),
                     // 0.35% of the claim goes to bounty 300 * 0.35 -> 1
-                    amount: vec![coin_u256(Uint256::from(299u128), quote_denom)],
+                    amount: vec![coin_u256(Uint256::from(299u128), QUOTE_DENOM)],
                 },
                 REPLY_ID_CLAIM,
             ),
@@ -1668,7 +1613,7 @@ fn test_claim_order() {
                 MsgSend256 {
                     from_address: "cosmos2contract".to_string(),
                     to_address: "claimer".to_string(),
-                    amount: vec![coin_u256(Uint256::from(1u128), quote_denom)],
+                    amount: vec![coin_u256(Uint256::from(1u128), QUOTE_DENOM)],
                 },
                 REPLY_ID_CLAIM_BOUNTY,
             )),
@@ -1702,7 +1647,7 @@ fn test_claim_order() {
                 MsgSend256 {
                     from_address: "cosmos2contract".to_string(),
                     to_address: sender.to_string(),
-                    amount: vec![coin_u256(Uint256::from(5u128), quote_denom)],
+                    amount: vec![coin_u256(Uint256::from(5u128), QUOTE_DENOM)],
                 },
                 REPLY_ID_CLAIM,
             ),
@@ -1737,7 +1682,7 @@ fn test_claim_order() {
                 MsgSend256 {
                     from_address: "cosmos2contract".to_string(),
                     to_address: sender.to_string(),
-                    amount: vec![coin_u256(Uint256::from(2u128), quote_denom)],
+                    amount: vec![coin_u256(Uint256::from(2u128), QUOTE_DENOM)],
                 },
                 REPLY_ID_CLAIM,
             ),
@@ -1787,7 +1732,7 @@ fn test_claim_order() {
                 MsgSend256 {
                     from_address: "cosmos2contract".to_string(),
                     to_address: sender.to_string(),
-                    amount: vec![coin_u256(Uint256::from(3u128), quote_denom)],
+                    amount: vec![coin_u256(Uint256::from(3u128), QUOTE_DENOM)],
                 },
                 REPLY_ID_CLAIM,
             ),
@@ -1822,7 +1767,7 @@ fn test_claim_order() {
                 MsgSend256 {
                     from_address: "cosmos2contract".to_string(),
                     to_address: sender.to_string(),
-                    amount: vec![coin_u256(Uint256::from(200u128), quote_denom)],
+                    amount: vec![coin_u256(Uint256::from(200u128), QUOTE_DENOM)],
                 },
                 REPLY_ID_CLAIM,
             ),
@@ -1856,7 +1801,7 @@ fn test_claim_order() {
                 MsgSend256 {
                     from_address: "cosmos2contract".to_string(),
                     to_address: sender.to_string(),
-                    amount: vec![coin_u256(Uint256::from(100u128), quote_denom)],
+                    amount: vec![coin_u256(Uint256::from(100u128), QUOTE_DENOM)],
                 },
                 REPLY_ID_CLAIM,
             ),
@@ -1905,7 +1850,7 @@ fn test_claim_order() {
                 MsgSend256 {
                     from_address: "cosmos2contract".to_string(),
                     to_address: sender.to_string(),
-                    amount: vec![coin_u256(Uint256::from(100u128), quote_denom)],
+                    amount: vec![coin_u256(Uint256::from(100u128), QUOTE_DENOM)],
                 },
                 REPLY_ID_CLAIM,
             ),
@@ -1949,7 +1894,7 @@ fn test_claim_order() {
                 MsgSend256 {
                     from_address: "cosmos2contract".to_string(),
                     to_address: sender.to_string(),
-                    amount: vec![coin_u256(Uint256::from(100u128), quote_denom)],
+                    amount: vec![coin_u256(Uint256::from(100u128), QUOTE_DENOM)],
                 },
                 REPLY_ID_CLAIM,
             ),
@@ -1986,7 +1931,7 @@ fn test_claim_order() {
                 MsgSend256 {
                     from_address: "cosmos2contract".to_string(),
                     to_address: sender.to_string(),
-                    amount: vec![coin_u256(Uint256::from(3_000_000_000_000u128), quote_denom)],
+                    amount: vec![coin_u256(Uint256::from(3_000_000_000_000u128), QUOTE_DENOM)],
                 },
                 REPLY_ID_CLAIM,
             ),
@@ -2029,7 +1974,7 @@ fn test_claim_order() {
                 MsgSend256 {
                     from_address: "cosmos2contract".to_string(),
                     to_address: sender.to_string(),
-                    amount: vec![coin_u256(Uint256::from(10u128), base_denom)],
+                    amount: vec![coin_u256(Uint256::from(10u128), BASE_DENOM)],
                 },
                 REPLY_ID_CLAIM,
             ),
@@ -2063,7 +2008,7 @@ fn test_claim_order() {
                 MsgSend256 {
                     from_address: "cosmos2contract".to_string(),
                     to_address: sender.to_string(),
-                    amount: vec![coin_u256(Uint256::from(5u128), base_denom)],
+                    amount: vec![coin_u256(Uint256::from(5u128), BASE_DENOM)],
                 },
                 REPLY_ID_CLAIM,
             ),
@@ -2111,7 +2056,7 @@ fn test_claim_order() {
                 MsgSend256 {
                     from_address: "cosmos2contract".to_string(),
                     to_address: sender.to_string(),
-                    amount: vec![coin_u256(Uint256::from(3u128), base_denom)],
+                    amount: vec![coin_u256(Uint256::from(3u128), BASE_DENOM)],
                 },
                 REPLY_ID_CLAIM,
             ),
@@ -2147,7 +2092,7 @@ fn test_claim_order() {
                 MsgSend256 {
                     from_address: "cosmos2contract".to_string(),
                     to_address: sender.to_string(),
-                    amount: vec![coin_u256(Uint256::from(20u128), base_denom)],
+                    amount: vec![coin_u256(Uint256::from(20u128), BASE_DENOM)],
                 },
                 REPLY_ID_CLAIM,
             ),
@@ -2181,7 +2126,7 @@ fn test_claim_order() {
                 MsgSend256 {
                     from_address: "cosmos2contract".to_string(),
                     to_address: sender.to_string(),
-                    amount: vec![coin_u256(Uint256::from(10u128), base_denom)],
+                    amount: vec![coin_u256(Uint256::from(10u128), BASE_DENOM)],
                 },
                 REPLY_ID_CLAIM,
             ),
@@ -2230,7 +2175,7 @@ fn test_claim_order() {
                 MsgSend256 {
                     from_address: "cosmos2contract".to_string(),
                     to_address: sender.to_string(),
-                    amount: vec![coin_u256(Uint256::from(10u128), base_denom)],
+                    amount: vec![coin_u256(Uint256::from(10u128), BASE_DENOM)],
                 },
                 REPLY_ID_CLAIM,
             ),
@@ -2265,7 +2210,7 @@ fn test_claim_order() {
                 MsgSend256 {
                     from_address: "cosmos2contract".to_string(),
                     to_address: sender.to_string(),
-                    amount: vec![coin_u256(Uint256::from(50u128), base_denom)],
+                    amount: vec![coin_u256(Uint256::from(50u128), BASE_DENOM)],
                 },
                 REPLY_ID_CLAIM,
             ),
@@ -2299,7 +2244,7 @@ fn test_claim_order() {
                 MsgSend256 {
                     from_address: "cosmos2contract".to_string(),
                     to_address: sender.to_string(),
-                    amount: vec![coin_u256(Uint256::from(25u128), base_denom)],
+                    amount: vec![coin_u256(Uint256::from(25u128), BASE_DENOM)],
                 },
                 REPLY_ID_CLAIM,
             ),
@@ -2348,7 +2293,7 @@ fn test_claim_order() {
                 MsgSend256 {
                     from_address: "cosmos2contract".to_string(),
                     to_address: sender.to_string(),
-                    amount: vec![coin_u256(Uint256::from(25u128), base_denom)],
+                    amount: vec![coin_u256(Uint256::from(25u128), BASE_DENOM)],
                 },
                 REPLY_ID_CLAIM,
             ),
@@ -2392,7 +2337,7 @@ fn test_claim_order() {
                 MsgSend256 {
                     from_address: "cosmos2contract".to_string(),
                     to_address: sender.to_string(),
-                    amount: vec![coin_u256(Uint256::from(100u128), base_denom)],
+                    amount: vec![coin_u256(Uint256::from(100u128), BASE_DENOM)],
                 },
                 REPLY_ID_CLAIM,
             ),
@@ -2426,7 +2371,7 @@ fn test_claim_order() {
                 MsgSend256 {
                     from_address: "cosmos2contract".to_string(),
                     to_address: sender.to_string(),
-                    amount: vec![coin_u256(Uint256::from(5u128), quote_denom)],
+                    amount: vec![coin_u256(Uint256::from(5u128), QUOTE_DENOM)],
                 },
                 REPLY_ID_CLAIM,
             ),
@@ -2460,7 +2405,7 @@ fn test_claim_order() {
                 MsgSend256 {
                     from_address: "cosmos2contract".to_string(),
                     to_address: sender.to_string(),
-                    amount: vec![coin_u256(Uint256::from(5u128), quote_denom)],
+                    amount: vec![coin_u256(Uint256::from(5u128), QUOTE_DENOM)],
                 },
                 REPLY_ID_CLAIM,
             ),
@@ -2493,7 +2438,7 @@ fn test_claim_order() {
                 MsgSend256 {
                     from_address: "cosmos2contract".to_string(),
                     to_address: sender.to_string(),
-                    amount: vec![coin_u256(Uint256::from(5u128), quote_denom)],
+                    amount: vec![coin_u256(Uint256::from(5u128), QUOTE_DENOM)],
                 },
                 REPLY_ID_CLAIM,
             ),
@@ -2523,7 +2468,7 @@ fn test_claim_order() {
                 MsgSend256 {
                     from_address: "cosmos2contract".to_string(),
                     to_address: sender.to_string(),
-                    amount: vec![coin_u256(Uint256::from(5u128), quote_denom)],
+                    amount: vec![coin_u256(Uint256::from(5u128), QUOTE_DENOM)],
                 },
                 REPLY_ID_CLAIM,
             ),
@@ -2561,7 +2506,7 @@ fn test_claim_order() {
                 MsgSend256 {
                     from_address: "cosmos2contract".to_string(),
                     to_address: sender.to_string(),
-                    amount: vec![coin_u256(Uint256::from(5u128), quote_denom)],
+                    amount: vec![coin_u256(Uint256::from(5u128), QUOTE_DENOM)],
                 },
                 REPLY_ID_CLAIM,
             ),
@@ -2600,7 +2545,7 @@ fn test_claim_order() {
                 MsgSend256 {
                     from_address: "cosmos2contract".to_string(),
                     to_address: sender.to_string(),
-                    amount: vec![coin_u256(Uint256::from(5u128), quote_denom)],
+                    amount: vec![coin_u256(Uint256::from(5u128), QUOTE_DENOM)],
                 },
                 REPLY_ID_CLAIM,
             ),
@@ -2612,13 +2557,13 @@ fn test_claim_order() {
 
     for test in test_cases {
         // Test Setup
-        let mut deps = mock_dependencies();
+        let mut deps = mock_dependencies_custom();
         let env = mock_env();
-        let info = mock_info("sender", &[]);
+        let info = mock_info(DEFAULT_SENDER, &[]);
         create_orderbook(
             deps.as_mut(),
-            quote_denom.to_string(),
-            base_denom.to_string(),
+            QUOTE_DENOM.to_string(),
+            BASE_DENOM.to_string(),
         )
         .unwrap();
 
@@ -2694,9 +2639,7 @@ struct MovingClaimOrderTestCase {
 #[test]
 fn test_claim_order_moving_tick() {
     let valid_tick_id = 0;
-    let quote_denom = "quote";
-    let base_denom = "base";
-    let sender = Addr::unchecked("sender");
+    let sender = Addr::unchecked(DEFAULT_SENDER);
     let test_cases: Vec<MovingClaimOrderTestCase> = vec![
         MovingClaimOrderTestCase {
             name: "ASK: single tick movement full claim",
@@ -2741,7 +2684,7 @@ fn test_claim_order_moving_tick() {
                 MsgSend256 {
                     from_address: "cosmos2contract".to_string(),
                     to_address: sender.to_string(),
-                    amount: vec![coin_u256(Uint256::from(50u128), quote_denom)],
+                    amount: vec![coin_u256(Uint256::from(50u128), QUOTE_DENOM)],
                 },
                 REPLY_ID_CLAIM,
             ),
@@ -2792,7 +2735,7 @@ fn test_claim_order_moving_tick() {
                 MsgSend256 {
                     from_address: "cosmos2contract".to_string(),
                     to_address: sender.to_string(),
-                    amount: vec![coin_u256(Uint256::from(25u128), quote_denom)],
+                    amount: vec![coin_u256(Uint256::from(25u128), QUOTE_DENOM)],
                 },
                 REPLY_ID_CLAIM,
             ),
@@ -2864,7 +2807,7 @@ fn test_claim_order_moving_tick() {
                 MsgSend256 {
                     from_address: "cosmos2contract".to_string(),
                     to_address: sender.to_string(),
-                    amount: vec![coin_u256(Uint256::from(25u128), quote_denom)],
+                    amount: vec![coin_u256(Uint256::from(25u128), QUOTE_DENOM)],
                 },
                 REPLY_ID_CLAIM,
             ),
@@ -2919,7 +2862,7 @@ fn test_claim_order_moving_tick() {
                 MsgSend256 {
                     from_address: "cosmos2contract".to_string(),
                     to_address: sender.to_string(),
-                    amount: vec![coin_u256(Uint256::from(25u128), quote_denom)],
+                    amount: vec![coin_u256(Uint256::from(25u128), QUOTE_DENOM)],
                 },
                 REPLY_ID_CLAIM,
             ),
@@ -2997,7 +2940,7 @@ fn test_claim_order_moving_tick() {
                 MsgSend256 {
                     from_address: "cosmos2contract".to_string(),
                     to_address: sender.to_string(),
-                    amount: vec![coin_u256(Uint256::from(50u128), quote_denom)],
+                    amount: vec![coin_u256(Uint256::from(50u128), QUOTE_DENOM)],
                 },
                 REPLY_ID_CLAIM,
             ),
@@ -3048,7 +2991,7 @@ fn test_claim_order_moving_tick() {
                 MsgSend256 {
                     from_address: "cosmos2contract".to_string(),
                     to_address: sender.to_string(),
-                    amount: vec![coin_u256(Uint256::from(50u128), base_denom)],
+                    amount: vec![coin_u256(Uint256::from(50u128), BASE_DENOM)],
                 },
                 REPLY_ID_CLAIM,
             ),
@@ -3099,7 +3042,7 @@ fn test_claim_order_moving_tick() {
                 MsgSend256 {
                     from_address: "cosmos2contract".to_string(),
                     to_address: sender.to_string(),
-                    amount: vec![coin_u256(Uint256::from(25u128), base_denom)],
+                    amount: vec![coin_u256(Uint256::from(25u128), BASE_DENOM)],
                 },
                 REPLY_ID_CLAIM,
             ),
@@ -3171,7 +3114,7 @@ fn test_claim_order_moving_tick() {
                 MsgSend256 {
                     from_address: "cosmos2contract".to_string(),
                     to_address: sender.to_string(),
-                    amount: vec![coin_u256(Uint256::from(25u128), base_denom)],
+                    amount: vec![coin_u256(Uint256::from(25u128), BASE_DENOM)],
                 },
                 REPLY_ID_CLAIM,
             ),
@@ -3227,7 +3170,7 @@ fn test_claim_order_moving_tick() {
                 MsgSend256 {
                     from_address: "cosmos2contract".to_string(),
                     to_address: sender.to_string(),
-                    amount: vec![coin_u256(Uint256::from(25u128), base_denom)],
+                    amount: vec![coin_u256(Uint256::from(25u128), BASE_DENOM)],
                 },
                 REPLY_ID_CLAIM,
             ),
@@ -3302,7 +3245,7 @@ fn test_claim_order_moving_tick() {
                 MsgSend256 {
                     from_address: "cosmos2contract".to_string(),
                     to_address: sender.to_string(),
-                    amount: vec![coin_u256(Uint256::from(50u128), base_denom)],
+                    amount: vec![coin_u256(Uint256::from(50u128), BASE_DENOM)],
                 },
                 REPLY_ID_CLAIM,
             ),
@@ -3313,13 +3256,13 @@ fn test_claim_order_moving_tick() {
 
     for test in test_cases {
         // Test Setup
-        let mut deps = mock_dependencies();
+        let mut deps = mock_dependencies_custom();
         let env = mock_env();
-        let info = mock_info("sender", &[]);
+        let info = mock_info(DEFAULT_SENDER, &[]);
         create_orderbook(
             deps.as_mut(),
-            quote_denom.to_string(),
-            base_denom.to_string(),
+            QUOTE_DENOM.to_string(),
+            BASE_DENOM.to_string(),
         )
         .unwrap();
 
@@ -3379,10 +3322,8 @@ struct BatchClaimOrderTestCase {
 
 #[test]
 fn test_batch_claim_order() {
-    let quote_denom = "quote";
-    let base_denom = "base";
-    let sender = Addr::unchecked("sender");
-    let owner = Addr::unchecked("owner");
+    let sender = Addr::unchecked(DEFAULT_SENDER);
+    let owner = Addr::unchecked(DEFAULT_OWNER);
     let test_cases: Vec<BatchClaimOrderTestCase> = vec![
         BatchClaimOrderTestCase {
             name: "Batch claim orders happy path",
@@ -3425,7 +3366,7 @@ fn test_batch_claim_order() {
                     MsgSend256 {
                         from_address: "cosmos2contract".to_string(),
                         to_address: owner.to_string(),
-                        amount: vec![coin_u256(99u128, base_denom)],
+                        amount: vec![coin_u256(99u128, BASE_DENOM)],
                     },
                     REPLY_ID_CLAIM,
                 ),
@@ -3433,7 +3374,7 @@ fn test_batch_claim_order() {
                     MsgSend256 {
                         from_address: "cosmos2contract".to_string(),
                         to_address: sender.to_string(),
-                        amount: vec![coin_u256(1u128, base_denom)],
+                        amount: vec![coin_u256(1u128, BASE_DENOM)],
                     },
                     REPLY_ID_CLAIM_BOUNTY,
                 ),
@@ -3441,7 +3382,7 @@ fn test_batch_claim_order() {
                     MsgSend256 {
                         from_address: "cosmos2contract".to_string(),
                         to_address: owner.to_string(),
-                        amount: vec![coin_u256(49u128, quote_denom)],
+                        amount: vec![coin_u256(49u128, QUOTE_DENOM)],
                     },
                     REPLY_ID_CLAIM,
                 ),
@@ -3501,7 +3442,7 @@ fn test_batch_claim_order() {
                     MsgSend256 {
                         from_address: "cosmos2contract".to_string(),
                         to_address: owner.to_string(),
-                        amount: vec![coin_u256(100u128, base_denom)],
+                        amount: vec![coin_u256(100u128, BASE_DENOM)],
                     },
                     REPLY_ID_CLAIM,
                 ),
@@ -3509,7 +3450,7 @@ fn test_batch_claim_order() {
                     MsgSend256 {
                         from_address: "cosmos2contract".to_string(),
                         to_address: owner.to_string(),
-                        amount: vec![coin_u256(49u128, quote_denom)],
+                        amount: vec![coin_u256(49u128, QUOTE_DENOM)],
                     },
                     REPLY_ID_CLAIM,
                 ),
@@ -3531,13 +3472,13 @@ fn test_batch_claim_order() {
 
     for test in test_cases {
         // Test Setup
-        let mut deps = mock_dependencies();
+        let mut deps = mock_dependencies_custom();
         let env = mock_env();
         let info = mock_info(owner.as_str(), &[]);
         create_orderbook(
             deps.as_mut(),
-            quote_denom.to_string(),
-            base_denom.to_string(),
+            QUOTE_DENOM.to_string(),
+            BASE_DENOM.to_string(),
         )
         .unwrap();
 
@@ -3617,9 +3558,7 @@ struct DirectionalLiquidityTestCase {
 
 #[test]
 fn test_directional_liquidity() {
-    let quote_denom = "quote";
-    let base_denom = "base";
-    let sender = Addr::unchecked("sender");
+    let sender = Addr::unchecked(DEFAULT_SENDER);
 
     let test_cases = vec![
         DirectionalLiquidityTestCase {
@@ -3796,14 +3735,14 @@ fn test_directional_liquidity() {
 
     for test in test_cases {
         // -- Test Setup --
-        let mut deps = mock_dependencies();
+        let mut deps = mock_dependencies_custom();
         let env = mock_env();
-        let info = mock_info("sender", &[]);
+        let info = mock_info(DEFAULT_SENDER, &[]);
 
         create_orderbook(
             deps.as_mut(),
-            quote_denom.to_string(),
-            base_denom.to_string(),
+            QUOTE_DENOM.to_string(),
+            BASE_DENOM.to_string(),
         )
         .unwrap();
 
@@ -3845,9 +3784,7 @@ struct MakerFeeTestCase {
 
 #[test]
 fn test_maker_fee() {
-    let quote_denom = "quote";
-    let base_denom = "base";
-    let sender = Addr::unchecked("sender");
+    let sender = Addr::unchecked(DEFAULT_SENDER);
     let maker_fee_recipient = Addr::unchecked("maker");
     let env = mock_env();
     let test_cases = vec![
@@ -3859,12 +3796,12 @@ fn test_maker_fee() {
             expected_claimer_msg: MsgSend256 {
                 from_address: env.contract.address.to_string(),
                 to_address: sender.to_string(),
-                amount: vec![coin_u256(98u32, base_denom)], // 100 - 2% maker fee
+                amount: vec![coin_u256(98u32, BASE_DENOM)], // 100 - 2% maker fee
             },
             expected_maker_fee_msg: Some(MsgSend256{
                 from_address: env.contract.address.to_string(),
                 to_address: maker_fee_recipient.to_string(),
-                amount: vec![coin_u256(2u32, base_denom)], // 2% maker fee
+                amount: vec![coin_u256(2u32, BASE_DENOM)], // 2% maker fee
             }),
             expected_error: None,
         },
@@ -3876,12 +3813,12 @@ fn test_maker_fee() {
             expected_claimer_msg: MsgSend256 {
                 from_address: env.contract.address.to_string(),
                 to_address: sender.to_string(),
-                amount: vec![coin_u256(97u32, base_denom)], // 100 - 2% maker fee - 1% claim bounty
+                amount: vec![coin_u256(97u32, BASE_DENOM)], // 100 - 2% maker fee - 1% claim bounty
             },
             expected_maker_fee_msg: Some(MsgSend256 {
                 from_address: env.contract.address.to_string(),
                 to_address: maker_fee_recipient.to_string(),
-                amount: vec![coin_u256(2u32, base_denom)], // 2% maker fee
+                amount: vec![coin_u256(2u32, BASE_DENOM)], // 2% maker fee
             }),
             expected_error: None,
         },
@@ -3893,12 +3830,12 @@ fn test_maker_fee() {
             expected_claimer_msg: MsgSend256{
                 from_address: env.contract.address.to_string(),
                 to_address: sender.to_string(),
-                amount: vec![coin_u256(97u32, base_denom)], // 100 - 3% maker fee (rounded down)
+                amount: vec![coin_u256(97u32, BASE_DENOM)], // 100 - 3% maker fee (rounded down)
             },
             expected_maker_fee_msg: Some(MsgSend256 {
                 from_address: env.contract.address.to_string(),
                 to_address: maker_fee_recipient.to_string(),
-                amount: vec![coin_u256(3u32, base_denom)], // 3% maker fee
+                amount: vec![coin_u256(3u32, BASE_DENOM)], // 3% maker fee
             }),
             expected_error: None,
         },
@@ -3910,7 +3847,7 @@ fn test_maker_fee() {
             expected_claimer_msg: MsgSend256 {
                 from_address: env.contract.address.to_string(),
                 to_address: sender.to_string(),
-                amount: vec![coin_u256(100u32, base_denom)], 
+                amount: vec![coin_u256(100u32, BASE_DENOM)], 
             },
             expected_maker_fee_msg: None,
             expected_error: None,
@@ -3923,7 +3860,7 @@ fn test_maker_fee() {
             expected_claimer_msg: MsgSend256{
                 from_address: env.contract.address.to_string(),
                 to_address: sender.to_string(),
-                amount: vec![coin_u256(100u32, base_denom)], // 100 - 0.1% maker fee (rounded down)
+                amount: vec![coin_u256(100u32, BASE_DENOM)], // 100 - 0.1% maker fee (rounded down)
             },
             expected_maker_fee_msg: None,
             expected_error: None,
@@ -3936,12 +3873,12 @@ fn test_maker_fee() {
             expected_claimer_msg: MsgSend256 {
                 from_address: env.contract.address.to_string(),
                 to_address: sender.to_string(),
-                amount: vec![coin_u256(98u32, base_denom)], // 100 - 2% maker fee
+                amount: vec![coin_u256(98u32, BASE_DENOM)], // 100 - 2% maker fee
             },
             expected_maker_fee_msg: Some(MsgSend256 {
                 from_address: env.contract.address.to_string(),
                 to_address: maker_fee_recipient.to_string(),
-                amount: vec![coin_u256(2u32, base_denom)], // 2% maker fee
+                amount: vec![coin_u256(2u32, BASE_DENOM)], // 2% maker fee
             }),
             expected_error: Some(ContractError::NoMakerFeeRecipient),
         },
@@ -3949,10 +3886,10 @@ fn test_maker_fee() {
 
     for test in test_cases {
         // -- Test Setup --
-        let mut deps = mock_dependencies();
+        let mut deps = mock_dependencies_custom();
 
         // Save the orderbook to be used
-        ORDERBOOK.save(deps.as_mut().storage, &Orderbook::new(quote_denom.to_string(), base_denom.to_string(), 0, 0, 0)).unwrap();
+        ORDERBOOK.save(deps.as_mut().storage, &Orderbook::new(QUOTE_DENOM.to_string(), BASE_DENOM.to_string(), 0, 0, 0)).unwrap();
 
         // Save the placed order
         orders().save(deps.as_mut().storage, &(test.placed_order.tick_id, test.placed_order.order_id), &test.placed_order).unwrap();

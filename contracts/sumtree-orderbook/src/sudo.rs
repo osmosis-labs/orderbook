@@ -94,6 +94,7 @@ pub fn sudo(deps: DepsMut, env: Env, msg: SudoMsg) -> ContractResult<Response> {
 /// Order direction is automatically determined by the token in/token out pairing.
 ///
 /// Errors if the amount provided by the swap does not meet the `token_out_min_amount` or if there is no orderbook for the provided pair.
+#[allow(clippy::too_many_arguments)]
 pub(crate) fn dispatch_swap_exact_amount_in(
     deps: DepsMut,
     env: Env,

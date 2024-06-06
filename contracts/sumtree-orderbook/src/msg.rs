@@ -8,10 +8,6 @@ use osmosis_std::types::cosmos::base::v1beta1::Coin as ProtoCoin;
 pub struct InstantiateMsg {
     pub base_denom: String,
     pub quote_denom: String,
-    pub admin: Addr,
-    pub moderator: Addr,
-    pub maker_fee: Option<Decimal>,
-    pub maker_fee_recipient: Addr,
 }
 
 /// Message type for `execute` entry_point

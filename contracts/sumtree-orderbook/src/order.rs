@@ -191,7 +191,7 @@ pub fn cancel_limit(
     let refund_msg = SubMsg::reply_on_error(
         BankMsg::Send {
             to_address: order.owner.to_string(),
-            amount: vec![coin(order.quantity.u128(), expected_denom)],
+            amount: vec![coin(order.quantity.u128(), expected_denom.clone())],
         },
         REPLY_ID_REFUND,
     );
@@ -216,6 +216,7 @@ pub fn cancel_limit(
             ("quantity", &order.quantity.to_string()),
             ("order_direction", &order.order_direction.to_string()),
             ("initial_quantity", &order.placed_quantity.to_string()),
+            ("order_denom", &expected_denom.to_string()),
         ])
         .add_submessage(refund_msg))
 }

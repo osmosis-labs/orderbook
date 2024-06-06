@@ -660,3 +660,107 @@ fn test_set_active_execute() {
         );
     }
 }
+
+struct SetActiveSudoTestCase {
+    name: &'static str,
+    pre_operations: Vec<OrderOperation>,
+    msg: SudoMsg,
+    active_status: Option<bool>,
+    expected_error: Option<ContractError>,
+}
+
+#[test]
+fn test_set_active_sudo() {
+    let valid_tick_id = 0;
+    let sender = Addr::unchecked(DEFAULT_SENDER);
+    let test_cases = vec![
+        SetActiveSudoTestCase {
+            name: "active book, swap exact in",
+            pre_operations: vec![OrderOperation::PlaceLimit(LimitOrder::new(
+                valid_tick_id,
+                0,
+                OrderDirection::Ask,
+                sender.clone(),
+                Uint128::from(100u128),
+                Decimal256::zero(),
+                None,
+            ))],
+            msg: SudoMsg::SwapExactAmountIn {
+                sender: sender.to_string(),
+                token_in: coin(100u128, QUOTE_DENOM),
+                token_out_denom: BASE_DENOM.to_string(),
+                token_out_min_amount: Uint128::from(100u128),
+                swap_fee: Decimal::zero(),
+            },
+            active_status: Some(true),
+            expected_error: None,
+        },
+        SetActiveSudoTestCase {
+            name: "inactive, swap exact in",
+            pre_operations: vec![OrderOperation::PlaceLimit(LimitOrder::new(
+                valid_tick_id,
+                0,
+                OrderDirection::Ask,
+                sender.clone(),
+                Uint128::from(100u128),
+                Decimal256::zero(),
+                None,
+            ))],
+            msg: SudoMsg::SwapExactAmountIn {
+                sender: sender.to_string(),
+                token_in: coin(100u128, QUOTE_DENOM),
+                token_out_denom: BASE_DENOM.to_string(),
+                token_out_min_amount: Uint128::from(100u128),
+                swap_fee: Decimal::zero(),
+            },
+            active_status: Some(false),
+            expected_error: Some(ContractError::Inactive),
+        },
+    ];
+
+    for test in test_cases {
+        // -- Test Setup --
+        let mut deps = mock_dependencies_custom();
+        let env = mock_env();
+        let info = mock_info(DEFAULT_SENDER, &[coin(100u128, BASE_DENOM)]);
+
+        create_orderbook(
+            deps.as_mut(),
+            QUOTE_DENOM.to_string(),
+            BASE_DENOM.to_string(),
+        )
+        .unwrap();
+
+        // Run pre-operations
+        for op in test.pre_operations {
+            op.run(deps.as_mut(), env.clone(), info.clone()).unwrap();
+        }
+
+        // Set orderbook active status
+        ADMIN
+            .save(deps.as_mut().storage, &Addr::unchecked(DEFAULT_SENDER))
+            .unwrap();
+        if let Some(active) = test.active_status {
+            set_active(deps.as_mut(), active).unwrap();
+        }
+
+        // -- System under test --
+        let resp = sudo(deps.as_mut(), env, test.msg);
+        if let Some(expected_err) = test.expected_error {
+            assert_eq!(
+                resp.unwrap_err(),
+                expected_err,
+                "{}: did not receive expected error",
+                test.name
+            );
+            continue;
+        }
+
+        assert!(
+            resp.is_ok(),
+            "{}: execute message unexpectedly failed; {}",
+            test.name,
+            resp.unwrap_err()
+        );
+    }
+}

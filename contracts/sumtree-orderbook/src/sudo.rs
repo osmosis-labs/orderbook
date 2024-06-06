@@ -19,6 +19,9 @@ use crate::{
 
 #[cfg_attr(not(feature = "imported"), entry_point)]
 pub fn sudo(deps: DepsMut, env: Env, msg: SudoMsg) -> ContractResult<Response> {
+    // Ensure orderbook is active
+    ensure_is_active(deps.as_ref())?;
+
     match msg {
         SudoMsg::SwapExactAmountIn {
             sender,

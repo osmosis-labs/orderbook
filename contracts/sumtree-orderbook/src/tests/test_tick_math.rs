@@ -26,7 +26,7 @@ fn test_tick_to_price() {
     let tick_price_test_cases = vec![
         TickToPriceTestCase {
             tick_index: MAX_TICK,
-            expected_price: max_spot_price(),
+            expected_price: *MAX_SPOT_PRICE,
             expected_error: None,
         },
         TickToPriceTestCase {
@@ -66,14 +66,14 @@ fn test_tick_to_price() {
         },
         TickToPriceTestCase {
             tick_index: MAX_TICK - 1,
-            expected_price: max_spot_price()
+            expected_price: MAX_SPOT_PRICE
                 .checked_sub(min_increment_near_max_price)
                 .unwrap(),
             expected_error: None,
         },
         TickToPriceTestCase {
             tick_index: MIN_TICK,
-            expected_price: min_spot_price(),
+            expected_price: *MIN_SPOT_PRICE,
             expected_error: None,
         },
         TickToPriceTestCase {

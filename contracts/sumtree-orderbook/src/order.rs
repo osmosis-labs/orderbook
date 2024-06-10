@@ -251,14 +251,14 @@ pub fn claim_limit(
 
     let orderbook = ORDERBOOK.load(deps.storage)?;
     let order_denom = orderbook.get_expected_denom(&order.order_direction);
-    let received_denom = orderbook.get_opposite_denom(&order.order_direction);
+    let output_denom = orderbook.get_opposite_denom(&order.order_direction);
 
     let event = generate_claimed_order_event(
         info.sender,
         order,
         amount_claimed,
         order_denom,
-        received_denom,
+        output_denom,
     );
 
     Ok(Response::new()
@@ -298,13 +298,13 @@ pub fn batch_claim_limits(
         ) {
             Ok((amount_claimed, mut bank_msgs, order)) => {
                 let order_denom = orderbook.get_expected_denom(&order.order_direction);
-                let received_denom = orderbook.get_opposite_denom(&order.order_direction);
+                let output_denom = orderbook.get_opposite_denom(&order.order_direction);
                 let event = generate_claimed_order_event(
                     info.sender.clone(),
                     order,
                     amount_claimed,
                     order_denom,
-                    received_denom,
+                    output_denom,
                 );
                 responses.append(&mut bank_msgs);
                 events.push(event);
@@ -330,7 +330,7 @@ fn generate_claimed_order_event(
     order: LimitOrder,
     amount_claimed: Uint256,
     order_denom: String,
-    received_denom: String,
+    output_denom: String,
 ) -> Event {
     Event::new("limitClaimed").add_attributes(vec![
         ("sender", sender.as_str()),
@@ -343,7 +343,7 @@ fn generate_claimed_order_event(
         ("placed_quantity", &order.placed_quantity.to_string()),
         ("fully_claimed", &order.quantity.is_zero().to_string()),
         ("order_denom", &order_denom.to_string()),
-        ("received_denom", &received_denom.to_string()),
+        ("output_denom", &output_denom.to_string()),
     ])
 }
 

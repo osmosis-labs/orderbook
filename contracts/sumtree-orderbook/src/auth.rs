@@ -1,8 +1,8 @@
 use crate::{
-    constants::MAX_MAKER_FEE_PERCENTAGE,
     error::ContractResult,
     msg::{AuthExecuteMsg, AuthQueryMsg},
-    state::{MAKER_FEE, MAKER_FEE_RECIPIENT},
+    orderbook::set_maker_fee,
+    state::MAKER_FEE_RECIPIENT,
     sudo, ContractError,
 };
 use cosmwasm_std::{ensure, Addr, Api, Decimal256, Deps, DepsMut, MessageInfo, Response, Storage};
@@ -312,13 +312,9 @@ pub(crate) fn dispatch_set_maker_fee(
     info: MessageInfo,
     maker_fee: Decimal256,
 ) -> ContractResult<Response> {
-    ensure_is_admin_or_moderator(deps.as_ref(), &info.sender)?;
+    ensure_is_admin(deps.as_ref(), &info.sender)?;
 
-    ensure!(
-        maker_fee <= MAX_MAKER_FEE_PERCENTAGE,
-        ContractError::InvalidMakerFee {}
-    );
-    MAKER_FEE.save(deps.storage, &maker_fee)?;
+    let maker_fee = set_maker_fee(deps.storage, maker_fee)?;
 
     Ok(Response::default().add_attributes(vec![
         ("method", "set_maker_fee"),
@@ -334,7 +330,7 @@ pub(crate) fn dispatch_set_maker_fee_recipient(
     info: MessageInfo,
     maker_fee_recipient: Addr,
 ) -> ContractResult<Response> {
-    ensure_is_admin_or_moderator(deps.as_ref(), &info.sender)?;
+    ensure_is_admin(deps.as_ref(), &info.sender)?;
 
     let addr = deps
         .api

@@ -7,6 +7,7 @@ use cosmwasm_std::{
 use cw2::set_contract_version;
 
 use crate::auth::{ADMIN, MODERATOR};
+use crate::constants::{CIRCUIT_BREAKER_SUBDAO_ADDR, OSMOSIS_GOV_ADDR};
 use crate::error::{ContractError, ContractResult};
 use crate::msg::{ExecuteMsg, InstantiateMsg, MigrateMsg, QueryMsg};
 
@@ -28,12 +29,16 @@ pub fn instantiate(
     _info: MessageInfo,
     msg: InstantiateMsg,
 ) -> Result<Response, ContractError> {
+    // Set contract metadata
     set_contract_version(deps.storage, CONTRACT_NAME, CONTRACT_VERSION)?;
-    let admin = deps.api.addr_validate(msg.admin.as_str())?;
+
+    // Set contract admin to governance and moderator to circuit breaker subDAO
+    let admin = deps.api.addr_validate(OSMOSIS_GOV_ADDR)?;
     ADMIN.save(deps.storage, &admin)?;
-    let moderator = deps.api.addr_validate(msg.moderator.as_str())?;
+    let moderator = deps.api.addr_validate(CIRCUIT_BREAKER_SUBDAO_ADDR)?;
     MODERATOR.save(deps.storage, &moderator)?;
 
+    // Instantiate orderbook
     create_orderbook(deps, msg.quote_denom.clone(), msg.base_denom.clone())?;
 
     Ok(Response::new().add_attributes(vec![

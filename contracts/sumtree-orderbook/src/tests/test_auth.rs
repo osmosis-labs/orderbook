@@ -878,7 +878,7 @@ fn test_set_maker_fee() {
             name: "valid fee set by moderator",
             sender: current_moderator,
             fee: Decimal256::percent(1),
-            expected_error: None,
+            expected_error: Some(ContractError::Unauthorized {}),
         },
         SetMakerFeeTestCase {
             name: "valid fee set by admin",
@@ -975,10 +975,10 @@ fn test_set_maker_fee_recipient() {
             expected_error: None,
         },
         SetMakerFeeRecipientTestCase {
-            name: "valid set by moderator",
+            name: "invalid set by moderator",
             sender: current_moderator,
             recipient,
-            expected_error: None,
+            expected_error: Some(ContractError::Unauthorized {}),
         },
         SetMakerFeeRecipientTestCase {
             name: "invalid set by unauthorized user",

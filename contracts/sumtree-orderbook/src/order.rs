@@ -130,7 +130,12 @@ pub fn place_limit(
         .add_attribute("tick_id", tick_id.to_string())
         .add_attribute("order_id", order_id.to_string())
         .add_attribute("order_direction", order_direction.to_string())
-        .add_attribute("quantity", quantity.to_string()))
+        .add_attribute("quantity", quantity.to_string())
+        .add_attribute("order_denom", expected_denom.to_string())
+        .add_attribute(
+            "output_denom",
+            orderbook.get_opposite_denom(&order_direction).to_string(),
+        ))
 }
 
 pub fn cancel_limit(
@@ -191,7 +196,7 @@ pub fn cancel_limit(
     let refund_msg = SubMsg::reply_on_error(
         BankMsg::Send {
             to_address: order.owner.to_string(),
-            amount: vec![coin(order.quantity.u128(), expected_denom)],
+            amount: vec![coin(order.quantity.u128(), expected_denom.clone())],
         },
         REPLY_ID_REFUND,
     );
@@ -216,6 +221,13 @@ pub fn cancel_limit(
             ("quantity", &order.quantity.to_string()),
             ("order_direction", &order.order_direction.to_string()),
             ("initial_quantity", &order.placed_quantity.to_string()),
+            ("order_denom", &expected_denom.to_string()),
+            (
+                "output_denom",
+                &orderbook
+                    .get_opposite_denom(&order.order_direction)
+                    .to_string(),
+            ),
         ])
         .add_submessage(refund_msg))
 }
@@ -237,7 +249,17 @@ pub fn claim_limit(
         order_id,
     )?;
 
-    let event = generate_claimed_order_event(info.sender, order, amount_claimed);
+    let orderbook = ORDERBOOK.load(deps.storage)?;
+    let order_denom = orderbook.get_expected_denom(&order.order_direction);
+    let output_denom = orderbook.get_opposite_denom(&order.order_direction);
+
+    let event = generate_claimed_order_event(
+        info.sender,
+        order,
+        amount_claimed,
+        order_denom,
+        output_denom,
+    );
 
     Ok(Response::new()
         .add_attribute("method", "claimLimit")
@@ -263,6 +285,7 @@ pub fn batch_claim_limits(
 
     let mut responses: Vec<SubMsg> = Vec::new();
     let mut events: Vec<Event> = Vec::new();
+    let orderbook = ORDERBOOK.load(deps.storage)?;
 
     for (tick_id, order_id) in orders {
         // Attempt to claim each order
@@ -274,8 +297,15 @@ pub fn batch_claim_limits(
             order_id,
         ) {
             Ok((amount_claimed, mut bank_msgs, order)) => {
-                let event =
-                    generate_claimed_order_event(info.sender.clone(), order, amount_claimed);
+                let order_denom = orderbook.get_expected_denom(&order.order_direction);
+                let output_denom = orderbook.get_opposite_denom(&order.order_direction);
+                let event = generate_claimed_order_event(
+                    info.sender.clone(),
+                    order,
+                    amount_claimed,
+                    order_denom,
+                    output_denom,
+                );
                 responses.append(&mut bank_msgs);
                 events.push(event);
             }
@@ -295,7 +325,13 @@ pub fn batch_claim_limits(
 }
 
 /// Generates an event when an order is claimed to help with indexing
-fn generate_claimed_order_event(sender: Addr, order: LimitOrder, amount_claimed: Uint256) -> Event {
+fn generate_claimed_order_event(
+    sender: Addr,
+    order: LimitOrder,
+    amount_claimed: Uint256,
+    order_denom: String,
+    output_denom: String,
+) -> Event {
     Event::new("limitClaimed").add_attributes(vec![
         ("sender", sender.as_str()),
         ("tick_id", &order.tick_id.to_string()),
@@ -306,6 +342,8 @@ fn generate_claimed_order_event(sender: Addr, order: LimitOrder, amount_claimed:
         ("amount_claimed", &amount_claimed.to_string()),
         ("placed_quantity", &order.placed_quantity.to_string()),
         ("fully_claimed", &order.quantity.is_zero().to_string()),
+        ("order_denom", &order_denom.to_string()),
+        ("output_denom", &output_denom.to_string()),
     ])
 }
 

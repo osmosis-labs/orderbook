@@ -55,7 +55,7 @@ pub enum AuthExecuteMsg {
 
 /// Message type for `migrate` entry_point
 #[cw_serde]
-pub enum MigrateMsg {}
+pub struct MigrateMsg {}
 
 #[cw_serde]
 pub struct DenomsResponse {

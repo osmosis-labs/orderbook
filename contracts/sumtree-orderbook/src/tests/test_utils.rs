@@ -60,7 +60,7 @@ impl OrderOperation {
                         OrderDirection::Bid => QUOTE_DENOM,
                     },
                 )];
-                let info = mock_info(info.sender.as_str(), &coin_vec);
+                let info = mock_info(limit_order.owner.as_str(), &coin_vec);
                 place_limit(
                     &mut deps,
                     env,

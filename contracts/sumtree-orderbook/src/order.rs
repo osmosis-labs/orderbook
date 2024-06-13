@@ -243,8 +243,8 @@ pub fn claim_limit(
 
     let (amount_claimed, bank_msgs, order) = claim_order(
         deps.storage,
-        info.sender.clone(),
         env.contract.address,
+        info.sender.clone(),
         tick_id,
         order_id,
     )?;
@@ -495,12 +495,6 @@ pub(crate) fn run_market_order_internal(
         let tick_price = tick_to_price(current_tick_id)?;
         last_tick_price = tick_price;
 
-        // Update current tick pointer as we visit ticks
-        match order.order_direction.opposite() {
-            OrderDirection::Ask => orderbook.next_ask_tick = current_tick_id,
-            OrderDirection::Bid => orderbook.next_bid_tick = current_tick_id,
-        }
-
         let output_quantity = amount_to_value(
             order.order_direction,
             order.quantity,
@@ -514,6 +508,12 @@ pub(crate) fn run_market_order_internal(
         if output_quantity.is_zero() {
             order.quantity = Uint128::zero();
             break;
+        }
+
+        // Update current tick pointer as we visit ticks that contribute to filling the order
+        match order.order_direction.opposite() {
+            OrderDirection::Ask => orderbook.next_ask_tick = current_tick_id,
+            OrderDirection::Bid => orderbook.next_bid_tick = current_tick_id,
         }
 
         let output_quantity_dec = Decimal256::from_ratio(output_quantity, Uint256::one());

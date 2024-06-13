@@ -11,7 +11,7 @@ use crate::{
     },
 };
 use cosmwasm_std::{
-    coin, Addr, BankMsg, Coin, Empty, SubMsg, Uint128, Uint256,
+    coin, Addr, BankMsg, Coin, Empty, SubMsg, Uint128, Uint256
 };
 use cosmwasm_std::{
     testing::{mock_env, mock_info},
@@ -992,6 +992,8 @@ struct RunMarketOrderMovingTickTestCase {
     operations: Vec<OrderOperation>,
     // (tick_id, direction), (etas, ctt)
     expected_tick_values: Vec<((i64, OrderDirection), TickValues)>,
+    // (bid_tick, ask_tick)
+    expected_tick_pointers: (i64, i64),
 }
 
 #[test]
@@ -1022,6 +1024,16 @@ fn test_run_market_order_moving_tick() {
                     Decimal256::zero(),
                     None,
                 )),
+                // Place Ask on third tick to ensure tick does not move more than it should
+                OrderOperation::PlaceLimit(LimitOrder::new(
+                    2,
+                    0,
+                    OrderDirection::Ask,
+                    Addr::unchecked(info.sender.as_str()),
+                    Uint128::from(10u128),
+                    Decimal256::zero(),
+                    None,
+                )),
                 // Fill all limits on tick 0 and 50% of tick 1, leaving tick 0 empty and forcing positive movement
                 OrderOperation::RunMarket(MarketOrder::new(
                     Uint128::from(15u128),
@@ -1039,6 +1051,7 @@ fn test_run_market_order_moving_tick() {
                     None,
                 )),
             ],
+            expected_tick_pointers: (0, 1),
             expected_tick_values: vec![
                 (
                     (0, OrderDirection::Ask),
@@ -1076,6 +1089,160 @@ fn test_run_market_order_moving_tick() {
             ],
         },
         RunMarketOrderMovingTickTestCase {
+            name: "no tick movement on filled market bid",
+            operations: vec![
+                // Place Ask on first tick
+                OrderOperation::PlaceLimit(LimitOrder::new(
+                    0,
+                    0,
+                    OrderDirection::Ask,
+                    Addr::unchecked(info.sender.as_str()),
+                    Uint128::from(10u128),
+                    Decimal256::zero(),
+                    None,
+                )),
+                // Place Ask on second tick
+                OrderOperation::PlaceLimit(LimitOrder::new(
+                    1,
+                    0,
+                    OrderDirection::Ask,
+                    Addr::unchecked(info.sender.as_str()),
+                    Uint128::from(10u128),
+                    Decimal256::zero(),
+                    None,
+                )),
+                // Fill all limits on tick 0 and 50% of tick 1, leaving tick 0 empty and forcing positive movement
+                OrderOperation::RunMarket(MarketOrder::new(
+                    Uint128::from(5u128),
+                    OrderDirection::Bid,
+                    Addr::unchecked("buyer"),
+                )),
+                // Place Bid on first tick to create overlapping state
+                OrderOperation::PlaceLimit(LimitOrder::new(
+                    0,
+                    0,
+                    OrderDirection::Bid,
+                    Addr::unchecked(info.sender.as_str()),
+                    Uint128::from(10u128),
+                    Decimal256::zero(),
+                    None,
+                )),
+            ],
+            expected_tick_pointers: (0, 0),
+            expected_tick_values: vec![
+                (
+                    (0, OrderDirection::Ask),
+                    TickValues {
+                        // Entire tick has been filled
+                        effective_total_amount_swapped: decimal256_from_u128(5u128),
+                        cumulative_total_value: decimal256_from_u128(10u128),
+                        total_amount_of_liquidity: decimal256_from_u128(5u128),
+                        cumulative_realized_cancels: Decimal256::zero(),
+                        last_tick_sync_etas: Decimal256::zero(),
+                    },
+                ),
+                (
+                    (1, OrderDirection::Ask),
+                    TickValues {
+                        // 50% of this tick has been filled
+                        effective_total_amount_swapped: Decimal256::zero(),
+                        cumulative_total_value: decimal256_from_u128(10u128),
+                        total_amount_of_liquidity: decimal256_from_u128(10u128),
+                        cumulative_realized_cancels: Decimal256::zero(),
+                        last_tick_sync_etas: Decimal256::zero(),
+                    },
+                ),
+                (
+                    (0, OrderDirection::Bid),
+                    TickValues {
+                        // None of this tick has been filled
+                        effective_total_amount_swapped: Decimal256::zero(),
+                        cumulative_total_value: decimal256_from_u128(10u128),
+                        total_amount_of_liquidity: decimal256_from_u128(10u128),
+                        cumulative_realized_cancels: Decimal256::zero(),
+                        last_tick_sync_etas: Decimal256::zero(),
+                    },
+                ),
+            ],
+        },
+        RunMarketOrderMovingTickTestCase {
+            name: "no tick movement on filled market ask",
+            operations: vec![
+                // Place Ask on first tick
+                OrderOperation::PlaceLimit(LimitOrder::new(
+                    0,
+                    0,
+                    OrderDirection::Bid,
+                    Addr::unchecked(info.sender.as_str()),
+                    Uint128::from(10u128),
+                    Decimal256::zero(),
+                    None,
+                )),
+                // Place Ask on second tick
+                OrderOperation::PlaceLimit(LimitOrder::new(
+                    -1,
+                    0,
+                    OrderDirection::Bid,
+                    Addr::unchecked(info.sender.as_str()),
+                    Uint128::from(10u128),
+                    Decimal256::zero(),
+                    None,
+                )),
+                // Fill all limits on tick 0 and 50% of tick 1, leaving tick 0 empty and forcing positive movement
+                OrderOperation::RunMarket(MarketOrder::new(
+                    Uint128::from(5u128),
+                    OrderDirection::Ask,
+                    Addr::unchecked("buyer"),
+                )),
+                // Place Bid on first tick to create overlapping state
+                OrderOperation::PlaceLimit(LimitOrder::new(
+                    0,
+                    0,
+                    OrderDirection::Ask,
+                    Addr::unchecked(info.sender.as_str()),
+                    Uint128::from(10u128),
+                    Decimal256::zero(),
+                    None,
+                )),
+            ],
+            expected_tick_pointers: (0, 0),
+            expected_tick_values: vec![
+                (
+                    (0, OrderDirection::Bid),
+                    TickValues {
+                        // Entire tick has been filled
+                        effective_total_amount_swapped: decimal256_from_u128(5u128),
+                        cumulative_total_value: decimal256_from_u128(10u128),
+                        total_amount_of_liquidity: decimal256_from_u128(5u128),
+                        cumulative_realized_cancels: Decimal256::zero(),
+                        last_tick_sync_etas: Decimal256::zero(),
+                    },
+                ),
+                (
+                    (-1, OrderDirection::Bid),
+                    TickValues {
+                        // 50% of this tick has been filled
+                        effective_total_amount_swapped: Decimal256::zero(),
+                        cumulative_total_value: decimal256_from_u128(10u128),
+                        total_amount_of_liquidity: decimal256_from_u128(10u128),
+                        cumulative_realized_cancels: Decimal256::zero(),
+                        last_tick_sync_etas: Decimal256::zero(),
+                    },
+                ),
+                (
+                    (0, OrderDirection::Ask),
+                    TickValues {
+                        // None of this tick has been filled
+                        effective_total_amount_swapped: Decimal256::zero(),
+                        cumulative_total_value: decimal256_from_u128(10u128),
+                        total_amount_of_liquidity: decimal256_from_u128(10u128),
+                        cumulative_realized_cancels: Decimal256::zero(),
+                        last_tick_sync_etas: Decimal256::zero(),
+                    },
+                ),
+            ],
+        },
+        RunMarketOrderMovingTickTestCase {
             name: "negative tick movement on filled market ask",
             operations: vec![
                 // Place Bid on first tick
@@ -1091,6 +1258,16 @@ fn test_run_market_order_moving_tick() {
                 // Place Bid on negative tick
                 OrderOperation::PlaceLimit(LimitOrder::new(
                     -1,
+                    0,
+                    OrderDirection::Bid,
+                    Addr::unchecked(info.sender.as_str()),
+                    Uint128::from(10u128),
+                    Decimal256::zero(),
+                    None,
+                )),
+                // Place extra Bid on negative tick to ensure tick does not move more than it should
+                OrderOperation::PlaceLimit(LimitOrder::new(
+                    -2,
                     0,
                     OrderDirection::Bid,
                     Addr::unchecked(info.sender.as_str()),
@@ -1115,6 +1292,7 @@ fn test_run_market_order_moving_tick() {
                     None,
                 )),
             ],
+            expected_tick_pointers: (-1, 0),
             expected_tick_values: vec![
                 (
                     (0, OrderDirection::Bid),
@@ -1207,6 +1385,7 @@ fn test_run_market_order_moving_tick() {
                     None,
                 )),
             ],
+            expected_tick_pointers: (0, 0),
             expected_tick_values: vec![
                 (
                     // Recall that each tick has two sets of values (one for each order direction).
@@ -1303,6 +1482,7 @@ fn test_run_market_order_moving_tick() {
                     None,
                 )),
             ],
+            expected_tick_pointers: (0, 0),
             expected_tick_values: vec![
                 (
                     (0, OrderDirection::Ask),
@@ -1365,6 +1545,18 @@ fn test_run_market_order_moving_tick() {
 
             assert_eq!(tick_values, values, "{}", format_test_name(test.name))
         }
+
+        let orderbook = ORDERBOOK.load(deps.as_ref().storage).unwrap();
+        assert_eq!(
+            orderbook.next_bid_tick, test.expected_tick_pointers.0,
+            "{}",
+            format_test_name(test.name)
+        );
+        assert_eq!(
+            orderbook.next_ask_tick, test.expected_tick_pointers.1,
+            "{}",
+            format_test_name(test.name)
+        );
     }
 }
 
@@ -2566,7 +2758,7 @@ fn test_claim_order() {
         // Test Setup
         let mut deps = mock_dependencies_custom();
         let env = mock_env();
-        let info = mock_info(DEFAULT_SENDER, &[]);
+        let info = mock_info(test.sender.as_str(), &[]);
         create_orderbook(
             deps.as_mut(),
             QUOTE_DENOM.to_string(),
@@ -2582,10 +2774,10 @@ fn test_claim_order() {
         }
 
         // Claim designated order
-        let res = claim_order(
-            deps.as_mut().storage,
-            env.contract.address,
-            test.sender,
+        let res = claim_limit(
+            deps.as_mut(),
+            env,
+            info,
             test.tick_id,
             test.order_id,
         );
@@ -2599,23 +2791,24 @@ fn test_claim_order() {
 
         // Assert that the generated bank and bounty messages are as expected
         assert_eq!(
-            res.1[0],
+            res.messages[0],
             test.expected_bank_msg,
             "{}",
             format_test_name(test.name)
         );
+
         if let Some(expected_bounty_msg) = test.expected_bounty_msg {
             // Bounty message expected
-            assert_eq!((res.1).len(), 2, "{}", format_test_name(test.name));
+            assert_eq!((res.messages).len(), 2, "{}", format_test_name(test.name));
             assert_eq!(
-                res.1[1],
+                res.messages[1],
                 expected_bounty_msg,
                 "{}",
                 format_test_name(test.name)
             );
         } else {
             // No bounty message expected
-            assert_eq!((res.1).len(), 1, "{}", format_test_name(test.name));
+            assert_eq!((res.messages).len(), 1, "{}", format_test_name(test.name));
         }
 
         // Check order in state
@@ -3265,7 +3458,7 @@ fn test_claim_order_moving_tick() {
         // Test Setup
         let mut deps = mock_dependencies_custom();
         let env = mock_env();
-        let info = mock_info(DEFAULT_SENDER, &[]);
+        let info = mock_info(test.sender.as_str(), &[]);
         create_orderbook(
             deps.as_mut(),
             QUOTE_DENOM.to_string(),
@@ -3281,10 +3474,10 @@ fn test_claim_order_moving_tick() {
         }
 
         // Claim designated order
-        let res = claim_order(
-            deps.as_mut().storage,
-            env.contract.address,
-            test.sender,
+        let res = claim_limit(
+            deps.as_mut(),
+            env,
+            info,
             test.tick_id,
             test.order_id,
         );
@@ -3298,7 +3491,7 @@ fn test_claim_order_moving_tick() {
 
         // Assert that the generated bank message is as expected
         assert_eq!(
-            res.1[0],
+            res.messages[0],
             test.expected_output,
             "{}",
             format_test_name(test.name)
@@ -3965,3 +4158,4 @@ fn test_maker_fee() {
     }
 
 }
+

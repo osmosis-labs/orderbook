@@ -243,8 +243,8 @@ pub fn claim_limit(
 
     let (amount_claimed, bank_msgs, order) = claim_order(
         deps.storage,
-        info.sender.clone(),
         env.contract.address,
+        info.sender.clone(),
         tick_id,
         order_id,
     )?;

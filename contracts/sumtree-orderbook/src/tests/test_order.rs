@@ -11,7 +11,7 @@ use crate::{
     },
 };
 use cosmwasm_std::{
-    coin, Addr, BankMsg, Coin, Empty, SubMsg, Uint128, Uint256,
+    coin, Addr, BankMsg, Coin, Empty, SubMsg, Uint128, Uint256
 };
 use cosmwasm_std::{
     testing::{mock_env, mock_info},
@@ -2758,7 +2758,7 @@ fn test_claim_order() {
         // Test Setup
         let mut deps = mock_dependencies_custom();
         let env = mock_env();
-        let info = mock_info(DEFAULT_SENDER, &[]);
+        let info = mock_info(test.sender.as_str(), &[]);
         create_orderbook(
             deps.as_mut(),
             QUOTE_DENOM.to_string(),
@@ -2774,10 +2774,10 @@ fn test_claim_order() {
         }
 
         // Claim designated order
-        let res = claim_order(
-            deps.as_mut().storage,
-            env.contract.address,
-            test.sender,
+        let res = claim_limit(
+            deps.as_mut(),
+            env,
+            info,
             test.tick_id,
             test.order_id,
         );
@@ -2791,23 +2791,24 @@ fn test_claim_order() {
 
         // Assert that the generated bank and bounty messages are as expected
         assert_eq!(
-            res.1[0],
+            res.messages[0],
             test.expected_bank_msg,
             "{}",
             format_test_name(test.name)
         );
+
         if let Some(expected_bounty_msg) = test.expected_bounty_msg {
             // Bounty message expected
-            assert_eq!((res.1).len(), 2, "{}", format_test_name(test.name));
+            assert_eq!((res.messages).len(), 2, "{}", format_test_name(test.name));
             assert_eq!(
-                res.1[1],
+                res.messages[1],
                 expected_bounty_msg,
                 "{}",
                 format_test_name(test.name)
             );
         } else {
             // No bounty message expected
-            assert_eq!((res.1).len(), 1, "{}", format_test_name(test.name));
+            assert_eq!((res.messages).len(), 1, "{}", format_test_name(test.name));
         }
 
         // Check order in state
@@ -3457,7 +3458,7 @@ fn test_claim_order_moving_tick() {
         // Test Setup
         let mut deps = mock_dependencies_custom();
         let env = mock_env();
-        let info = mock_info(DEFAULT_SENDER, &[]);
+        let info = mock_info(test.sender.as_str(), &[]);
         create_orderbook(
             deps.as_mut(),
             QUOTE_DENOM.to_string(),
@@ -3473,10 +3474,10 @@ fn test_claim_order_moving_tick() {
         }
 
         // Claim designated order
-        let res = claim_order(
-            deps.as_mut().storage,
-            env.contract.address,
-            test.sender,
+        let res = claim_limit(
+            deps.as_mut(),
+            env,
+            info,
             test.tick_id,
             test.order_id,
         );
@@ -3490,7 +3491,7 @@ fn test_claim_order_moving_tick() {
 
         // Assert that the generated bank message is as expected
         assert_eq!(
-            res.1[0],
+            res.messages[0],
             test.expected_output,
             "{}",
             format_test_name(test.name)

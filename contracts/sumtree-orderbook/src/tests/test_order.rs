@@ -1024,6 +1024,16 @@ fn test_run_market_order_moving_tick() {
                     Decimal256::zero(),
                     None,
                 )),
+                // Place Ask on third tick to ensure tick does not move more than it should
+                OrderOperation::PlaceLimit(LimitOrder::new(
+                    2,
+                    0,
+                    OrderDirection::Ask,
+                    Addr::unchecked(info.sender.as_str()),
+                    Uint128::from(10u128),
+                    Decimal256::zero(),
+                    None,
+                )),
                 // Fill all limits on tick 0 and 50% of tick 1, leaving tick 0 empty and forcing positive movement
                 OrderOperation::RunMarket(MarketOrder::new(
                     Uint128::from(15u128),
@@ -1248,6 +1258,16 @@ fn test_run_market_order_moving_tick() {
                 // Place Bid on negative tick
                 OrderOperation::PlaceLimit(LimitOrder::new(
                     -1,
+                    0,
+                    OrderDirection::Bid,
+                    Addr::unchecked(info.sender.as_str()),
+                    Uint128::from(10u128),
+                    Decimal256::zero(),
+                    None,
+                )),
+                // Place extra Bid on negative tick to ensure tick does not move more than it should
+                OrderOperation::PlaceLimit(LimitOrder::new(
+                    -2,
                     0,
                     OrderDirection::Bid,
                     Addr::unchecked(info.sender.as_str()),

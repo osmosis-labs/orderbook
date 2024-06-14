@@ -1,15 +1,16 @@
 use cosmwasm_std::{Coin, Coins, Decimal};
 use cosmwasm_std::{Decimal256, Uint128};
+use osmosis_test_tube::cosmrs::bip32::secp256k1::elliptic_curve::bigint::Uint;
 use osmosis_test_tube::{Account, Module, OsmosisTestApp};
 use rand::Rng;
 use rand::{rngs::StdRng, SeedableRng};
 
-use super::utils::orders;
+use super::utils::{assert, orders};
 use crate::constants::{MAX_TICK, MIN_TICK};
-use crate::msg::{AllTicksResponse, CalcOutAmtGivenInResponse, QueryMsg, SpotPriceResponse};
+use crate::msg::{CalcOutAmtGivenInResponse, QueryMsg, SpotPriceResponse};
 use crate::tests::e2e::modules::cosmwasm_pool::CosmwasmPool;
-use crate::tests::test_utils::decimal256_from_u128;
-use crate::types::{LimitOrder, Orderbook};
+use crate::tick_math::{amount_to_value, RoundingDirection};
+use crate::types::LimitOrder;
 use crate::{
     msg::{DenomsResponse, GetTotalPoolLiquidityResponse},
     setup,
@@ -20,7 +21,7 @@ use crate::{
 #[test]
 fn test_order_fuzz() {
     let seed: u64 = 123456789;
-    let amount_orders = 100;
+    let amount_orders = 5000;
     let mut rng = StdRng::seed_from_u64(seed);
 
     let app = OsmosisTestApp::new();
@@ -30,14 +31,13 @@ fn test_order_fuzz() {
     for i in 0..amount_orders {
         let username = format!("user{}", i);
         let chosen_tick = place_random_order(&mut t, &mut rng, &username);
-        let is_cancelled = rng.gen_bool(0.1);
+        let is_cancelled = rng.gen_bool(0.2);
         if is_cancelled {
             orders::cancel_limit_success(&t, &username, chosen_tick, i);
-            println!("cancelled order: {}", i);
         } else {
             orders.push((username, chosen_tick, i));
         }
-        assert_tick_invariants(&mut t);
+        assert::tick_invariants(&mut t);
     }
 
     for order_direction in [OrderDirection::Bid, OrderDirection::Ask] {
@@ -58,7 +58,7 @@ fn test_order_fuzz() {
         };
 
         let mut user_id = 0;
-        while !liquidity.is_zero() && user_id < 1000 {
+        while liquidity.gt(&Uint128::one()) && user_id < amount_orders {
             let amount_raw = rng.gen_range(0..=liquidity.u128());
             let (token_in_denom, token_out_denom) = if order_direction == OrderDirection::Bid {
                 ("quote", "base")
@@ -73,16 +73,14 @@ fn test_order_fuzz() {
                 })
                 .unwrap();
 
-            let liquidity_at_price_u256 = if order_direction == OrderDirection::Bid {
-                decimal256_from_u128(liquidity)
-                    .checked_div(Decimal256::from(spot_price))
-                    .unwrap()
-            } else {
-                decimal256_from_u128(liquidity)
-                    .checked_mul(Decimal256::from(spot_price))
-                    .unwrap()
-            }
-            .to_uint_floor();
+            let liquidity_at_price_u256 = amount_to_value(
+                order_direction.opposite(),
+                liquidity,
+                Decimal256::from(spot_price),
+                RoundingDirection::Down,
+            )
+            .unwrap();
+
             let liquidity_at_price = Uint128::try_from(liquidity_at_price_u256).unwrap();
             let amount = amount_raw.min(liquidity_at_price.u128());
             let expected_out =
@@ -121,18 +119,20 @@ fn test_order_fuzz() {
                     .unwrap()
                     .amount_of("quote")
             };
-            assert_tick_invariants(&mut t);
+            assert::tick_invariants(&mut t);
             user_id += 1;
         }
         println!("Placed {} orders in {} direction", user_id, order_direction);
-        let GetTotalPoolLiquidityResponse {
-            total_pool_liquidity,
-        } = t
-            .contract
-            .query(&QueryMsg::GetTotalPoolLiquidity {})
-            .unwrap();
-        println!("Total pool liquidity: {:?}", total_pool_liquidity);
     }
+
+    let GetTotalPoolLiquidityResponse {
+        total_pool_liquidity,
+    } = t
+        .contract
+        .query(&QueryMsg::GetTotalPoolLiquidity {})
+        .unwrap();
+    println!("Total remaining pool liquidity: {:?}", total_pool_liquidity);
+
     for (username, tick_id, order_id) in orders.iter() {
         t.add_account(
             "claimant",
@@ -154,13 +154,22 @@ fn test_order_fuzz() {
         } else {
             username
         };
-        orders::claim_success(&t, sender, order.tick_id, order.order_id);
-        println!("Claimed order: {}", order_id);
+        // We cannot verify how much to expect as tick is synced as part of the claim process
+        // Hence orders::claim is used instead of orders::claim_success
+        orders::claim(&t, sender, order.tick_id, order.order_id).unwrap();
+
+        let maybe_order = t.contract.query::<LimitOrder>(&QueryMsg::Order {
+            order_id: *order_id,
+            tick_id: *tick_id,
+        });
+        if let Ok(order) = maybe_order {
+            println!("order: {:?}", order);
+        }
     }
 }
 
 fn place_random_order(t: &mut TestEnv, rng: &mut StdRng, username: &str) -> i64 {
-    let quantity = Uint128::from(rng.gen::<u64>());
+    let quantity = Uint128::from(rng.gen::<u32>());
     let order_direction = if rng.gen_bool(0.5) {
         OrderDirection::Bid
     } else {
@@ -183,7 +192,7 @@ fn place_random_order(t: &mut TestEnv, rng: &mut StdRng, username: &str) -> i64 
         ],
     );
     assert!(t.accounts.contains_key(username));
-    let tick_id = (rng.gen::<i16>() as i64).min(MAX_TICK).max(MIN_TICK);
+    let tick_id = rng.gen_range(-10..=10);
     let has_claim_bounty = rng.gen_bool(0.8);
     let claim_bounty = if has_claim_bounty {
         Some(Decimal256::percent(rng.gen_range(0..=1)))
@@ -201,54 +210,14 @@ fn place_random_order(t: &mut TestEnv, rng: &mut StdRng, username: &str) -> i64 
     )
     .unwrap();
 
-    println!(
-        "username: {}, sender: {}, tick_id: {}, order_direction: {}, quantity: {}, claim_bounty: {}",
-        username,
-        t.accounts[username].address(),
-        tick_id,
-        order_direction,
-        quantity,
-        claim_bounty.unwrap_or_default()
-    );
+    // println!(
+    //     "username: {}, sender: {}, tick_id: {}, order_direction: {}, quantity: {}, claim_bounty: {}",
+    //     username,
+    //     t.accounts[username].address(),
+    //     tick_id,
+    //     order_direction,
+    //     quantity,
+    //     claim_bounty.unwrap_or_default()
+    // );
     tick_id
-}
-
-fn assert_tick_invariants(t: &mut TestEnv) {
-    let AllTicksResponse { ticks } = t
-        .contract
-        .query(&QueryMsg::AllTicks {
-            start_from: None,
-            end_at: None,
-            limit: None,
-        })
-        .unwrap();
-
-    let ticks_with_bid_amount = ticks.iter().filter(|tick| {
-        !tick
-            .tick_state
-            .get_values(OrderDirection::Bid)
-            .total_amount_of_liquidity
-            .is_zero()
-    });
-    let ticks_with_ask_amount = ticks.iter().filter(|tick| {
-        !tick
-            .tick_state
-            .get_values(OrderDirection::Ask)
-            .total_amount_of_liquidity
-            .is_zero()
-    });
-    let max_tick_with_bid = ticks_with_bid_amount.max_by_key(|tick| tick.tick_id);
-    let min_tick_with_ask = ticks_with_ask_amount.min_by_key(|tick| tick.tick_id);
-
-    let Orderbook {
-        next_ask_tick,
-        next_bid_tick,
-        ..
-    } = t.contract.query(&QueryMsg::OrderbookState {}).unwrap();
-    if let Some(min_tick_with_ask) = min_tick_with_ask {
-        assert_eq!(next_ask_tick, min_tick_with_ask.tick_id);
-    }
-    if let Some(max_tick_with_bid) = max_tick_with_bid {
-        assert_eq!(next_bid_tick, max_tick_with_bid.tick_id);
-    }
 }

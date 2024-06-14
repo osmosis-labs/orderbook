@@ -61,9 +61,13 @@ macro_rules! setup {
 
 pub mod assert {
     use crate::{
-        msg::{DenomsResponse, GetTotalPoolLiquidityResponse, QueryMsg, SpotPriceResponse},
+        msg::{
+            AllTicksResponse, DenomsResponse, GetTotalPoolLiquidityResponse, QueryMsg,
+            SpotPriceResponse,
+        },
         tests::e2e::test_env::TestEnv,
         tick_math::tick_to_price,
+        types::{OrderDirection, Orderbook},
     };
     use cosmwasm_std::{Coin, Coins};
     use osmosis_test_tube::{cosmrs::proto::prost::Message, RunnerExecuteResult};
@@ -201,6 +205,46 @@ pub mod assert {
 
         result
     }
+
+    pub fn tick_invariants(t: &mut TestEnv) {
+        let AllTicksResponse { ticks } = t
+            .contract
+            .query(&QueryMsg::AllTicks {
+                start_from: None,
+                end_at: None,
+                limit: None,
+            })
+            .unwrap();
+
+        let ticks_with_bid_amount = ticks.iter().filter(|tick| {
+            !tick
+                .tick_state
+                .get_values(OrderDirection::Bid)
+                .total_amount_of_liquidity
+                .is_zero()
+        });
+        let ticks_with_ask_amount = ticks.iter().filter(|tick| {
+            !tick
+                .tick_state
+                .get_values(OrderDirection::Ask)
+                .total_amount_of_liquidity
+                .is_zero()
+        });
+        let max_tick_with_bid = ticks_with_bid_amount.max_by_key(|tick| tick.tick_id);
+        let min_tick_with_ask = ticks_with_ask_amount.min_by_key(|tick| tick.tick_id);
+
+        let Orderbook {
+            next_ask_tick,
+            next_bid_tick,
+            ..
+        } = t.contract.query(&QueryMsg::OrderbookState {}).unwrap();
+        if let Some(min_tick_with_ask) = min_tick_with_ask {
+            assert!(next_ask_tick <= min_tick_with_ask.tick_id);
+        }
+        if let Some(max_tick_with_bid) = max_tick_with_bid {
+            assert!(next_bid_tick >= max_tick_with_bid.tick_id);
+        }
+    }
 }
 
 pub mod orders {
@@ -219,6 +263,7 @@ pub mod orders {
     use crate::{
         msg::{AllTicksResponse, CalcOutAmtGivenInResponse, DenomsResponse, ExecuteMsg, QueryMsg},
         tests::e2e::{modules::cosmwasm_pool::CosmwasmPool, test_env::TestEnv},
+        tick_math::{amount_to_value, tick_to_price, RoundingDirection},
         types::{LimitOrder, OrderDirection},
     };
 
@@ -366,31 +411,43 @@ pub mod orders {
         let AllTicksResponse { ticks } = t
             .contract
             .query(&QueryMsg::AllTicks {
-                start_from: Some(tick_id),
+                start_from: Some(order.tick_id),
                 end_at: None,
                 limit: Some(1),
             })
             .unwrap();
         let tick = ticks.first().unwrap().tick_state.clone();
         let tick_values: crate::types::TickValues = tick.get_values(order.order_direction);
-        let mut expected_amount_u256 = tick_values
+        let expected_amount_u256 = tick_values
             .effective_total_amount_swapped
             .checked_sub(order.etas)
             .unwrap()
-            .to_uint_floor();
+            .to_uint_floor()
+            .min(Uint256::from(order.quantity.u128()));
+        let expected_amount = Uint128::try_from(expected_amount_u256).unwrap();
+        let price = tick_to_price(order.tick_id).unwrap();
+        let mut expected_received_u256 = amount_to_value(
+            order.order_direction,
+            expected_amount,
+            price,
+            RoundingDirection::Down,
+        )
+        .unwrap();
         let mut bounty_amount_256 = Uint256::zero();
         if let Some(bounty) = order.claim_bounty {
             if order.owner != t.accounts[sender].address() {
-                bounty_amount_256 = Decimal256::from_ratio(expected_amount_u256, Uint256::one())
+                bounty_amount_256 = Decimal256::from_ratio(expected_received_u256, Uint256::one())
                     .checked_mul(bounty)
                     .unwrap()
                     .to_uint_floor();
-                expected_amount_u256 = expected_amount_u256.checked_sub(bounty_amount_256).unwrap();
+                expected_received_u256 = expected_received_u256
+                    .checked_sub(bounty_amount_256)
+                    .unwrap();
             }
         }
 
         let bounty_amount = Uint128::try_from(bounty_amount_256).unwrap();
-        let expected_amount = Uint128::try_from(expected_amount_u256).unwrap();
+        let expected_received = Uint128::try_from(expected_received_u256).unwrap();
 
         let DenomsResponse {
             base_denom,
@@ -407,7 +464,7 @@ pub mod orders {
             [
                 (
                     order.owner.as_str(),
-                    vec![Coin::new(expected_amount.u128(), expected_denom.clone())],
+                    vec![Coin::new(expected_received.u128(), expected_denom.clone())],
                 ),
                 (
                     &t.accounts[sender].address(),

@@ -230,7 +230,7 @@ impl<'a> OrderbookContract<'a> {
     }
 }
 
-pub fn assert_contract_err(expected: ContractError, actual: RunnerError) {
+pub fn _assert_contract_err(expected: ContractError, actual: RunnerError) {
     match actual {
         RunnerError::ExecuteError { msg } => {
             if !msg.contains(&expected.to_string()) {

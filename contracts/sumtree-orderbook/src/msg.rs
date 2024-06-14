@@ -119,6 +119,9 @@ pub enum QueryMsg {
         limit: Option<u64>,
     },
 
+    #[returns(crate::types::LimitOrder)]
+    Order { tick_id: i64, order_id: u64 },
+
     #[returns(DenomsResponse)]
     Denoms {},
 }

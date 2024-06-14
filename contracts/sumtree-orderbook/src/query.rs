@@ -11,7 +11,9 @@ use crate::{
         GetTotalPoolLiquidityResponse, SpotPriceResponse, TickIdAndState,
     },
     order,
-    state::{get_directional_liquidity, get_orders_by_owner, IS_ACTIVE, ORDERBOOK, TICK_STATE},
+    state::{
+        get_directional_liquidity, get_orders_by_owner, orders, IS_ACTIVE, ORDERBOOK, TICK_STATE,
+    },
     sudo::ensure_swap_fee,
     tick_math::tick_to_price,
     types::{FilterOwnerOrders, LimitOrder, MarketOrder, OrderDirection},
@@ -213,4 +215,9 @@ pub(crate) fn denoms(deps: Deps) -> ContractResult<DenomsResponse> {
         quote_denom: orderbook.quote_denom,
         base_denom: orderbook.base_denom,
     })
+}
+
+pub(crate) fn order(deps: Deps, tick_id: i64, order_id: u64) -> ContractResult<LimitOrder> {
+    let order = orders().load(deps.storage, &(tick_id, order_id))?;
+    Ok(order)
 }

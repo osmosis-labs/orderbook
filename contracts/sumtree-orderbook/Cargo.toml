@@ -52,7 +52,7 @@ schemars = "0.8.15"
 serde = { version = "1.0.189", default-features = false, features = ["derive"] }
 thiserror = { version = "1.0.49" }
 osmosis-std-derive = "0.15.3"
-osmosis-std = "0.16.0"
+osmosis-std = "0.25.0"
 prost = { version = "0.11.2", default-features = false, features = [
   "prost-derive",
 ] }
@@ -61,3 +61,4 @@ prost = { version = "0.11.2", default-features = false, features = [
 [dev-dependencies]
 cw-multi-test = "0.18.0"
 rand = "0.8.4"
+osmosis-test-tube = "25.0.0"

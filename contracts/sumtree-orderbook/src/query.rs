@@ -16,7 +16,7 @@ use crate::{
     },
     sudo::ensure_swap_fee,
     tick_math::tick_to_price,
-    types::{FilterOwnerOrders, LimitOrder, MarketOrder, OrderDirection},
+    types::{FilterOwnerOrders, LimitOrder, MarketOrder, OrderDirection, Orderbook},
     ContractError,
 };
 
@@ -220,4 +220,9 @@ pub(crate) fn denoms(deps: Deps) -> ContractResult<DenomsResponse> {
 pub(crate) fn order(deps: Deps, tick_id: i64, order_id: u64) -> ContractResult<LimitOrder> {
     let order = orders().load(deps.storage, &(tick_id, order_id))?;
     Ok(order)
+}
+
+pub(crate) fn orderbook_state(deps: Deps) -> ContractResult<Orderbook> {
+    let orderbook = ORDERBOOK.load(deps.storage)?;
+    Ok(orderbook)
 }

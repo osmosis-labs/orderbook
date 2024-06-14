@@ -191,7 +191,11 @@ pub mod assert {
                 let pre_amount = pre_balance.amount_of(&coin.denom);
                 let post_amount = post_balance.amount_of(&coin.denom);
                 let change = post_amount.saturating_sub(pre_amount);
-                assert_eq!(change, coin.amount);
+                assert_eq!(
+                    change, coin.amount,
+                    "Did not receive expected amount change, expected: {}{}, got: {}{}",
+                    coin.amount, coin.denom, change, coin.denom
+                );
             }
         }
 
@@ -416,6 +420,47 @@ pub mod orders {
             .collect::<Vec<(&str, Vec<Coin>)>>()
             .as_slice(),
             || claim(t, sender, tick_id, order_id),
+        )
+        .unwrap();
+    }
+
+    pub fn cancel_limit(
+        t: &TestEnv,
+        sender: &str,
+        tick_id: i64,
+        order_id: u64,
+    ) -> RunnerExecuteResult<MsgExecuteContractResponse> {
+        t.contract.execute(
+            &ExecuteMsg::CancelLimit { order_id, tick_id },
+            &[],
+            &t.accounts[sender],
+        )
+    }
+
+    pub fn cancel_limit_success(t: &TestEnv, sender: &str, tick_id: i64, order_id: u64) {
+        let order: LimitOrder = t
+            .contract
+            .query(&QueryMsg::Order { order_id, tick_id })
+            .unwrap();
+        let order_direction = order.order_direction;
+        let quantity = order.quantity;
+        let DenomsResponse {
+            base_denom,
+            quote_denom,
+        } = t.contract.get_denoms();
+        let token_in_denom = if order_direction == OrderDirection::Bid {
+            quote_denom
+        } else {
+            base_denom
+        };
+
+        with_balance_changes(
+            t,
+            &[(
+                &t.accounts[sender].address(),
+                vec![Coin::new(quantity.u128(), token_in_denom)],
+            )],
+            || cancel_limit(t, sender, tick_id, order_id),
         )
         .unwrap();
     }

@@ -146,6 +146,7 @@ pub fn query(deps: Deps, _env: Env, msg: QueryMsg) -> ContractResult<Binary> {
         QueryMsg::Order { tick_id, order_id } => {
             Ok(to_json_binary(&query::order(deps, tick_id, order_id)?)?)
         }
+        QueryMsg::OrderbookState {} => Ok(to_json_binary(&query::orderbook_state(deps)?)?),
         QueryMsg::Denoms {} => Ok(to_json_binary(&query::denoms(deps)?)?),
         QueryMsg::GetMakerFee {} => Ok(to_json_binary(&state::get_maker_fee(deps.storage)?)?),
 

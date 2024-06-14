@@ -122,6 +122,9 @@ pub enum QueryMsg {
     #[returns(crate::types::LimitOrder)]
     Order { tick_id: i64, order_id: u64 },
 
+    #[returns(crate::types::Orderbook)]
+    OrderbookState {},
+
     #[returns(DenomsResponse)]
     Denoms {},
 }

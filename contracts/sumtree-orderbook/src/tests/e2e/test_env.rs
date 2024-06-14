@@ -34,6 +34,11 @@ pub struct TestEnv<'a> {
 }
 
 impl<'a> TestEnv<'a> {
+    pub fn add_account(&mut self, username: &str, balance: Vec<Coin>) {
+        let account = self.app.init_account(&balance).unwrap();
+        self.accounts.insert(username.to_string(), account);
+    }
+
     pub fn _assert_account_balances(
         &self,
         account: &str,

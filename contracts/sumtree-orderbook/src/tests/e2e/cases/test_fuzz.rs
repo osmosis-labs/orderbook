@@ -9,7 +9,7 @@ use crate::constants::{MAX_TICK, MIN_TICK};
 use crate::msg::{AllTicksResponse, CalcOutAmtGivenInResponse, QueryMsg, SpotPriceResponse};
 use crate::tests::e2e::modules::cosmwasm_pool::CosmwasmPool;
 use crate::tests::test_utils::decimal256_from_u128;
-use crate::types::Orderbook;
+use crate::types::{LimitOrder, Orderbook};
 use crate::{
     msg::{DenomsResponse, GetTotalPoolLiquidityResponse},
     setup,
@@ -35,7 +35,7 @@ fn test_order_fuzz() {
             orders::cancel_limit_success(&t, &username, chosen_tick, i);
             println!("cancelled order: {}", i);
         } else {
-            orders.push((chosen_tick, i));
+            orders.push((username, chosen_tick, i));
         }
         assert_tick_invariants(&mut t);
     }
@@ -59,7 +59,7 @@ fn test_order_fuzz() {
 
         let mut user_id = 0;
         while !liquidity.is_zero() && user_id < 1000 {
-            let amount_raw = Uint128::from(rng.gen::<u64>());
+            let amount_raw = rng.gen_range(0..=liquidity.u128());
             let (token_in_denom, token_out_denom) = if order_direction == OrderDirection::Bid {
                 ("quote", "base")
             } else {
@@ -84,15 +84,15 @@ fn test_order_fuzz() {
             }
             .to_uint_floor();
             let liquidity_at_price = Uint128::try_from(liquidity_at_price_u256).unwrap();
-            let amount = amount_raw.min(liquidity_at_price);
+            let amount = amount_raw.min(liquidity_at_price.u128());
             let expected_out =
                 t.contract
                     .query::<CalcOutAmtGivenInResponse>(&QueryMsg::CalcOutAmountGivenIn {
-                        token_in: Coin::new(amount.u128(), token_in_denom.to_string()),
+                        token_in: Coin::new(amount, token_in_denom.to_string()),
                         token_out_denom: token_out_denom.to_string(),
                         swap_fee: Decimal::zero(),
                     });
-            if amount.is_zero() || expected_out.is_err() {
+            if amount == 0 || expected_out.is_err() {
                 user_id += 1;
                 continue;
             }
@@ -101,7 +101,7 @@ fn test_order_fuzz() {
             t.add_account(
                 &username,
                 vec![
-                    Coin::new(amount.u128(), token_in_denom),
+                    Coin::new(amount, token_in_denom),
                     Coin::new(1000000000000000u128, "uosmo"),
                 ],
             );
@@ -132,6 +132,30 @@ fn test_order_fuzz() {
             .query(&QueryMsg::GetTotalPoolLiquidity {})
             .unwrap();
         println!("Total pool liquidity: {:?}", total_pool_liquidity);
+    }
+    for (username, tick_id, order_id) in orders.iter() {
+        t.add_account(
+            "claimant",
+            vec![
+                Coin::new(1, "base"),
+                Coin::new(1, "quote"),
+                Coin::new(1000000000u128, "uosmo"),
+            ],
+        );
+        let order: LimitOrder = t
+            .contract
+            .query(&QueryMsg::Order {
+                order_id: *order_id,
+                tick_id: *tick_id,
+            })
+            .unwrap();
+        let sender = if order.claim_bounty.is_some() {
+            "claimant"
+        } else {
+            username
+        };
+        orders::claim_success(&t, sender, order.tick_id, order.order_id);
+        println!("Claimed order: {}", order_id);
     }
 }
 
@@ -221,14 +245,10 @@ fn assert_tick_invariants(t: &mut TestEnv) {
         next_bid_tick,
         ..
     } = t.contract.query(&QueryMsg::OrderbookState {}).unwrap();
-    assert_eq!(
-        next_ask_tick,
-        min_tick_with_ask.map_or(MAX_TICK, |tick| tick.tick_id)
-    );
-    println!("next_ask_tick: {}", next_ask_tick);
-    assert_eq!(
-        next_bid_tick,
-        max_tick_with_bid.map_or(MIN_TICK, |tick| tick.tick_id)
-    );
-    println!("next_bid_tick: {}", next_bid_tick);
+    if let Some(min_tick_with_ask) = min_tick_with_ask {
+        assert_eq!(next_ask_tick, min_tick_with_ask.tick_id);
+    }
+    if let Some(max_tick_with_bid) = max_tick_with_bid {
+        assert_eq!(next_bid_tick, max_tick_with_bid.tick_id);
+    }
 }

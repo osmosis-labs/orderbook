@@ -43,7 +43,7 @@ pub fn sync_tick(
         // If tick state for current order direction is already up to date,
         // skip the check. This saves us from walking the tree for both order directions
         // even though in most cases we will likely only need to sync one.
-        if tick_value.last_tick_sync_etas == target_etas {
+        if tick_value.last_tick_sync_etas >= target_etas {
             continue;
         }
 
@@ -67,6 +67,7 @@ pub fn sync_tick(
             .effective_total_amount_swapped
             .checked_add(realized_since_last_sync)?;
         tick_value.cumulative_realized_cancels = new_cumulative_realized_cancels;
+        tick_value.last_tick_sync_etas = target_etas;
 
         // Defense in depth guardrail: ensure that tick sync does not push tick ETAS past CTT.
         ensure!(

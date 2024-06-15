@@ -5,7 +5,7 @@ use cosmwasm_std::{
 use crate::{
     constants::{MAX_TICK, MIN_TICK},
     error::ContractResult,
-    order::{cancel_limit, claim_order, place_limit, run_market_order},
+    order::{cancel_limit, claim_limit, place_limit, run_market_order},
     state::orders,
     types::{LimitOrder, MarketOrder, OrderDirection},
 };
@@ -73,15 +73,10 @@ impl OrderOperation {
                 Ok(())
             }
             OrderOperation::Claim((tick_id, order_id)) => {
-                claim_order(
-                    deps.storage,
-                    info.sender.clone(),
-                    env.contract.address,
-                    tick_id,
-                    order_id,
-                )
-                .unwrap();
-                Ok(())
+                match claim_limit(deps, env, info, tick_id, order_id) {
+                    Ok(_) => Ok(()),
+                    Err(err) => Err(err),
+                }
             }
             OrderOperation::Cancel((tick_id, order_id)) => {
                 let order = orders()

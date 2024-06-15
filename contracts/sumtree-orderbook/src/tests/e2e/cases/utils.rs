@@ -61,10 +61,7 @@ macro_rules! setup {
 
 pub mod assert {
     use crate::{
-        msg::{
-            AllTicksResponse, DenomsResponse, GetTotalPoolLiquidityResponse, QueryMsg,
-            SpotPriceResponse,
-        },
+        msg::{DenomsResponse, GetTotalPoolLiquidityResponse, QueryMsg, SpotPriceResponse},
         tests::e2e::test_env::TestEnv,
         tick_math::tick_to_price,
         types::{OrderDirection, Orderbook},
@@ -206,15 +203,8 @@ pub mod assert {
         result
     }
 
-    pub fn tick_invariants(t: &mut TestEnv) {
-        let AllTicksResponse { ticks } = t
-            .contract
-            .query(&QueryMsg::AllTicks {
-                start_from: None,
-                end_at: None,
-                limit: None,
-            })
-            .unwrap();
+    pub fn tick_invariants(t: &TestEnv) {
+        let ticks = t.contract.collect_all_ticks();
 
         let ticks_with_bid_amount = ticks.iter().filter(|tick| {
             !tick
@@ -347,7 +337,7 @@ pub mod orders {
         order_direction: OrderDirection,
         quantity: impl Into<Uint128> + Clone,
         sender: &str,
-    ) {
+    ) -> RunnerExecuteResult<MsgSwapExactAmountInResponse> {
         let quantity_u128: Uint128 = quantity.clone().into();
         let DenomsResponse {
             base_denom,
@@ -387,7 +377,6 @@ pub mod orders {
             )],
             || place_market(cp, t, order_direction, quantity, sender),
         )
-        .unwrap();
     }
 
     pub fn claim(

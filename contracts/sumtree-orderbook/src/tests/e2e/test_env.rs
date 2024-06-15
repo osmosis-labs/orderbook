@@ -1,7 +1,8 @@
 use std::{collections::HashMap, path::PathBuf};
 
 use crate::{
-    msg::{DenomsResponse, ExecuteMsg, InstantiateMsg, QueryMsg},
+    constants::{MAX_TICK, MIN_TICK},
+    msg::{AllTicksResponse, DenomsResponse, ExecuteMsg, InstantiateMsg, QueryMsg, TickIdAndState},
     ContractError,
 };
 
@@ -227,6 +228,26 @@ impl<'a> OrderbookContract<'a> {
 
     pub fn get_denoms(&self) -> DenomsResponse {
         self.query(&QueryMsg::Denoms {}).unwrap()
+    }
+
+    pub fn collect_all_ticks(&self) -> Vec<TickIdAndState> {
+        let mut ticks = vec![];
+        let mut min_tick = MIN_TICK;
+        while min_tick <= MAX_TICK {
+            let tick: AllTicksResponse = self
+                .query(&QueryMsg::AllTicks {
+                    start_from: Some(min_tick),
+                    end_at: Some(MAX_TICK),
+                    limit: Some(300),
+                })
+                .unwrap();
+            if tick.ticks.is_empty() {
+                break;
+            }
+            ticks.extend(tick.ticks.clone());
+            min_tick = tick.ticks.iter().max_by_key(|t| t.tick_id).unwrap().tick_id + 1;
+        }
+        ticks
     }
 }
 

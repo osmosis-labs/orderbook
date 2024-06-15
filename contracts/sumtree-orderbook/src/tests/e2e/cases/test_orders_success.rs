@@ -1,4 +1,4 @@
-use cosmwasm_std::Decimal256;
+use cosmwasm_std::{Decimal256, Uint128};
 use osmosis_test_tube::{Module, OsmosisTestApp};
 
 use super::utils::{assert, orders};
@@ -117,7 +117,8 @@ fn test_basic_order() {
             case.order_direction.opposite(),
             case.filled_amount,
             "user2",
-        );
+        )
+        .unwrap();
         match case.order_direction {
             OrderDirection::Ask => {
                 assert::pool_liquidity(&t, case.placed_amount - case.filled_amount, 0u8, case.name);
@@ -154,4 +155,57 @@ fn test_basic_order() {
         }
         assert::spot_price(&t, expected_bid_tick, expected_ask_tick, case.name);
     }
+}
+
+#[test]
+fn test_cancelled_orders() {
+    let app = OsmosisTestApp::new();
+    let cp = CosmwasmPool::new(&app);
+    let t = setup!(&app, "quote", "base");
+    let amount_orders = 3;
+
+    for i in 0..amount_orders {
+        orders::place_limit(
+            &t,
+            0,
+            OrderDirection::Ask,
+            Uint128::from(100u128),
+            None,
+            "user1",
+        )
+        .unwrap();
+        orders::cancel_limit_success(&t, "user1", 0, i);
+    }
+    assert::pool_liquidity(&t, 0u8, 0u8, "cancelled orders");
+    assert::pool_balance(&t, 0u8, 0u8, "cancelled orders");
+    assert::tick_invariants(&t);
+
+    orders::place_limit(
+        &t,
+        0,
+        OrderDirection::Ask,
+        Uint128::from(100u128),
+        None,
+        "user1",
+    )
+    .unwrap();
+    assert::pool_liquidity(&t, 100u8, 0u8, "cancelled orders");
+    assert::pool_balance(&t, 100u8, 0u8, "cancelled orders");
+    assert::tick_invariants(&t);
+
+    orders::place_market_success(
+        &cp,
+        &t,
+        OrderDirection::Bid,
+        Uint128::from(100u128),
+        "user1",
+    )
+    .unwrap();
+    assert::tick_invariants(&t);
+    assert::pool_liquidity(&t, 0u8, 0u8, "cancelled orders");
+    assert::pool_balance(&t, 0u8, 100u8, "cancelled orders");
+    assert::tick_invariants(&t);
+
+    orders::claim(&t, "user1", 0, amount_orders).unwrap();
+    assert::tick_invariants(&t);
 }

@@ -43,6 +43,19 @@ pub fn place_limit(
         ContractError::InvalidQuantity { quantity }
     );
 
+    let tick_price = tick_to_price(tick_id)?;
+    let amount_out = amount_to_value(
+        order_direction,
+        quantity,
+        tick_price,
+        RoundingDirection::Down,
+    )?;
+
+    ensure!(
+        !amount_out.is_zero(),
+        ContractError::InvalidQuantity { quantity }
+    );
+
     // If applicable, ensure claim_bounty is between 0 and 0.01.
     // We set a conservative upper bound of 1% for claim bounties as a guardrail.
     if let Some(claim_bounty_value) = claim_bounty {
@@ -615,19 +628,20 @@ pub(crate) fn claim_order(
     // Sync the tick the order is on to ensure correct ETAS
     let bid_tick_values = tick_state.get_values(OrderDirection::Bid);
     let ask_tick_values = tick_state.get_values(OrderDirection::Ask);
-    sync_tick(
-        storage,
-        tick_id,
-        bid_tick_values.effective_total_amount_swapped,
-        ask_tick_values.effective_total_amount_swapped,
-    )?;
+
+    let (bid_etas, ask_etas) = match order.order_direction {
+        OrderDirection::Bid => (order.etas, bid_tick_values.effective_total_amount_swapped),
+        OrderDirection::Ask => (ask_tick_values.effective_total_amount_swapped, order.etas),
+    };
+
+    sync_tick(storage, tick_id, bid_etas, ask_etas)?;
 
     // Re-fetch tick post sync call
     let tick_state = TICK_STATE
         .may_load(storage, tick_id)?
         .ok_or(ContractError::InvalidTickId { tick_id })?;
     let tick_values = tick_state.get_values(order.order_direction);
-
+    println!("tick_values: {:?}, order: {:?}", tick_values, order);
     // Early exit if nothing has been filled
     ensure!(
         tick_values.effective_total_amount_swapped > order.etas,
@@ -639,7 +653,7 @@ pub(crate) fn claim_order(
     // we don't claim more than the order has available.
     let amount_filled_dec = tick_values
         .effective_total_amount_swapped
-        .checked_sub(order.etas)?
+        .checked_sub(tick_values.cumulative_realized_cancels)?
         .min(Decimal256::from_ratio(order.quantity, 1u128));
     let amount_filled = Uint128::try_from(amount_filled_dec.to_uint_floor())?;
 
@@ -695,6 +709,9 @@ pub(crate) fn claim_order(
             .to_uint_floor();
         amount = amount.checked_sub(maker_fee_amount)?;
     }
+
+    // Cannot send a zero amount, may be zero'd out by rounding
+    ensure!(!amount.is_zero(), ContractError::ZeroClaim);
 
     // Claimed amount always goes to the order owner
     let bank_msg = MsgSend256 {

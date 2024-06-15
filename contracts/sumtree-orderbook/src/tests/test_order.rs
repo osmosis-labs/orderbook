@@ -2,8 +2,7 @@ use std::str::FromStr;
 
 use crate::{
     constants::{MAX_TICK, MIN_TICK}, error::ContractError, order::*, orderbook::*, state::*, sumtree::{
-        node::{NodeType, TreeNode},
-        tree::get_root_node,
+        node::{NodeType, TreeNode}, tree::get_root_node
     },
     tests::{mock_querier::mock_dependencies_custom, test_utils::{decimal256_from_u128, place_multiple_limit_orders}},
     types::{
@@ -4159,3 +4158,38 @@ fn test_maker_fee() {
 
 }
 
+#[test]
+fn test_cancelled_orders() {
+    let mut deps = mock_dependencies_custom();
+    let sender = Addr::unchecked(DEFAULT_SENDER);
+    let env = mock_env();
+    let info = mock_info(sender.as_str(), &[]);
+
+    create_orderbook(deps.as_mut(), QUOTE_DENOM.to_string(), BASE_DENOM.to_string()).unwrap();
+
+    for i in 0..10 {
+        OrderOperation::PlaceLimit(LimitOrder::new(0, i, OrderDirection::Bid, sender.clone(), Uint128::from(100u128), Decimal256::zero(), None)).run(deps.as_mut(), env.clone(), info.clone()).unwrap();
+        if i % 3 != 0 {
+            OrderOperation::Cancel((0, i)).run(deps.as_mut(), env.clone(), info.clone()).unwrap();
+        }
+
+    }
+
+    OrderOperation::RunMarket(MarketOrder::new(Uint128::from(100u128).checked_mul(Uint128::from(4u128)).unwrap(), OrderDirection::Ask, sender.clone())).run(deps.as_mut(), env.clone(), info.clone()).unwrap();
+    OrderOperation::PlaceLimit(LimitOrder::new(0, 10, OrderDirection::Bid, sender.clone(), Uint128::from(100u128), Decimal256::zero(), None)).run(deps.as_mut(), env.clone(), info.clone()).unwrap();
+    
+
+    let err =  OrderOperation::Claim((0, 10)).run(deps.as_mut(), env.clone(), info.clone()).unwrap_err();
+    assert_eq!(err, ContractError::ZeroClaim);
+
+    OrderOperation::RunMarket(MarketOrder::new(Uint128::from(100u128), OrderDirection::Ask, sender.clone())).run(deps.as_mut(), env.clone(), info.clone()).unwrap();
+
+    for i in 0..10 {
+        let j = i;
+        if j % 3 == 0 {
+            OrderOperation::Claim((0, j)).run(deps.as_mut(), env.clone(), info.clone()).unwrap();
+        }
+    }
+
+    OrderOperation::Claim((0, 10)).run(deps.as_mut(), env.clone(), info.clone()).unwrap();
+}

@@ -7,16 +7,16 @@ use crate::{
     constants::{MAX_TICK, MIN_TICK},
     error::ContractResult,
     msg::{
-        AllTicksResponse, CalcOutAmtGivenInResponse, DenomsResponse, GetSwapFeeResponse,
-        GetTotalPoolLiquidityResponse, SpotPriceResponse, TickIdAndState,
+        CalcOutAmtGivenInResponse, DenomsResponse, GetSwapFeeResponse,
+        GetTotalPoolLiquidityResponse, SpotPriceResponse, TickIdAndState, TickUnrealizedCancels,
+        TickUnrealizedCancelsByIdResponse, TickUnrealizedCancelsState, TicksResponse,
     },
     order,
-    state::{
-        get_directional_liquidity, get_orders_by_owner, orders, IS_ACTIVE, ORDERBOOK, TICK_STATE,
-    },
+    state::{get_directional_liquidity, get_orders_by_owner, IS_ACTIVE, ORDERBOOK, TICK_STATE},
     sudo::ensure_swap_fee,
+    sumtree::tree::get_root_node,
     tick_math::tick_to_price,
-    types::{FilterOwnerOrders, LimitOrder, MarketOrder, OrderDirection, Orderbook},
+    types::{FilterOwnerOrders, LimitOrder, MarketOrder, OrderDirection, Orderbook, TickState},
     ContractError,
 };
 
@@ -139,7 +139,7 @@ pub(crate) fn all_ticks(
     start_from: Option<i64>,
     end_at: Option<i64>,
     limit: Option<usize>,
-) -> ContractResult<AllTicksResponse> {
+) -> ContractResult<TicksResponse> {
     // Fetch all ticks using pagination
     let all_ticks = TICK_STATE.range(
         deps.storage,
@@ -173,7 +173,7 @@ pub(crate) fn all_ticks(
             .collect()
     };
 
-    Ok(AllTicksResponse {
+    Ok(TicksResponse {
         ticks: all_tick_states,
     })
 }
@@ -217,12 +217,72 @@ pub(crate) fn denoms(deps: Deps) -> ContractResult<DenomsResponse> {
     })
 }
 
-pub(crate) fn order(deps: Deps, tick_id: i64, order_id: u64) -> ContractResult<LimitOrder> {
-    let order = orders().load(deps.storage, &(tick_id, order_id))?;
-    Ok(order)
-}
-
 pub(crate) fn orderbook_state(deps: Deps) -> ContractResult<Orderbook> {
     let orderbook = ORDERBOOK.load(deps.storage)?;
     Ok(orderbook)
+}
+
+pub(crate) fn ticks_by_id(deps: Deps, tick_ids: Vec<i64>) -> ContractResult<TicksResponse> {
+    let ticks = tick_ids
+        .iter()
+        .map(|tick_id| {
+            let tick_state = TICK_STATE
+                .load(deps.storage, *tick_id)
+                .map_err(|_| ContractError::InvalidTickId { tick_id: *tick_id })
+                .unwrap();
+
+            TickIdAndState {
+                tick_id: *tick_id,
+                tick_state,
+            }
+        })
+        .collect();
+
+    Ok(TicksResponse { ticks })
+}
+
+/// Determines the amount of liquidity in unrealized cancels
+fn get_unrealized_cancels(
+    deps: Deps,
+    tick_state: TickState,
+    tick_id: i64,
+) -> ContractResult<TickUnrealizedCancelsState> {
+    let bid_unrealized_cancels = get_root_node(deps.storage, tick_id, OrderDirection::Bid).map_or(
+        tick_state.bid_values.cumulative_realized_cancels,
+        |ask_root| ask_root.get_value(),
+    );
+
+    let ask_unrealized_cancels = get_root_node(deps.storage, tick_id, OrderDirection::Ask).map_or(
+        tick_state.ask_values.cumulative_realized_cancels,
+        |ask_root| ask_root.get_value(),
+    );
+
+    Ok(TickUnrealizedCancelsState {
+        ask_unrealized_cancels,
+        bid_unrealized_cancels,
+    })
+}
+
+// Gets all ticks for the provided vector of IDs and retrieves the value of their sumtree root
+pub(crate) fn ticks_unrealized_cancels_by_id(
+    deps: Deps,
+    tick_ids: Vec<i64>,
+) -> ContractResult<TickUnrealizedCancelsByIdResponse> {
+    let ticks = tick_ids
+        .iter()
+        .map(|tick_id| {
+            let tick_state = TICK_STATE
+                .load(deps.storage, *tick_id)
+                .map_err(|_| ContractError::InvalidTickId { tick_id: *tick_id })
+                .unwrap();
+
+            TickUnrealizedCancels {
+                tick_id: *tick_id,
+                unrealized_cancels: get_unrealized_cancels(deps, tick_state.clone(), *tick_id)
+                    .unwrap(),
+            }
+        })
+        .collect();
+
+    Ok(TickUnrealizedCancelsByIdResponse { ticks })
 }

@@ -1,6 +1,6 @@
-use cosmwasm_std::{Coin, Decimal, Uint256};
+use cosmwasm_std::{Addr, Coin, Decimal, Uint256};
 use cosmwasm_std::{Decimal256, Uint128};
-use osmosis_test_tube::{Module, OsmosisTestApp};
+use osmosis_test_tube::{Account, Module, OsmosisTestApp};
 use rand::seq::SliceRandom;
 use rand::Rng;
 use rand::{rngs::StdRng, SeedableRng};
@@ -152,9 +152,11 @@ fn run_fuzz_linear(amount_limit_orders: u64, tick_range: (i64, i64), cancel_prob
         );
         let order: LimitOrder = t
             .contract
-            .query(&QueryMsg::Order {
-                order_id: *order_id,
-                tick_id: *tick_id,
+            .query(&QueryMsg::OrdersByOwner {
+                owner: Addr::unchecked(t.accounts[username].address()),
+                start_from: Some((*tick_id, *order_id)),
+                end_at: None,
+                limit: Some(1),
             })
             .unwrap();
         let sender = if order.claim_bounty.is_some() {
@@ -166,11 +168,12 @@ fn run_fuzz_linear(amount_limit_orders: u64, tick_range: (i64, i64), cancel_prob
         orders::claim(&t, sender, order.tick_id, order.order_id).unwrap();
 
         // For the situation that the order has the 1 remainder we record this for assertions
-        let maybe_order = t.contract.query::<LimitOrder>(&QueryMsg::Order {
-            order_id: *order_id,
-            tick_id: *tick_id,
-        });
-        if let Ok(order) = maybe_order {
+        let maybe_order = t.contract.get_order(
+            t.accounts[username].address(),
+            order.tick_id,
+            order.order_id,
+        );
+        if let Some(order) = maybe_order {
             println!("order: {:?}", order);
             remainder_orders += 1;
         }

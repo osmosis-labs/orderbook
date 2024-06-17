@@ -3,14 +3,14 @@ use std::{collections::HashMap, path::PathBuf};
 use crate::{
     constants::{MAX_TICK, MIN_TICK},
     msg::{
-        AllTicksResponse, DenomsResponse, ExecuteMsg, GetTotalPoolLiquidityResponse,
-        InstantiateMsg, QueryMsg, TickIdAndState,
+        DenomsResponse, ExecuteMsg, GetTotalPoolLiquidityResponse, InstantiateMsg, QueryMsg,
+        TickIdAndState, TicksResponse,
     },
-    types::OrderDirection,
+    types::{LimitOrder, OrderDirection},
     ContractError,
 };
 
-use cosmwasm_std::{to_json_binary, Coin, Coins};
+use cosmwasm_std::{to_json_binary, Addr, Coin, Coins};
 use osmosis_std::types::{
     cosmos::bank::v1beta1::QueryAllBalancesRequest,
     cosmwasm::wasm::v1::MsgExecuteContractResponse,
@@ -238,7 +238,7 @@ impl<'a> OrderbookContract<'a> {
         let mut ticks = vec![];
         let mut min_tick = MIN_TICK;
         while min_tick <= MAX_TICK {
-            let tick: AllTicksResponse = self
+            let tick: TicksResponse = self
                 .query(&QueryMsg::AllTicks {
                     start_from: Some(min_tick),
                     end_at: Some(MAX_TICK),
@@ -271,6 +271,18 @@ impl<'a> OrderbookContract<'a> {
         };
 
         liquidity.u128()
+    }
+
+    pub fn get_order(&self, sender: String, tick_id: i64, order_id: u64) -> Option<LimitOrder> {
+        let orders: Vec<LimitOrder> = self
+            .query(&QueryMsg::OrdersByOwner {
+                owner: Addr::unchecked(sender),
+                start_from: Some((tick_id, order_id)),
+                end_at: None,
+                limit: Some(1),
+            })
+            .unwrap();
+        orders.first().cloned()
     }
 }
 

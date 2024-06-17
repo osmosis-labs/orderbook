@@ -260,7 +260,7 @@ pub mod orders {
     use osmosis_test_tube::{Account, OsmosisTestApp, RunnerExecuteResult};
 
     use crate::{
-        msg::{AllTicksResponse, CalcOutAmtGivenInResponse, DenomsResponse, ExecuteMsg, QueryMsg},
+        msg::{CalcOutAmtGivenInResponse, DenomsResponse, ExecuteMsg, QueryMsg, TicksResponse},
         tests::e2e::{modules::cosmwasm_pool::CosmwasmPool, test_env::TestEnv},
         tick_math::{amount_to_value, tick_to_price, RoundingDirection},
         types::{LimitOrder, OrderDirection},
@@ -404,14 +404,15 @@ pub mod orders {
     pub fn claim_success(
         t: &TestEnv,
         sender: &str,
+        owner: &str,
         tick_id: i64,
         order_id: u64,
     ) -> RunnerExecuteResult<MsgExecuteContractResponse> {
         let order: LimitOrder = t
             .contract
-            .query(&QueryMsg::Order { order_id, tick_id })
+            .get_order(t.accounts[owner].address(), tick_id, order_id)
             .unwrap();
-        let AllTicksResponse { ticks } = t
+        let TicksResponse { ticks } = t
             .contract
             .query(&QueryMsg::AllTicks {
                 start_from: Some(order.tick_id),
@@ -499,7 +500,7 @@ pub mod orders {
     pub fn cancel_limit_success(t: &TestEnv, sender: &str, tick_id: i64, order_id: u64) {
         let order: LimitOrder = t
             .contract
-            .query(&QueryMsg::Order { order_id, tick_id })
+            .get_order(t.accounts[sender].address(), tick_id, order_id)
             .unwrap();
         let order_direction = order.order_direction;
         let quantity = order.quantity;

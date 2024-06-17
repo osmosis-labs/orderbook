@@ -143,9 +143,6 @@ pub fn query(deps: Deps, _env: Env, msg: QueryMsg) -> ContractResult<Binary> {
         } => Ok(to_json_binary(&query::orders_by_owner(
             deps, owner, start_from, end_at, limit,
         )?)?),
-        QueryMsg::Order { tick_id, order_id } => {
-            Ok(to_json_binary(&query::order(deps, tick_id, order_id)?)?)
-        }
         QueryMsg::OrderbookState {} => Ok(to_json_binary(&query::orderbook_state(deps)?)?),
         QueryMsg::TicksById { tick_ids } => {
             Ok(to_json_binary(&query::ticks_by_id(deps, tick_ids)?)?)

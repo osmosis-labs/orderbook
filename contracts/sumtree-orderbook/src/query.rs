@@ -9,12 +9,14 @@ use crate::{
     msg::{
         AllTicksResponse, CalcOutAmtGivenInResponse, DenomsResponse, GetSwapFeeResponse,
         GetTotalPoolLiquidityResponse, SpotPriceResponse, TickIdAndState,
+        TickRealizedEffectiveTotalAmountSwapped, TicksByIdResponse,
     },
     order,
     state::{get_directional_liquidity, get_orders_by_owner, IS_ACTIVE, ORDERBOOK, TICK_STATE},
     sudo::ensure_swap_fee,
+    sumtree::tree::get_root_node,
     tick_math::tick_to_price,
-    types::{FilterOwnerOrders, LimitOrder, MarketOrder, OrderDirection},
+    types::{FilterOwnerOrders, LimitOrder, MarketOrder, OrderDirection, TickState},
     ContractError,
 };
 
@@ -131,6 +133,35 @@ pub(crate) fn total_pool_liquidity(deps: Deps) -> ContractResult<GetTotalPoolLiq
     })
 }
 
+fn get_realized_etas(
+    deps: Deps,
+    tick_state: TickState,
+    tick_id: i64,
+) -> ContractResult<TickRealizedEffectiveTotalAmountSwapped> {
+    let bid_root = get_root_node(deps.storage, tick_id, OrderDirection::Bid).map_or(
+        tick_state.bid_values.cumulative_realized_cancels,
+        |ask_root| ask_root.get_value(),
+    );
+    let bid_etas = bid_root.checked_sub(tick_state.bid_values.cumulative_realized_cancels)?;
+
+    let ask_root = get_root_node(deps.storage, tick_id, OrderDirection::Ask).map_or(
+        tick_state.ask_values.cumulative_realized_cancels,
+        |ask_root| ask_root.get_value(),
+    );
+    let ask_etas = ask_root.checked_sub(tick_state.ask_values.cumulative_realized_cancels)?;
+
+    Ok(TickRealizedEffectiveTotalAmountSwapped {
+        ask_etas: tick_state
+            .ask_values
+            .effective_total_amount_swapped
+            .checked_add(ask_etas)?,
+        bid_etas: tick_state
+            .bid_values
+            .effective_total_amount_swapped
+            .checked_add(bid_etas)?,
+    })
+}
+
 /// Returns all active ticks in the orderbook.
 pub(crate) fn all_ticks(
     deps: Deps,
@@ -153,9 +184,11 @@ pub(crate) fn all_ticks(
             .take(limit)
             .map(|maybe_tick| {
                 let (tick_id, tick_state) = maybe_tick.unwrap();
+                let realized_etas = get_realized_etas(deps, tick_state.clone(), tick_id).unwrap();
                 TickIdAndState {
                     tick_id,
                     tick_state,
+                    realized_etas,
                 }
             })
             .collect()
@@ -163,9 +196,11 @@ pub(crate) fn all_ticks(
         all_ticks
             .map(|maybe_tick| {
                 let (tick_id, tick_state) = maybe_tick.unwrap();
+                let realized_etas = get_realized_etas(deps, tick_state.clone(), tick_id).unwrap();
                 TickIdAndState {
                     tick_id,
                     tick_state,
+                    realized_etas,
                 }
             })
             .collect()
@@ -213,4 +248,25 @@ pub(crate) fn denoms(deps: Deps) -> ContractResult<DenomsResponse> {
         quote_denom: orderbook.quote_denom,
         base_denom: orderbook.base_denom,
     })
+}
+
+pub(crate) fn ticks_by_id(deps: Deps, tick_ids: Vec<i64>) -> ContractResult<TicksByIdResponse> {
+    let ticks = tick_ids
+        .iter()
+        .map(|tick_id| {
+            let tick_state = TICK_STATE
+                .load(deps.storage, *tick_id)
+                .map_err(|_| ContractError::InvalidTickId { tick_id: *tick_id })
+                .unwrap();
+            let realized_etas = get_realized_etas(deps, tick_state.clone(), *tick_id).unwrap();
+
+            TickIdAndState {
+                tick_id: *tick_id,
+                tick_state,
+                realized_etas,
+            }
+        })
+        .collect();
+
+    Ok(TicksByIdResponse { ticks })
 }

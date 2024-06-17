@@ -748,6 +748,7 @@ struct AllTicksTestCase {
     start_after: Option<i64>,
     end_at: Option<i64>,
     limit: Option<usize>,
+    unrealized_cancel_diffs: Vec<(i64, (OrderDirection, Decimal256))>,
 }
 
 #[test]
@@ -762,6 +763,7 @@ fn test_all_ticks() {
             start_after: None,
             end_at: None,
             limit: None,
+            unrealized_cancel_diffs: vec![],
         },
         AllTicksTestCase {
             name: "Single order, single tick",
@@ -787,6 +789,80 @@ fn test_all_ticks() {
             start_after: None,
             end_at: None,
             limit: None,
+            unrealized_cancel_diffs: vec![],
+        },
+        AllTicksTestCase {
+            name: "Single order (cancelled + unrealized), single tick",
+            pre_operations: vec![
+                OrderOperation::PlaceLimit(LimitOrder::new(
+                    0,
+                    0,
+                    OrderDirection::Ask,
+                    sender.clone(),
+                    Uint128::one(),
+                    Decimal256::zero(),
+                    None,
+                )),
+                OrderOperation::Cancel((0, 0)),
+            ],
+            expected_output: vec![TickState {
+                ask_values: TickValues {
+                    total_amount_of_liquidity: Decimal256::zero(),
+                    cumulative_total_value: Decimal256::one(),
+                    effective_total_amount_swapped: Decimal256::zero(),
+                    cumulative_realized_cancels: Decimal256::zero(),
+                    last_tick_sync_etas: Decimal256::zero(),
+                },
+                bid_values: TickValues::default(),
+            }],
+            start_after: None,
+            end_at: None,
+            limit: None,
+            unrealized_cancel_diffs: vec![(0, (OrderDirection::Ask, Decimal256::one()))],
+        },
+        AllTicksTestCase {
+            name: "Single order (cancelled + realized), single tick",
+            pre_operations: vec![
+                OrderOperation::PlaceLimit(LimitOrder::new(
+                    0,
+                    0,
+                    OrderDirection::Ask,
+                    sender.clone(),
+                    Uint128::one(),
+                    Decimal256::zero(),
+                    None,
+                )),
+                OrderOperation::Cancel((0, 0)),
+                OrderOperation::PlaceLimit(LimitOrder::new(
+                    0,
+                    1,
+                    OrderDirection::Ask,
+                    sender.clone(),
+                    Uint128::one(),
+                    Decimal256::zero(),
+                    None,
+                )),
+                OrderOperation::RunMarket(MarketOrder::new(
+                    Uint128::one(),
+                    OrderDirection::Bid,
+                    sender.clone(),
+                )),
+                OrderOperation::Claim((0, 1)),
+            ],
+            expected_output: vec![TickState {
+                ask_values: TickValues {
+                    total_amount_of_liquidity: Decimal256::zero(),
+                    cumulative_total_value: decimal256_from_u128(2u8),
+                    effective_total_amount_swapped: decimal256_from_u128(2u8),
+                    cumulative_realized_cancels: Decimal256::one(),
+                    last_tick_sync_etas: Decimal256::zero(),
+                },
+                bid_values: TickValues::default(),
+            }],
+            start_after: None,
+            end_at: None,
+            limit: None,
+            unrealized_cancel_diffs: vec![],
         },
         AllTicksTestCase {
             name: "Multiple directions, single tick",
@@ -829,6 +905,7 @@ fn test_all_ticks() {
             start_after: None,
             end_at: None,
             limit: None,
+            unrealized_cancel_diffs: vec![],
         },
         AllTicksTestCase {
             name: "Multiple directions, many ticks",
@@ -868,6 +945,7 @@ fn test_all_ticks() {
             start_after: None,
             end_at: None,
             limit: None,
+            unrealized_cancel_diffs: vec![],
         },
         AllTicksTestCase {
             name: "Multiple directions, many ticks w/ limit",
@@ -907,6 +985,7 @@ fn test_all_ticks() {
             start_after: None,
             end_at: None,
             limit: Some(50),
+            unrealized_cancel_diffs: vec![],
         },
         AllTicksTestCase {
             name: "Multiple directions, many ticks w/ start after",
@@ -948,6 +1027,7 @@ fn test_all_ticks() {
             start_after: Some(90i64),
             end_at: None,
             limit: None,
+            unrealized_cancel_diffs: vec![],
         },
         AllTicksTestCase {
             name: "Multiple directions, many ticks w/ end at",
@@ -989,6 +1069,7 @@ fn test_all_ticks() {
             start_after: None,
             end_at: Some(44i64),
             limit: None,
+            unrealized_cancel_diffs: vec![],
         },
         AllTicksTestCase {
             name: "Multiple directions, many ticks w/ start after & end at",
@@ -1030,6 +1111,7 @@ fn test_all_ticks() {
             start_after: Some(21i64),
             end_at: Some(44i64),
             limit: None,
+            unrealized_cancel_diffs: vec![],
         },
         AllTicksTestCase {
             name: "large number of ticks",
@@ -1055,6 +1137,7 @@ fn test_all_ticks() {
             start_after: None,
             end_at: None,
             limit: None,
+            unrealized_cancel_diffs: vec![],
         },
         AllTicksTestCase {
             name: "single tick paginated",
@@ -1077,6 +1160,7 @@ fn test_all_ticks() {
             start_after: Some(11),
             end_at: Some(11),
             limit: None,
+            unrealized_cancel_diffs: vec![],
         },
     ];
 
@@ -1115,6 +1199,29 @@ fn test_all_ticks() {
                 .collect::<Vec<TickState>>(),
             test.expected_output,
             "{}: output did not match",
+            test.name
+        );
+
+        // Calculates the difference between realized etas and unrealized for each tick
+        // Filters any that are 0 (fully synced)
+        let unrealized_cancel_diffs = res
+            .ticks
+            .iter()
+            .flat_map(|t| {
+                let bid_cancel_diff = t.realized_etas.bid_etas
+                    - t.tick_state.bid_values.effective_total_amount_swapped;
+                let ask_cancel_diff = t.realized_etas.ask_etas
+                    - t.tick_state.ask_values.effective_total_amount_swapped;
+                vec![
+                    (t.tick_id, (OrderDirection::Bid, bid_cancel_diff)),
+                    (t.tick_id, (OrderDirection::Ask, ask_cancel_diff)),
+                ]
+            })
+            .filter(|(_, (_, diff))| !diff.is_zero())
+            .collect::<Vec<(i64, (OrderDirection, Decimal256))>>();
+        assert_eq!(
+            unrealized_cancel_diffs, test.unrealized_cancel_diffs,
+            "{}: unrealized cancel diffs did not match",
             test.name
         );
     }

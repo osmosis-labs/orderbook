@@ -97,6 +97,7 @@ pub enum QueryMsg {
         /// The limit for amount of items to return
         limit: Option<usize>,
     },
+
     #[returns(MakerFee)]
     GetMakerFee {},
 
@@ -104,6 +105,7 @@ pub enum QueryMsg {
     #[returns(Option<Addr>)]
     Auth(AuthQueryMsg),
 
+    // -- Contract Queries --
     #[returns(bool)]
     IsActive {},
 
@@ -121,6 +123,9 @@ pub enum QueryMsg {
 
     #[returns(DenomsResponse)]
     Denoms {},
+
+    #[returns(TicksByIdResponse)]
+    TicksById { tick_ids: Vec<i64> },
 }
 
 #[cw_serde]
@@ -163,13 +168,25 @@ pub struct MakerFee {
 }
 
 #[cw_serde]
+pub struct TickRealizedEffectiveTotalAmountSwapped {
+    pub ask_etas: Decimal256,
+    pub bid_etas: Decimal256,
+}
+
+#[cw_serde]
 pub struct TickIdAndState {
     pub tick_id: i64,
     pub tick_state: TickState,
+    pub realized_etas: TickRealizedEffectiveTotalAmountSwapped,
 }
 
 #[cw_serde]
 pub struct AllTicksResponse {
+    pub ticks: Vec<TickIdAndState>,
+}
+
+#[cw_serde]
+pub struct TicksByIdResponse {
     pub ticks: Vec<TickIdAndState>,
 }
 

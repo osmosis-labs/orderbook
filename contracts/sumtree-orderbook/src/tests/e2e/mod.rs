@@ -1,4 +1,4 @@
-#![cfg(all(not(tarpaulin), not(feature = "skip-integration-test")))]
+#![cfg(all(not(tarpaulin), not(feature = "skip-integration-tests")))]
 
 mod cases;
 mod modules;

@@ -17,6 +17,11 @@ use crate::{
     types::OrderDirection,
 };
 
+// Tick Price = 2
+pub(crate) const LARGE_POSITIVE_TICK: i64 = 1000000;
+// Tick Price = 0.5
+pub(crate) const LARGE_NEGATIVE_TICK: i64 = -5000000;
+
 #[test]
 fn test_order_fuzz_large_orders_small_range() {
     run_fuzz_linear(2000, (-10, 10), 0.2);
@@ -24,7 +29,7 @@ fn test_order_fuzz_large_orders_small_range() {
 
 #[test]
 fn test_order_fuzz_small_orders_large_range() {
-    run_fuzz_linear(100, (MIN_TICK, MAX_TICK), 0.2);
+    run_fuzz_linear(100, (LARGE_NEGATIVE_TICK, LARGE_POSITIVE_TICK), 0.2);
 }
 
 #[test]

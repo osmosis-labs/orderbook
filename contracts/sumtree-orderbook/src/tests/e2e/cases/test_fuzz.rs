@@ -164,7 +164,7 @@ fn run_fuzz_linear(amount_limit_orders: u64, tick_range: (i64, i64), cancel_prob
             username
         };
 
-        orders::claim(&t, sender, order.tick_id, order.order_id).unwrap();
+        orders::claim_success(&t, sender, username, order.tick_id, order.order_id).unwrap();
 
         // For the situation that the order has the 1 remainder we record this for assertions
         let maybe_order = t.contract.get_order(

@@ -260,7 +260,10 @@ pub mod orders {
     use osmosis_test_tube::{Account, OsmosisTestApp, RunnerExecuteResult};
 
     use crate::{
-        msg::{CalcOutAmtGivenInResponse, DenomsResponse, ExecuteMsg, QueryMsg, TicksResponse},
+        msg::{
+            CalcOutAmtGivenInResponse, DenomsResponse, ExecuteMsg, QueryMsg, TickUnrealizedCancels,
+            TickUnrealizedCancelsByIdResponse, TicksResponse,
+        },
         tests::e2e::{modules::cosmwasm_pool::CosmwasmPool, test_env::TestEnv},
         tick_math::{amount_to_value, tick_to_price, RoundingDirection},
         types::{LimitOrder, OrderDirection},
@@ -422,11 +425,29 @@ pub mod orders {
             .unwrap();
         let tick = ticks.first().unwrap().tick_state.clone();
         let tick_values: crate::types::TickValues = tick.get_values(order.order_direction);
+        let TickUnrealizedCancelsByIdResponse { ticks } = t
+            .contract
+            .query(&QueryMsg::TickUnrealizedCancelsById {
+                tick_ids: vec![tick_id],
+            })
+            .unwrap();
+        let TickUnrealizedCancels {
+            unrealized_cancels, ..
+        } = ticks.first().unwrap();
+        let cancelled_amount = match order.order_direction {
+            OrderDirection::Bid => unrealized_cancels.bid_unrealized_cancels,
+            OrderDirection::Ask => unrealized_cancels.ask_unrealized_cancels,
+        }
+        .checked_sub(tick_values.cumulative_realized_cancels)
+        .unwrap();
+
         let expected_amount_u256 = tick_values
             .effective_total_amount_swapped
-            .checked_sub(order.etas)
+            .checked_add(cancelled_amount)
             .unwrap()
             .to_uint_floor()
+            .checked_sub(Uint256::from(order.quantity.u128()))
+            .unwrap()
             .min(Uint256::from(order.quantity.u128()));
         let expected_amount = Uint128::try_from(expected_amount_u256).unwrap();
         let price = tick_to_price(order.tick_id).unwrap();

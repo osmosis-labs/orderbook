@@ -153,48 +153,10 @@ fn run_fuzz_linear(amount_limit_orders: u64, tick_range: (i64, i64), cancel_prob
         } else {
             username
         };
-        let AllTicksResponse { ticks } = t
-            .contract
-            .query(&QueryMsg::AllTicks {
-                start_from: Some(order.tick_id),
-                end_at: None,
-                limit: Some(1),
-            })
-            .unwrap();
-        let tick = ticks.first().unwrap();
-        let price = tick_to_price(tick.tick_id).unwrap();
-        let value = amount_to_value(
-            order.order_direction,
-            order.quantity,
-            price,
-            RoundingDirection::Down,
-        )
-        .unwrap();
-        let contract_balance = Coins::try_from(t.get_balance(&t.contract.contract_addr)).unwrap();
 
         // We cannot verify how much to expect as tick is synced as part of the claim process
         // Hence orders::claim is used instead of orders::claim_success
-        match orders::claim_success(&t, sender, order.tick_id, order.order_id) {
-            Ok(res) => {
-                let gas_used = res.gas_info.gas_used;
-                if gas_used >= 200000 {
-                    println!("gas_used: {}", res.gas_info.gas_used);
-                }
-            }
-            Err(e) => {
-                println!("Failed to claim order {}: {:?}", order.order_id, e);
-                println!("contract_balance: {:?}", contract_balance);
-                println!(
-                    "order etas: {}, price: {}, value: {}, tick etas: {}",
-                    order.etas,
-                    price,
-                    value,
-                    tick.tick_state
-                        .get_values(order.order_direction)
-                        .effective_total_amount_swapped
-                );
-            }
-        }
+        orders::claim(&t, sender, order.tick_id, order.order_id).unwrap();
 
         let maybe_order = t.contract.query::<LimitOrder>(&QueryMsg::Order {
             order_id: *order_id,

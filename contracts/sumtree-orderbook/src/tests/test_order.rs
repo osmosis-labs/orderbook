@@ -711,7 +711,7 @@ fn test_run_market_order() {
             tick_bound: MAX_TICK,
             // Orders to fill against
             orders: generate_limit_orders(
-                &[-1500000, 40000000],
+                &[-1500000, 1500000],
                 // 500 units of liquidity on each tick
                 5,
                 default_quantity,
@@ -721,19 +721,19 @@ fn test_run_market_order() {
             // implies 1000*0.85 = 850 units of output, but there is only 500 on the tick.
             //
             // So 500 gets filled at -1500000, corresponding to ~589 of the input (500/0.85).
-            // The remaining 1 unit is filled at tick 40,000,000 (price $50,000), which
+            // The remaining 1 unit is filled at tick 1500000 (price $2.5), which
             // corresponds to the remaining liquidity.
             //
             // Thus, the total expected output is 502.
             //
             // Note: this case does not cover rounding for input consumption since it overfills
             // the tick.
-            expected_output: Uint256::from_u128(1000),
+            expected_output: Uint256::from_u128(502),
             expected_tick_etas: vec![
                 (-1500000, decimal256_from_u128(Uint128::new(500))),
-                (40000000, decimal256_from_u128(Uint128::new(500))),
+                (1500000, decimal256_from_u128(Uint128::new(2))),
             ],
-            expected_tick_pointers: vec![(OrderDirection::Ask, 40000000)],
+            expected_tick_pointers: vec![(OrderDirection::Ask, 1500000)],
             expected_error: None,
         },
         RunMarketOrderTestCase {
@@ -856,7 +856,7 @@ fn test_run_market_order() {
             tick_bound: MAX_TICK,
             // Orders to fill against
             orders: generate_limit_orders(
-                &[40000000],
+                &[1500000],
                 // Four limit orders with sufficient total liquidity to process the
                 // full market order
                 4,

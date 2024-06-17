@@ -50,7 +50,6 @@ pub fn place_limit(
         tick_price,
         RoundingDirection::Down,
     )?;
-
     ensure!(
         !amount_out.is_zero(),
         ContractError::InvalidQuantity { quantity }

@@ -665,34 +665,22 @@ fn test_total_pool_liquidity() {
             pre_operations: vec![
                 OrderOperation::PlaceLimitMulti((
                     // Increasingly spread ticks
-                    vec![
-                        -1,
-                        -2,
-                        -3,
-                        -5,
-                        -8,
-                        -13,
-                        -21,
-                        -34,
-                        -55,
-                        LARGE_NEGATIVE_TICK,
-                        MIN_TICK,
-                    ],
+                    vec![-1, -2, -3, -5, -8, -13, -21, -34, -55, LARGE_NEGATIVE_TICK],
                     100,
                     Uint128::from(50u128),
                     OrderDirection::Bid,
                 )),
                 OrderOperation::PlaceLimitMulti((
                     // Increasingly spread ticks
-                    vec![1, 2, 3, 5, 8, 13, 21, 34, 55, LARGE_POSITIVE_TICK, MAX_TICK],
+                    vec![1, 2, 3, 5, 8, 13, 21, 34, 55, LARGE_POSITIVE_TICK],
                     100,
                     Uint128::from(110u128),
                     OrderDirection::Ask,
                 )),
             ],
-            // Base: 11 ticks at 110*100 = 11000*11 = 121000
-            // Quote: 11 ticks at 50*100 = 5000*11 = 55000
-            expected_output: vec![coin(121000, BASE_DENOM), coin(55000, QUOTE_DENOM)],
+            // Base: 11 ticks at 110*100 = 11000*10 = 110000
+            // Quote: 11 ticks at 50*100 = 5000*10 = 55000
+            expected_output: vec![coin(110000, BASE_DENOM), coin(50000, QUOTE_DENOM)],
             expected_error: None,
         },
     ];

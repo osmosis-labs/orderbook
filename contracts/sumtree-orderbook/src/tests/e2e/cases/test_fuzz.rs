@@ -1,4 +1,4 @@
-use cosmwasm_std::{Coin, Coins, Decimal, Uint256};
+use cosmwasm_std::{Coin, Decimal, Uint256};
 use cosmwasm_std::{Decimal256, Uint128};
 use osmosis_test_tube::{Module, OsmosisTestApp};
 use rand::seq::SliceRandom;
@@ -24,30 +24,35 @@ pub(crate) const LARGE_POSITIVE_TICK: i64 = 1000000;
 pub(crate) const LARGE_NEGATIVE_TICK: i64 = -5000000;
 
 #[test]
-fn test_order_fuzz_large_orders_small_range() {
+fn test_order_fuzz_linear_large_orders_small_range() {
     run_fuzz_linear(2000, (-10, 10), 0.2);
 }
 
 #[test]
-fn test_order_fuzz_small_orders_large_range() {
+fn test_order_fuzz_linear_small_orders_large_range() {
     run_fuzz_linear(100, (LARGE_NEGATIVE_TICK, LARGE_POSITIVE_TICK), 0.2);
 }
 
+// This test takes a VERY long time to run
+// #[test]
+// fn test_order_fuzz_linear_very_large_orders_large_range() {
+//     run_fuzz_linear(5000, (LARGE_NEGATIVE_TICK, LARGE_POSITIVE_TICK), 0.2);
+// }
+
 #[test]
-fn test_order_fuzz_small_orders_small_range() {
+fn test_order_fuzz_linear_small_orders_small_range() {
     run_fuzz_linear(100, (-10, 0), 0.1);
 }
 
 #[test]
-fn test_order_fuzz_large_cancelled_orders_small_range() {
+fn test_order_fuzz_linear_large_cancelled_orders_small_range() {
     run_fuzz_linear(1000, (MIN_TICK, MIN_TICK + 20), 0.8);
 }
 
-// This test takes a very long time to run
-// #[test]
-// fn test_order_fuzz_very_large_orders_no_bounds() {
-//     run_fuzz(3000, (-750, 750), 0.2);
-// }
+#[test]
+fn test_order_fuzz_linear_small_cancelled_orders_large_range() {
+    run_fuzz_linear(100, (LARGE_NEGATIVE_TICK, LARGE_POSITIVE_TICK), 0.8);
+}
 
 /// Runs a linear fuzz test with the following steps
 /// 1. Place x amount of random limit orders in given tick range and cancel with provided probability
@@ -170,6 +175,8 @@ fn run_fuzz_linear(amount_limit_orders: u64, tick_range: (i64, i64), cancel_prob
             remainder_orders += 1;
         }
     }
+
+    // -- Post Test Assertions --
 
     // Assert orders were filled correctly
     assert!(

@@ -6,7 +6,7 @@ use rand::{rngs::StdRng, SeedableRng};
 
 use super::utils::{assert, orders};
 use crate::constants::{MAX_TICK, MIN_TICK};
-use crate::msg::{AllTicksResponse, CalcOutAmtGivenInResponse, QueryMsg, SpotPriceResponse};
+use crate::msg::{CalcOutAmtGivenInResponse, QueryMsg, SpotPriceResponse};
 use crate::tests::e2e::modules::cosmwasm_pool::CosmwasmPool;
 use crate::tick_math::{amount_to_value, tick_to_price, RoundingDirection};
 use crate::types::LimitOrder;

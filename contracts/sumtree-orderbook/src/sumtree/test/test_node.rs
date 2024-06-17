@@ -2736,7 +2736,7 @@ fn test_node_insert_large_quantity() {
         tree.insert(deps.as_mut().storage, &mut node).unwrap();
         tree = get_root_node(deps.as_ref().storage,  tick_id, direction).unwrap();
         // Track insertions that fall below our target ETAS
-        if node.get_min_range() <= target_etas {
+        if node.get_min_range() <= target_etas || node.get_max_range().checked_sub(node.get_value()).unwrap() <= target_etas {
             expected_prefix_sum = expected_prefix_sum.checked_add(Decimal256::one()).unwrap();
         }
     }

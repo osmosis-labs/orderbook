@@ -66,7 +66,7 @@ fn test_fuzz_insert() {
 
             // If the inserted node's start ETAS is <= the target ETAS, we add the node's amount
             // to our expected prefix sum.
-            if node.get_min_range() <= target_etas {
+            if node.get_max_range().checked_sub(node.get_value()).unwrap() <= target_etas {
                 expected_prefix_sum = expected_prefix_sum.checked_add(node.get_value()).unwrap();
             }
 

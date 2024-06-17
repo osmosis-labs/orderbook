@@ -88,7 +88,7 @@ pub enum QueryMsg {
     GetSwapFee {},
 
     // -- SQS Queries --
-    #[returns(AllTicksResponse)]
+    #[returns(TicksResponse)]
     AllTicks {
         /// The tick id to start after for pagination (inclusive)
         start_from: Option<i64>,
@@ -124,8 +124,11 @@ pub enum QueryMsg {
     #[returns(DenomsResponse)]
     Denoms {},
 
-    #[returns(TicksByIdResponse)]
+    #[returns(TicksResponse)]
     TicksById { tick_ids: Vec<i64> },
+
+    #[returns(TickUnrealizedCancelsByIdResponse)]
+    TickUnrealizedCancelsById { tick_ids: Vec<i64> },
 }
 
 #[cw_serde]
@@ -168,26 +171,31 @@ pub struct MakerFee {
 }
 
 #[cw_serde]
-pub struct TickRealizedEffectiveTotalAmountSwapped {
-    pub ask_etas: Decimal256,
-    pub bid_etas: Decimal256,
-}
-
-#[cw_serde]
 pub struct TickIdAndState {
     pub tick_id: i64,
     pub tick_state: TickState,
-    pub synced_etas: TickRealizedEffectiveTotalAmountSwapped,
 }
 
 #[cw_serde]
-pub struct AllTicksResponse {
+pub struct TicksResponse {
     pub ticks: Vec<TickIdAndState>,
 }
 
 #[cw_serde]
-pub struct TicksByIdResponse {
-    pub ticks: Vec<TickIdAndState>,
+pub struct TickUnrealizedCancelsState {
+    pub ask_unrealized_cancels: Decimal256,
+    pub bid_unrealized_cancels: Decimal256,
+}
+
+#[cw_serde]
+pub struct TickUnrealizedCancels {
+    pub tick_id: i64,
+    pub unrealized_cancels: TickUnrealizedCancelsState,
+}
+
+#[cw_serde]
+pub struct TickUnrealizedCancelsByIdResponse {
+    pub ticks: Vec<TickUnrealizedCancels>,
 }
 
 #[cw_serde]

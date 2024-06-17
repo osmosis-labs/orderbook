@@ -8,7 +8,7 @@ use crate::{
     constants::{EXPECTED_SWAP_FEE, MAX_TICK, MIN_TICK},
     orderbook::create_orderbook,
     query,
-    state::IS_ACTIVE,
+    state::{IS_ACTIVE, TICK_STATE},
     tests::mock_querier::mock_dependencies_custom,
     types::{coin_u256, Coin256, LimitOrder, MarketOrder, OrderDirection, TickState, TickValues},
     ContractError,
@@ -748,7 +748,6 @@ struct AllTicksTestCase {
     start_after: Option<i64>,
     end_at: Option<i64>,
     limit: Option<usize>,
-    unrealized_cancel_diffs: Vec<(i64, (OrderDirection, Decimal256))>,
 }
 
 #[test]
@@ -763,7 +762,6 @@ fn test_all_ticks() {
             start_after: None,
             end_at: None,
             limit: None,
-            unrealized_cancel_diffs: vec![],
         },
         AllTicksTestCase {
             name: "Single order, single tick",
@@ -789,80 +787,6 @@ fn test_all_ticks() {
             start_after: None,
             end_at: None,
             limit: None,
-            unrealized_cancel_diffs: vec![],
-        },
-        AllTicksTestCase {
-            name: "Single order (cancelled + unrealized), single tick",
-            pre_operations: vec![
-                OrderOperation::PlaceLimit(LimitOrder::new(
-                    0,
-                    0,
-                    OrderDirection::Ask,
-                    sender.clone(),
-                    Uint128::one(),
-                    Decimal256::zero(),
-                    None,
-                )),
-                OrderOperation::Cancel((0, 0)),
-            ],
-            expected_output: vec![TickState {
-                ask_values: TickValues {
-                    total_amount_of_liquidity: Decimal256::zero(),
-                    cumulative_total_value: Decimal256::one(),
-                    effective_total_amount_swapped: Decimal256::zero(),
-                    cumulative_realized_cancels: Decimal256::zero(),
-                    last_tick_sync_etas: Decimal256::zero(),
-                },
-                bid_values: TickValues::default(),
-            }],
-            start_after: None,
-            end_at: None,
-            limit: None,
-            unrealized_cancel_diffs: vec![(0, (OrderDirection::Ask, Decimal256::one()))],
-        },
-        AllTicksTestCase {
-            name: "Single order (cancelled + realized), single tick",
-            pre_operations: vec![
-                OrderOperation::PlaceLimit(LimitOrder::new(
-                    0,
-                    0,
-                    OrderDirection::Ask,
-                    sender.clone(),
-                    Uint128::one(),
-                    Decimal256::zero(),
-                    None,
-                )),
-                OrderOperation::Cancel((0, 0)),
-                OrderOperation::PlaceLimit(LimitOrder::new(
-                    0,
-                    1,
-                    OrderDirection::Ask,
-                    sender.clone(),
-                    Uint128::one(),
-                    Decimal256::zero(),
-                    None,
-                )),
-                OrderOperation::RunMarket(MarketOrder::new(
-                    Uint128::one(),
-                    OrderDirection::Bid,
-                    sender.clone(),
-                )),
-                OrderOperation::Claim((0, 1)),
-            ],
-            expected_output: vec![TickState {
-                ask_values: TickValues {
-                    total_amount_of_liquidity: Decimal256::zero(),
-                    cumulative_total_value: decimal256_from_u128(2u8),
-                    effective_total_amount_swapped: decimal256_from_u128(2u8),
-                    cumulative_realized_cancels: Decimal256::one(),
-                    last_tick_sync_etas: Decimal256::zero(),
-                },
-                bid_values: TickValues::default(),
-            }],
-            start_after: None,
-            end_at: None,
-            limit: None,
-            unrealized_cancel_diffs: vec![],
         },
         AllTicksTestCase {
             name: "Multiple directions, single tick",
@@ -905,7 +829,6 @@ fn test_all_ticks() {
             start_after: None,
             end_at: None,
             limit: None,
-            unrealized_cancel_diffs: vec![],
         },
         AllTicksTestCase {
             name: "Multiple directions, many ticks",
@@ -945,7 +868,6 @@ fn test_all_ticks() {
             start_after: None,
             end_at: None,
             limit: None,
-            unrealized_cancel_diffs: vec![],
         },
         AllTicksTestCase {
             name: "Multiple directions, many ticks w/ limit",
@@ -985,7 +907,6 @@ fn test_all_ticks() {
             start_after: None,
             end_at: None,
             limit: Some(50),
-            unrealized_cancel_diffs: vec![],
         },
         AllTicksTestCase {
             name: "Multiple directions, many ticks w/ start after",
@@ -1027,7 +948,6 @@ fn test_all_ticks() {
             start_after: Some(90i64),
             end_at: None,
             limit: None,
-            unrealized_cancel_diffs: vec![],
         },
         AllTicksTestCase {
             name: "Multiple directions, many ticks w/ end at",
@@ -1069,7 +989,6 @@ fn test_all_ticks() {
             start_after: None,
             end_at: Some(44i64),
             limit: None,
-            unrealized_cancel_diffs: vec![],
         },
         AllTicksTestCase {
             name: "Multiple directions, many ticks w/ start after & end at",
@@ -1111,7 +1030,6 @@ fn test_all_ticks() {
             start_after: Some(21i64),
             end_at: Some(44i64),
             limit: None,
-            unrealized_cancel_diffs: vec![],
         },
         AllTicksTestCase {
             name: "large number of ticks",
@@ -1137,7 +1055,6 @@ fn test_all_ticks() {
             start_after: None,
             end_at: None,
             limit: None,
-            unrealized_cancel_diffs: vec![],
         },
         AllTicksTestCase {
             name: "single tick paginated",
@@ -1160,7 +1077,6 @@ fn test_all_ticks() {
             start_after: Some(11),
             end_at: Some(11),
             limit: None,
-            unrealized_cancel_diffs: vec![],
         },
     ];
 
@@ -1199,29 +1115,6 @@ fn test_all_ticks() {
                 .collect::<Vec<TickState>>(),
             test.expected_output,
             "{}: output did not match",
-            test.name
-        );
-
-        // Calculates the difference between realized etas and unrealized for each tick
-        // Filters any that are 0 (fully synced)
-        let unrealized_cancel_diffs = res
-            .ticks
-            .iter()
-            .flat_map(|t| {
-                let bid_cancel_diff =
-                    t.synced_etas.bid_etas - t.tick_state.bid_values.effective_total_amount_swapped;
-                let ask_cancel_diff =
-                    t.synced_etas.ask_etas - t.tick_state.ask_values.effective_total_amount_swapped;
-                vec![
-                    (t.tick_id, (OrderDirection::Bid, bid_cancel_diff)),
-                    (t.tick_id, (OrderDirection::Ask, ask_cancel_diff)),
-                ]
-            })
-            .filter(|(_, (_, diff))| !diff.is_zero())
-            .collect::<Vec<(i64, (OrderDirection, Decimal256))>>();
-        assert_eq!(
-            unrealized_cancel_diffs, test.unrealized_cancel_diffs,
-            "{}: unrealized cancel diffs did not match",
             test.name
         );
     }
@@ -1571,7 +1464,6 @@ struct TicksByIdTestCase {
     pre_operations: Vec<OrderOperation>,
     expected_output: Vec<TickState>,
     tick_ids: Vec<i64>,
-    unrealized_cancel_diffs: Vec<(i64, (OrderDirection, Decimal256))>,
 }
 
 #[test]
@@ -1583,7 +1475,6 @@ fn test_ticks_by_id() {
             pre_operations: vec![],
             expected_output: vec![],
             tick_ids: vec![],
-            unrealized_cancel_diffs: vec![],
         },
         TicksByIdTestCase {
             name: "single order",
@@ -1607,7 +1498,6 @@ fn test_ticks_by_id() {
                 },
             }],
             tick_ids: vec![1],
-            unrealized_cancel_diffs: vec![],
         },
         TicksByIdTestCase {
             name: "multiple orders, multiple ticks",
@@ -1654,7 +1544,6 @@ fn test_ticks_by_id() {
                 },
             ],
             tick_ids: vec![1, 2],
-            unrealized_cancel_diffs: vec![],
         },
         TicksByIdTestCase {
             name: "Single order (cancelled + unrealized), single tick",
@@ -1681,7 +1570,6 @@ fn test_ticks_by_id() {
                 bid_values: TickValues::default(),
             }],
             tick_ids: vec![0],
-            unrealized_cancel_diffs: vec![(0, (OrderDirection::Ask, Decimal256::one()))],
         },
         TicksByIdTestCase {
             name: "Single order (cancelled + realized), single tick",
@@ -1723,7 +1611,6 @@ fn test_ticks_by_id() {
                 bid_values: TickValues::default(),
             }],
             tick_ids: vec![0],
-            unrealized_cancel_diffs: vec![],
         },
     ];
 
@@ -1763,6 +1650,119 @@ fn test_ticks_by_id() {
             "{}: output did not match",
             test.name
         );
+    }
+}
+
+struct TestTickUnrealizedCancelsByIdCase {
+    name: &'static str,
+    pre_operations: Vec<OrderOperation>,
+    expected_output: Vec<(i64, (OrderDirection, Decimal256))>,
+    tick_ids: Vec<i64>,
+}
+
+#[test]
+fn test_tick_unrealized_cancels_by_id() {
+    let sender = Addr::unchecked(DEFAULT_SENDER);
+    let test_cases = vec![
+        TestTickUnrealizedCancelsByIdCase {
+            name: "no orders",
+            pre_operations: vec![],
+            expected_output: vec![],
+            tick_ids: vec![],
+        },
+        TestTickUnrealizedCancelsByIdCase {
+            name: "single order not cancelled",
+            pre_operations: vec![OrderOperation::PlaceLimit(LimitOrder::new(
+                0,
+                0,
+                OrderDirection::Bid,
+                sender.clone(),
+                Uint128::one(),
+                Decimal256::zero(),
+                None,
+            ))],
+            expected_output: vec![],
+            tick_ids: vec![0],
+        },
+        TestTickUnrealizedCancelsByIdCase {
+            name: "single order cancelled and unrealized",
+            pre_operations: vec![
+                OrderOperation::PlaceLimit(LimitOrder::new(
+                    0,
+                    0,
+                    OrderDirection::Bid,
+                    sender.clone(),
+                    Uint128::one(),
+                    Decimal256::zero(),
+                    None,
+                )),
+                OrderOperation::Cancel((0, 0)),
+            ],
+            expected_output: vec![(0, (OrderDirection::Bid, Decimal256::one()))],
+            tick_ids: vec![0],
+        },
+        TestTickUnrealizedCancelsByIdCase {
+            name: "single order cancelled and realized",
+            pre_operations: vec![
+                OrderOperation::PlaceLimit(LimitOrder::new(
+                    0,
+                    0,
+                    OrderDirection::Bid,
+                    sender.clone(),
+                    Uint128::one(),
+                    Decimal256::zero(),
+                    None,
+                )),
+                OrderOperation::Cancel((0, 0)),
+                OrderOperation::PlaceLimit(LimitOrder::new(
+                    0,
+                    1,
+                    OrderDirection::Bid,
+                    sender.clone(),
+                    Uint128::one(),
+                    Decimal256::zero(),
+                    None,
+                )),
+                OrderOperation::RunMarket(MarketOrder::new(
+                    Uint128::one(),
+                    OrderDirection::Ask,
+                    sender.clone(),
+                )),
+                OrderOperation::Claim((0, 1)),
+            ],
+            expected_output: vec![],
+            tick_ids: vec![0],
+        },
+    ];
+
+    for test in test_cases {
+        // -- Test Setup --
+        let mut deps = mock_dependencies_custom();
+        let env = mock_env();
+        let info = mock_info(sender.as_str(), &[]);
+
+        create_orderbook(
+            deps.as_mut(),
+            QUOTE_DENOM.to_string(),
+            BASE_DENOM.to_string(),
+        )
+        .unwrap();
+
+        // Perform any setup market operations
+        for op in test.pre_operations {
+            op.run(deps.as_mut(), env.clone(), info.clone()).unwrap();
+        }
+
+        // -- System under test --
+
+        let res =
+            query::ticks_unrealized_cancels_by_id(deps.as_ref(), test.tick_ids.clone()).unwrap();
+        assert_eq!(
+            res.ticks.len(),
+            test.tick_ids.len(),
+            "{}: output lengths did not match",
+            test.name
+        );
 
         // Calculates the difference between realized etas and unrealized for each tick
         // Filters any that are 0 (fully synced)
@@ -1770,10 +1770,11 @@ fn test_ticks_by_id() {
             .ticks
             .iter()
             .flat_map(|t| {
-                let bid_cancel_diff =
-                    t.synced_etas.bid_etas - t.tick_state.bid_values.effective_total_amount_swapped;
-                let ask_cancel_diff =
-                    t.synced_etas.ask_etas - t.tick_state.ask_values.effective_total_amount_swapped;
+                let tick_state = TICK_STATE.load(deps.as_ref().storage, t.tick_id).unwrap();
+                let bid_cancel_diff = t.unrealized_cancels.bid_unrealized_cancels
+                    - tick_state.bid_values.cumulative_realized_cancels;
+                let ask_cancel_diff = t.unrealized_cancels.ask_unrealized_cancels
+                    - tick_state.ask_values.cumulative_realized_cancels;
                 vec![
                     (t.tick_id, (OrderDirection::Bid, bid_cancel_diff)),
                     (t.tick_id, (OrderDirection::Ask, ask_cancel_diff)),
@@ -1782,7 +1783,7 @@ fn test_ticks_by_id() {
             .filter(|(_, (_, diff))| !diff.is_zero())
             .collect::<Vec<(i64, (OrderDirection, Decimal256))>>();
         assert_eq!(
-            unrealized_cancel_diffs, test.unrealized_cancel_diffs,
+            unrealized_cancel_diffs, test.expected_output,
             "{}: unrealized cancel diffs did not match",
             test.name
         );

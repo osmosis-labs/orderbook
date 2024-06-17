@@ -7,9 +7,9 @@ use crate::{
     constants::{MAX_TICK, MIN_TICK},
     error::ContractResult,
     msg::{
-        AllTicksResponse, CalcOutAmtGivenInResponse, DenomsResponse, GetSwapFeeResponse,
-        GetTotalPoolLiquidityResponse, SpotPriceResponse, TickIdAndState,
-        TickRealizedEffectiveTotalAmountSwapped, TicksByIdResponse,
+        CalcOutAmtGivenInResponse, DenomsResponse, GetSwapFeeResponse,
+        GetTotalPoolLiquidityResponse, SpotPriceResponse, TickIdAndState, TickUnrealizedCancels,
+        TickUnrealizedCancelsByIdResponse, TickUnrealizedCancelsState, TicksResponse,
     },
     order,
     state::{get_directional_liquidity, get_orders_by_owner, IS_ACTIVE, ORDERBOOK, TICK_STATE},
@@ -133,42 +133,13 @@ pub(crate) fn total_pool_liquidity(deps: Deps) -> ContractResult<GetTotalPoolLiq
     })
 }
 
-fn get_synced_etas(
-    deps: Deps,
-    tick_state: TickState,
-    tick_id: i64,
-) -> ContractResult<TickRealizedEffectiveTotalAmountSwapped> {
-    let bid_root = get_root_node(deps.storage, tick_id, OrderDirection::Bid).map_or(
-        tick_state.bid_values.cumulative_realized_cancels,
-        |ask_root| ask_root.get_value(),
-    );
-    let bid_etas = bid_root.checked_sub(tick_state.bid_values.cumulative_realized_cancels)?;
-
-    let ask_root = get_root_node(deps.storage, tick_id, OrderDirection::Ask).map_or(
-        tick_state.ask_values.cumulative_realized_cancels,
-        |ask_root| ask_root.get_value(),
-    );
-    let ask_etas = ask_root.checked_sub(tick_state.ask_values.cumulative_realized_cancels)?;
-
-    Ok(TickRealizedEffectiveTotalAmountSwapped {
-        ask_etas: tick_state
-            .ask_values
-            .effective_total_amount_swapped
-            .checked_add(ask_etas)?,
-        bid_etas: tick_state
-            .bid_values
-            .effective_total_amount_swapped
-            .checked_add(bid_etas)?,
-    })
-}
-
 /// Returns all active ticks in the orderbook.
 pub(crate) fn all_ticks(
     deps: Deps,
     start_from: Option<i64>,
     end_at: Option<i64>,
     limit: Option<usize>,
-) -> ContractResult<AllTicksResponse> {
+) -> ContractResult<TicksResponse> {
     // Fetch all ticks using pagination
     let all_ticks = TICK_STATE.range(
         deps.storage,
@@ -184,11 +155,9 @@ pub(crate) fn all_ticks(
             .take(limit)
             .map(|maybe_tick| {
                 let (tick_id, tick_state) = maybe_tick.unwrap();
-                let synced_etas = get_synced_etas(deps, tick_state.clone(), tick_id).unwrap();
                 TickIdAndState {
                     tick_id,
                     tick_state,
-                    synced_etas,
                 }
             })
             .collect()
@@ -196,17 +165,15 @@ pub(crate) fn all_ticks(
         all_ticks
             .map(|maybe_tick| {
                 let (tick_id, tick_state) = maybe_tick.unwrap();
-                let synced_etas = get_synced_etas(deps, tick_state.clone(), tick_id).unwrap();
                 TickIdAndState {
                     tick_id,
                     tick_state,
-                    synced_etas,
                 }
             })
             .collect()
     };
 
-    Ok(AllTicksResponse {
+    Ok(TicksResponse {
         ticks: all_tick_states,
     })
 }
@@ -250,7 +217,7 @@ pub(crate) fn denoms(deps: Deps) -> ContractResult<DenomsResponse> {
     })
 }
 
-pub(crate) fn ticks_by_id(deps: Deps, tick_ids: Vec<i64>) -> ContractResult<TicksByIdResponse> {
+pub(crate) fn ticks_by_id(deps: Deps, tick_ids: Vec<i64>) -> ContractResult<TicksResponse> {
     let ticks = tick_ids
         .iter()
         .map(|tick_id| {
@@ -258,15 +225,59 @@ pub(crate) fn ticks_by_id(deps: Deps, tick_ids: Vec<i64>) -> ContractResult<Tick
                 .load(deps.storage, *tick_id)
                 .map_err(|_| ContractError::InvalidTickId { tick_id: *tick_id })
                 .unwrap();
-            let synced_etas = get_synced_etas(deps, tick_state.clone(), *tick_id).unwrap();
 
             TickIdAndState {
                 tick_id: *tick_id,
                 tick_state,
-                synced_etas,
             }
         })
         .collect();
 
-    Ok(TicksByIdResponse { ticks })
+    Ok(TicksResponse { ticks })
+}
+
+/// Determines the amount of liquidity in unrealized cancels
+fn get_unrealized_cancels(
+    deps: Deps,
+    tick_state: TickState,
+    tick_id: i64,
+) -> ContractResult<TickUnrealizedCancelsState> {
+    let bid_unrealized_cancels = get_root_node(deps.storage, tick_id, OrderDirection::Bid).map_or(
+        tick_state.bid_values.cumulative_realized_cancels,
+        |ask_root| ask_root.get_value(),
+    );
+
+    let ask_unrealized_cancels = get_root_node(deps.storage, tick_id, OrderDirection::Ask).map_or(
+        tick_state.ask_values.cumulative_realized_cancels,
+        |ask_root| ask_root.get_value(),
+    );
+
+    Ok(TickUnrealizedCancelsState {
+        ask_unrealized_cancels,
+        bid_unrealized_cancels,
+    })
+}
+
+// Gets all ticks for the provided vector of IDs and retrieves the value of their sumtree root
+pub(crate) fn ticks_unrealized_cancels_by_id(
+    deps: Deps,
+    tick_ids: Vec<i64>,
+) -> ContractResult<TickUnrealizedCancelsByIdResponse> {
+    let ticks = tick_ids
+        .iter()
+        .map(|tick_id| {
+            let tick_state = TICK_STATE
+                .load(deps.storage, *tick_id)
+                .map_err(|_| ContractError::InvalidTickId { tick_id: *tick_id })
+                .unwrap();
+
+            TickUnrealizedCancels {
+                tick_id: *tick_id,
+                unrealized_cancels: get_unrealized_cancels(deps, tick_state.clone(), *tick_id)
+                    .unwrap(),
+            }
+        })
+        .collect();
+
+    Ok(TickUnrealizedCancelsByIdResponse { ticks })
 }

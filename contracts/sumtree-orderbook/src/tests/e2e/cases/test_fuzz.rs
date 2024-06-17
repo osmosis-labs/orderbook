@@ -1,4 +1,4 @@
-use cosmwasm_std::{Addr, Coin, Decimal, Uint256};
+use cosmwasm_std::{Coin, Decimal, Uint256};
 use cosmwasm_std::{Decimal256, Uint128};
 use osmosis_test_tube::{Account, Module, OsmosisTestApp};
 use rand::seq::SliceRandom;
@@ -10,7 +10,6 @@ use crate::constants::MIN_TICK;
 use crate::msg::{CalcOutAmtGivenInResponse, QueryMsg, SpotPriceResponse};
 use crate::tests::e2e::modules::cosmwasm_pool::CosmwasmPool;
 use crate::tick_math::{amount_to_value, tick_to_price, RoundingDirection};
-use crate::types::LimitOrder;
 use crate::{
     msg::{DenomsResponse, GetTotalPoolLiquidityResponse},
     setup,
@@ -52,6 +51,11 @@ fn test_order_fuzz_linear_large_cancelled_orders_small_range() {
 #[test]
 fn test_order_fuzz_linear_small_cancelled_orders_large_range() {
     run_fuzz_linear(100, (LARGE_NEGATIVE_TICK, LARGE_POSITIVE_TICK), 0.8);
+}
+
+#[test]
+fn test_order_fuzz_linear_large_all_cancelled_orders_small_range() {
+    run_fuzz_linear(1000, (-10, 10), 1.0);
 }
 
 /// Runs a linear fuzz test with the following steps
@@ -150,14 +154,9 @@ fn run_fuzz_linear(amount_limit_orders: u64, tick_range: (i64, i64), cancel_prob
                 Coin::new(1000000000000u128, "uosmo"),
             ],
         );
-        let order: LimitOrder = t
+        let order = t
             .contract
-            .query(&QueryMsg::OrdersByOwner {
-                owner: Addr::unchecked(t.accounts[username].address()),
-                start_from: Some((*tick_id, *order_id)),
-                end_at: None,
-                limit: Some(1),
-            })
+            .get_order(t.accounts[username].address(), *tick_id, *order_id)
             .unwrap();
         let sender = if order.claim_bounty.is_some() {
             "claimant"

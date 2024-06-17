@@ -206,6 +206,15 @@ pub mod assert {
     pub fn tick_invariants(t: &TestEnv) {
         let ticks = t.contract.collect_all_ticks();
 
+        assert!(ticks
+            .iter()
+            .all(|t| t.tick_state.ask_values.effective_total_amount_swapped
+                <= t.tick_state.ask_values.cumulative_total_value));
+        assert!(ticks
+            .iter()
+            .all(|t| t.tick_state.bid_values.effective_total_amount_swapped
+                <= t.tick_state.bid_values.cumulative_total_value));
+
         let ticks_with_bid_amount = ticks.iter().filter(|tick| {
             !tick
                 .tick_state

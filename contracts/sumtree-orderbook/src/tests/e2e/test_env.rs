@@ -2,11 +2,15 @@ use std::{collections::HashMap, path::PathBuf};
 
 use crate::{
     constants::{MAX_TICK, MIN_TICK},
-    msg::{AllTicksResponse, DenomsResponse, ExecuteMsg, InstantiateMsg, QueryMsg, TickIdAndState},
+    msg::{
+        AllTicksResponse, DenomsResponse, ExecuteMsg, GetTotalPoolLiquidityResponse,
+        InstantiateMsg, QueryMsg, TickIdAndState,
+    },
+    types::OrderDirection,
     ContractError,
 };
 
-use cosmwasm_std::{to_json_binary, Coin};
+use cosmwasm_std::{to_json_binary, Coin, Coins};
 use osmosis_std::types::{
     cosmos::bank::v1beta1::QueryAllBalancesRequest,
     cosmwasm::wasm::v1::MsgExecuteContractResponse,
@@ -248,6 +252,25 @@ impl<'a> OrderbookContract<'a> {
             min_tick = tick.ticks.iter().max_by_key(|t| t.tick_id).unwrap().tick_id + 1;
         }
         ticks
+    }
+
+    pub fn get_directional_liquidity(&self, order_direction: OrderDirection) -> u128 {
+        let GetTotalPoolLiquidityResponse {
+            total_pool_liquidity,
+        } = self.query(&QueryMsg::GetTotalPoolLiquidity {}).unwrap();
+
+        // Determine the amount of liquidity for the given direction
+        let liquidity = if order_direction == OrderDirection::Bid {
+            Coins::try_from(total_pool_liquidity.clone())
+                .unwrap()
+                .amount_of("base")
+        } else {
+            Coins::try_from(total_pool_liquidity.clone())
+                .unwrap()
+                .amount_of("quote")
+        };
+
+        liquidity.u128()
     }
 }
 

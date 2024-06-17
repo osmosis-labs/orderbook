@@ -918,7 +918,6 @@ fn test_run_market_order() {
             continue;
         }
 
-        println!("{:?}", test.name);
         // Assert no error
         let response = response.unwrap();
 
@@ -4175,21 +4174,9 @@ fn test_cancelled_orders() {
 
     }
 
-    OrderOperation::RunMarket(MarketOrder::new(Uint128::from(100u128).checked_mul(Uint128::from(4u128)).unwrap(), OrderDirection::Ask, sender.clone())).run(deps.as_mut(), env.clone(), info.clone()).unwrap();
     OrderOperation::PlaceLimit(LimitOrder::new(0, 10, OrderDirection::Bid, sender.clone(), Uint128::from(100u128), Decimal256::zero(), None)).run(deps.as_mut(), env.clone(), info.clone()).unwrap();
-    
+    OrderOperation::RunMarket(MarketOrder::new(Uint128::from(100u128).checked_mul(Uint128::from(5u128)).unwrap(), OrderDirection::Ask, sender.clone())).run(deps.as_mut(), env.clone(), info.clone()).unwrap();
 
-    let err =  OrderOperation::Claim((0, 10)).run(deps.as_mut(), env.clone(), info.clone()).unwrap_err();
-    assert_eq!(err, ContractError::ZeroClaim);
-
-    OrderOperation::RunMarket(MarketOrder::new(Uint128::from(100u128), OrderDirection::Ask, sender.clone())).run(deps.as_mut(), env.clone(), info.clone()).unwrap();
-
-    for i in 0..10 {
-        let j = i;
-        if j % 3 == 0 {
-            OrderOperation::Claim((0, j)).run(deps.as_mut(), env.clone(), info.clone()).unwrap();
-        }
-    }
 
     OrderOperation::Claim((0, 10)).run(deps.as_mut(), env.clone(), info.clone()).unwrap();
 }

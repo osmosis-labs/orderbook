@@ -63,6 +63,7 @@ pub fn get_prefix_sum(
 // Since the longest path this function can walk is from the root to a leaf, it runs in O(log(N)) time. Given
 // how it is able to terminate early using our sumtree's range properties, in many cases it will likely run
 // in much less.
+
 fn prefix_sum_walk(
     storage: &dyn Storage,
     node: &TreeNode,
@@ -73,8 +74,7 @@ fn prefix_sum_walk(
     if target_etas < node.get_min_range() {
         // If the target ETAS is below the root node's range, we can return zero early.
         return Ok(Decimal256::zero());
-    } else if target_etas >= node.get_max_range() {
-        // If the target ETAS is above the root node's range, we can return the full sum early.
+    } else if target_etas >= node.get_max_range().checked_sub(node.get_value())? {
         return Ok(current_sum);
     }
 

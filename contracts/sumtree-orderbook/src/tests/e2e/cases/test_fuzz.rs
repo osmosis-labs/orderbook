@@ -19,22 +19,22 @@ use crate::{
 
 #[test]
 fn test_order_fuzz_large_orders_small_range() {
-    run_fuzz(2000, (-10, 10), 0.2);
+    run_fuzz_linear(2000, (-10, 10), 0.2);
 }
 
 #[test]
 fn test_order_fuzz_small_orders_large_range() {
-    run_fuzz(100, (MIN_TICK, MAX_TICK), 0.2);
+    run_fuzz_linear(100, (MIN_TICK, MAX_TICK), 0.2);
 }
 
 #[test]
 fn test_order_fuzz_small_orders_small_range() {
-    run_fuzz(100, (-10, 0), 0.1);
+    run_fuzz_linear(100, (-10, 0), 0.1);
 }
 
 #[test]
 fn test_order_fuzz_large_cancelled_orders_small_range() {
-    run_fuzz(1000, (MIN_TICK, MIN_TICK + 20), 0.8);
+    run_fuzz_linear(1000, (MIN_TICK, MIN_TICK + 20), 0.8);
 }
 
 // #[test]
@@ -42,7 +42,7 @@ fn test_order_fuzz_large_cancelled_orders_small_range() {
 //     run_fuzz(3000, (-750, 750), 0.2);
 // }
 
-fn run_fuzz(amount_limit_orders: u64, tick_range: (i64, i64), cancel_probability: f64) {
+fn run_fuzz_linear(amount_limit_orders: u64, tick_range: (i64, i64), cancel_probability: f64) {
     let seed: u64 = 123456789;
     let mut rng = StdRng::seed_from_u64(seed);
 
@@ -131,14 +131,14 @@ fn run_fuzz(amount_limit_orders: u64, tick_range: (i64, i64), cancel_probability
         .query(&QueryMsg::GetTotalPoolLiquidity {})
         .unwrap();
     println!("Total remaining pool liquidity: {:?}", total_pool_liquidity);
-
+    orders.reverse();
     for (username, tick_id, order_id) in orders.iter() {
         t.add_account(
             "claimant",
             vec![
                 Coin::new(1, "base"),
                 Coin::new(1, "quote"),
-                Coin::new(1000000000u128, "uosmo"),
+                Coin::new(1000000000000u128, "uosmo"),
             ],
         );
         let order: LimitOrder = t
@@ -174,8 +174,13 @@ fn run_fuzz(amount_limit_orders: u64, tick_range: (i64, i64), cancel_probability
 
         // We cannot verify how much to expect as tick is synced as part of the claim process
         // Hence orders::claim is used instead of orders::claim_success
-        match orders::claim(&t, sender, order.tick_id, order.order_id) {
-            Ok(_) => {}
+        match orders::claim_success(&t, sender, order.tick_id, order.order_id) {
+            Ok(res) => {
+                let gas_used = res.gas_info.gas_used;
+                if gas_used >= 200000 {
+                    println!("gas_used: {}", res.gas_info.gas_used);
+                }
+            }
             Err(e) => {
                 println!("Failed to claim order {}: {:?}", order.order_id, e);
                 println!("contract_balance: {:?}", contract_balance);

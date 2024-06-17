@@ -125,7 +125,7 @@ fn test_sync_tick() {
                 NodeType::leaf_uint256(50u32, 12u32),
                 NodeType::leaf_uint256(62u32, 10u32),
                 NodeType::leaf_uint256(80u32, 28u32),
-                NodeType::leaf_uint256(128u32, 70u32),
+                NodeType::leaf_uint256(178u32, 70u32),
             ],
             unrealized_cancels_ask: vec![],
 
@@ -133,7 +133,7 @@ fn test_sync_tick() {
             // Iteration 1: only node 1 is included
             // Iteration 2: first two nodes included
             // Iteration 3: first four nodes are incldued
-            new_bid_etas_per_sync: Decimal256::from_ratio(30u128, 1u128),
+            new_bid_etas_per_sync: Decimal256::from_ratio(20u128, 1u128),
             new_ask_etas_per_sync: Decimal256::zero(),
             num_syncs: 4,
 
@@ -145,7 +145,7 @@ fn test_sync_tick() {
             // The new ETAS includes all the incremented amounts (3 * 30 each) which represent fills,
             // plus the amount of realized cancellations
             expected_new_bid_etas_post_sync: Decimal256::from_ratio(
-                (4u128 * 30u128) + 80u128,
+                (4u128 * 20u128) + 80u128,
                 1u128,
             ),
             expected_new_ask_etas_post_sync: Decimal256::zero(),
@@ -244,7 +244,7 @@ fn test_sync_tick() {
                 NodeType::leaf_uint256(50u32, 12u32),
                 NodeType::leaf_uint256(62u32, 10u32),
                 NodeType::leaf_uint256(80u32, 28u32),
-                NodeType::leaf_uint256(128u32, 70u32),
+                NodeType::leaf_uint256(178u32, 70u32),
             ],
             unrealized_cancels_bid: vec![],
 
@@ -252,7 +252,7 @@ fn test_sync_tick() {
             // Iteration 1: only node 1 is included
             // Iteration 2: first two nodes included
             // Iteration 3: first four nodes are included
-            new_ask_etas_per_sync: Decimal256::from_ratio(30u128, 1u128),
+            new_ask_etas_per_sync: Decimal256::from_ratio(20u128, 1u128),
             new_bid_etas_per_sync: Decimal256::zero(),
             num_syncs: 4,
 
@@ -264,7 +264,7 @@ fn test_sync_tick() {
             // The new ETAS includes all the incremented amounts (3 * 30 each) which represent fills,
             // plus the amount of realized cancellations
             expected_new_ask_etas_post_sync: Decimal256::from_ratio(
-                (4u128 * 30u128) + 80u128,
+                (4u128 * 20u128) + 80u128,
                 1u128,
             ),
             expected_new_bid_etas_post_sync: Decimal256::zero(),
@@ -305,7 +305,7 @@ fn test_sync_tick() {
 
             // Multiple unrealized cancels for both bid and ask
             unrealized_cancels_bid: vec![
-                NodeType::leaf_uint256(35u32, 25u32),
+                NodeType::leaf_uint256(50u32, 25u32),
                 NodeType::leaf_uint256(10u32, 25u32),
             ],
             unrealized_cancels_ask: vec![

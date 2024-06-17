@@ -142,7 +142,7 @@ fn test_basic_order() {
         assert::spot_price(&t, expected_bid_tick, expected_ask_tick, case.name);
 
         // Claim limit
-        orders::claim_success(&t, case.claimer, 0, 0);
+        orders::claim_success(&t, case.claimer, 0, 0).unwrap();
         match case.order_direction {
             OrderDirection::Ask => {
                 assert::pool_liquidity(&t, case.placed_amount - case.filled_amount, 0u8, case.name);

@@ -117,7 +117,6 @@ fn test_get_prefix_sum_valid() {
                 NodeType::leaf_uint256(20u128, 5u128),
             ],
             target_etas: Decimal256::from_ratio(20u128, 1u128),
-
             // We expect the sum of the 2nd and 3rd nodes, so 7 + 5
             expected_sum: Decimal256::from_ratio(12u128, 1u128),
         },
@@ -129,7 +128,6 @@ fn test_get_prefix_sum_valid() {
                 NodeType::leaf_uint256(100u128, 30u128),
             ],
             target_etas: Decimal256::from_ratio(75u128, 1u128),
-
             expected_sum: Decimal256::from_ratio(30u128, 1u128),
         },
         TestPrefixSumCase {
@@ -140,7 +138,6 @@ fn test_get_prefix_sum_valid() {
                 NodeType::leaf_uint256(30u128, 10u128),
             ],
             target_etas: Decimal256::from_ratio(25u128, 1u128),
-
             expected_sum: Decimal256::from_ratio(20u128, 1u128),
         },
         TestPrefixSumCase {

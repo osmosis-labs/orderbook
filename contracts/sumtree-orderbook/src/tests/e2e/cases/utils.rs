@@ -392,7 +392,12 @@ pub mod orders {
         )
     }
 
-    pub fn claim_success(t: &TestEnv, sender: &str, tick_id: i64, order_id: u64) {
+    pub fn claim_success(
+        t: &TestEnv,
+        sender: &str,
+        tick_id: i64,
+        order_id: u64,
+    ) -> RunnerExecuteResult<MsgExecuteContractResponse> {
         let order: LimitOrder = t
             .contract
             .query(&QueryMsg::Order { order_id, tick_id })
@@ -467,7 +472,6 @@ pub mod orders {
             .as_slice(),
             || claim(t, sender, tick_id, order_id),
         )
-        .unwrap();
     }
 
     pub fn cancel_limit(

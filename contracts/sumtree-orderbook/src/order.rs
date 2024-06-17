@@ -225,6 +225,17 @@ pub fn cancel_limit(
 
     tree.save(deps.storage)?;
 
+    sync_tick(
+        deps.storage,
+        tick_id,
+        curr_tick_state
+            .get_values(OrderDirection::Bid)
+            .effective_total_amount_swapped,
+        curr_tick_state
+            .get_values(OrderDirection::Ask)
+            .effective_total_amount_swapped,
+    )?;
+
     Ok(Response::new()
         .add_attributes(vec![
             ("method", "cancelLimit"),
@@ -629,19 +640,19 @@ pub(crate) fn claim_order(
     let bid_tick_values = tick_state.get_values(OrderDirection::Bid);
     let ask_tick_values = tick_state.get_values(OrderDirection::Ask);
 
-    let (bid_etas, ask_etas) = match order.order_direction {
-        OrderDirection::Bid => (order.etas, bid_tick_values.effective_total_amount_swapped),
-        OrderDirection::Ask => (ask_tick_values.effective_total_amount_swapped, order.etas),
-    };
-
-    sync_tick(storage, tick_id, bid_etas, ask_etas)?;
+    sync_tick(
+        storage,
+        tick_id,
+        bid_tick_values.effective_total_amount_swapped,
+        ask_tick_values.effective_total_amount_swapped,
+    )?;
 
     // Re-fetch tick post sync call
     let tick_state = TICK_STATE
         .may_load(storage, tick_id)?
         .ok_or(ContractError::InvalidTickId { tick_id })?;
     let tick_values = tick_state.get_values(order.order_direction);
-    println!("tick_values: {:?}, order: {:?}", tick_values, order);
+
     // Early exit if nothing has been filled
     ensure!(
         tick_values.effective_total_amount_swapped > order.etas,
@@ -653,7 +664,7 @@ pub(crate) fn claim_order(
     // we don't claim more than the order has available.
     let amount_filled_dec = tick_values
         .effective_total_amount_swapped
-        .checked_sub(tick_values.cumulative_realized_cancels)?
+        .checked_sub(order.etas)?
         .min(Decimal256::from_ratio(order.quantity, 1u128));
     let amount_filled = Uint128::try_from(amount_filled_dec.to_uint_floor())?;
 
@@ -709,9 +720,6 @@ pub(crate) fn claim_order(
             .to_uint_floor();
         amount = amount.checked_sub(maker_fee_amount)?;
     }
-
-    // Cannot send a zero amount, may be zero'd out by rounding
-    ensure!(!amount.is_zero(), ContractError::ZeroClaim);
 
     // Claimed amount always goes to the order owner
     let bank_msg = MsgSend256 {

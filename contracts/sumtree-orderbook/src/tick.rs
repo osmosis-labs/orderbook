@@ -43,7 +43,8 @@ pub fn sync_tick(
         // If tick state for current order direction is already up to date,
         // skip the check. This saves us from walking the tree for both order directions
         // even though in most cases we will likely only need to sync one.
-        if tick_value.last_tick_sync_etas >= target_etas {
+
+        if tick_value.last_tick_sync_etas == target_etas {
             continue;
         }
 
@@ -84,8 +85,8 @@ pub fn sync_tick(
     }
 
     // Write updated tick values to state
-    tick_state.set_values(OrderDirection::Bid, bid_values);
-    tick_state.set_values(OrderDirection::Ask, ask_values);
+    tick_state.set_values(OrderDirection::Bid, bid_values.clone());
+    tick_state.set_values(OrderDirection::Ask, ask_values.clone());
     TICK_STATE.save(storage, tick_id, &tick_state)?;
 
     Ok(())

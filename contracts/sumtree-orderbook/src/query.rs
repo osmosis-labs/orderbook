@@ -133,7 +133,7 @@ pub(crate) fn total_pool_liquidity(deps: Deps) -> ContractResult<GetTotalPoolLiq
     })
 }
 
-fn get_realized_etas(
+fn get_synced_etas(
     deps: Deps,
     tick_state: TickState,
     tick_id: i64,
@@ -184,11 +184,11 @@ pub(crate) fn all_ticks(
             .take(limit)
             .map(|maybe_tick| {
                 let (tick_id, tick_state) = maybe_tick.unwrap();
-                let realized_etas = get_realized_etas(deps, tick_state.clone(), tick_id).unwrap();
+                let synced_etas = get_synced_etas(deps, tick_state.clone(), tick_id).unwrap();
                 TickIdAndState {
                     tick_id,
                     tick_state,
-                    realized_etas,
+                    synced_etas,
                 }
             })
             .collect()
@@ -196,11 +196,11 @@ pub(crate) fn all_ticks(
         all_ticks
             .map(|maybe_tick| {
                 let (tick_id, tick_state) = maybe_tick.unwrap();
-                let realized_etas = get_realized_etas(deps, tick_state.clone(), tick_id).unwrap();
+                let synced_etas = get_synced_etas(deps, tick_state.clone(), tick_id).unwrap();
                 TickIdAndState {
                     tick_id,
                     tick_state,
-                    realized_etas,
+                    synced_etas,
                 }
             })
             .collect()
@@ -258,12 +258,12 @@ pub(crate) fn ticks_by_id(deps: Deps, tick_ids: Vec<i64>) -> ContractResult<Tick
                 .load(deps.storage, *tick_id)
                 .map_err(|_| ContractError::InvalidTickId { tick_id: *tick_id })
                 .unwrap();
-            let realized_etas = get_realized_etas(deps, tick_state.clone(), *tick_id).unwrap();
+            let synced_etas = get_synced_etas(deps, tick_state.clone(), *tick_id).unwrap();
 
             TickIdAndState {
                 tick_id: *tick_id,
                 tick_state,
-                realized_etas,
+                synced_etas,
             }
         })
         .collect();

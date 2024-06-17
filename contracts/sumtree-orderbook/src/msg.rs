@@ -177,7 +177,7 @@ pub struct TickRealizedEffectiveTotalAmountSwapped {
 pub struct TickIdAndState {
     pub tick_id: i64,
     pub tick_state: TickState,
-    pub realized_etas: TickRealizedEffectiveTotalAmountSwapped,
+    pub synced_etas: TickRealizedEffectiveTotalAmountSwapped,
 }
 
 #[cw_serde]

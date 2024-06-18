@@ -8,11 +8,14 @@ use crate::{
     error::ContractResult,
     msg::{
         CalcOutAmtGivenInResponse, DenomsResponse, GetSwapFeeResponse,
-        GetTotalPoolLiquidityResponse, SpotPriceResponse, TickIdAndState, TickUnrealizedCancels,
-        TickUnrealizedCancelsByIdResponse, TickUnrealizedCancelsState, TicksResponse,
+        GetTotalPoolLiquidityResponse, OrdersResponse, SpotPriceResponse, TickIdAndState,
+        TickUnrealizedCancels, TickUnrealizedCancelsByIdResponse, TickUnrealizedCancelsState,
+        TicksResponse,
     },
     order,
-    state::{get_directional_liquidity, get_orders_by_owner, IS_ACTIVE, ORDERBOOK, TICK_STATE},
+    state::{
+        get_directional_liquidity, get_orders_by_owner, orders, IS_ACTIVE, ORDERBOOK, TICK_STATE,
+    },
     sudo::ensure_swap_fee,
     sumtree::tree::get_root_node,
     tick_math::tick_to_price,
@@ -198,7 +201,13 @@ pub(crate) fn orders_by_owner(
     start_from: Option<(i64, u64)>,
     end_at: Option<(i64, u64)>,
     limit: Option<u64>,
-) -> ContractResult<Vec<LimitOrder>> {
+) -> ContractResult<OrdersResponse> {
+    let count = orders()
+        .idx
+        .owner
+        .prefix(owner.clone())
+        .keys(deps.storage, None, None, Order::Ascending)
+        .count();
     let orders = get_orders_by_owner(
         deps.storage,
         FilterOwnerOrders::all(owner),
@@ -206,7 +215,11 @@ pub(crate) fn orders_by_owner(
         end_at,
         limit,
     )?;
-    Ok(orders)
+
+    Ok(OrdersResponse {
+        count: count as u64,
+        orders,
+    })
 }
 
 pub(crate) fn denoms(deps: Deps) -> ContractResult<DenomsResponse> {

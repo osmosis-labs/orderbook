@@ -70,7 +70,8 @@ fn run_fuzz_linear(amount_limit_orders: u64, tick_range: (i64, i64), cancel_prob
 
     let app = OsmosisTestApp::new();
     let cp = CosmwasmPool::new(&app);
-    let mut t = setup!(app, "quote", "base");
+    let mut t = setup!(&app, "quote", "base", 1);
+
     let mut orders = vec![];
 
     // -- System Under Test --

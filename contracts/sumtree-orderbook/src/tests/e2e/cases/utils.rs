@@ -1,12 +1,13 @@
 #[macro_export]
 macro_rules! setup {
-    ($($app:expr, $quote_denom:expr, $base_denom:expr),* ) => {{
+    ($($app:expr, $quote_denom:expr, $base_denom:expr, $maker_fee:expr),* ) => {{
         $($app.init_account(&[
             cosmwasm_std::Coin::new(1, $quote_denom),
             cosmwasm_std::Coin::new(1, $base_denom),
         ])
         .unwrap();
 
+        use osmosis_test_tube::Account;
         let t = $crate::tests::e2e::test_env::TestEnvBuilder::new()
             .with_account(
                 "user1",
@@ -21,6 +22,14 @@ macro_rules! setup {
                     cosmwasm_std::Coin::new(2_000, $quote_denom),
                     cosmwasm_std::Coin::new(2_000, $base_denom),
                 ],
+            )
+            .with_account(
+                "contract_admin",
+                vec![],
+            )
+            .with_account(
+                "maker_fee_recipient",
+                vec![],
             )
             .with_instantiate_msg($crate::msg::InstantiateMsg {
                 base_denom: $base_denom.to_string(),
@@ -54,6 +63,10 @@ macro_rules! setup {
         let is_active: bool = t.contract.query(&$crate::msg::QueryMsg::IsActive {}).unwrap();
 
         assert!(is_active);
+
+        t.contract.set_admin($app, cosmwasm_std::Addr::unchecked(&t.accounts["contract_admin"].address()));
+        t.contract
+            .set_maker_fee(&t.accounts["contract_admin"], Decimal256::percent($maker_fee), &t.accounts["maker_fee_recipient"]);
 
         t)*
     }};
@@ -459,18 +472,33 @@ pub mod orders {
             RoundingDirection::Down,
         )
         .unwrap();
+        let immut_expected_received_u256 = expected_received_u256;
+
         let mut bounty_amount_256 = Uint256::zero();
         if let Some(bounty) = order.claim_bounty {
             if order.owner != t.accounts[sender].address() {
-                bounty_amount_256 = Decimal256::from_ratio(expected_received_u256, Uint256::one())
-                    .checked_mul(bounty)
-                    .unwrap()
-                    .to_uint_floor();
+                bounty_amount_256 =
+                    Decimal256::from_ratio(immut_expected_received_u256, Uint256::one())
+                        .checked_mul(bounty)
+                        .unwrap()
+                        .to_uint_floor();
                 expected_received_u256 = expected_received_u256
                     .checked_sub(bounty_amount_256)
                     .unwrap();
             }
         }
+
+        let maker_fee = t.contract.get_maker_fee();
+        let maker_fee_amount_u256 =
+            Decimal256::from_ratio(immut_expected_received_u256, Uint256::one())
+                .checked_mul(maker_fee)
+                .unwrap()
+                .to_uint_floor();
+        let maker_fee_amount = Uint128::try_from(maker_fee_amount_u256).unwrap();
+
+        expected_received_u256 = expected_received_u256
+            .checked_sub(maker_fee_amount_u256)
+            .unwrap();
 
         let bounty_amount = Uint128::try_from(bounty_amount_256).unwrap();
         let expected_received = Uint128::try_from(expected_received_u256).unwrap();
@@ -494,7 +522,11 @@ pub mod orders {
                 ),
                 (
                     &t.accounts[sender].address(),
-                    vec![Coin::new(bounty_amount.u128(), expected_denom)],
+                    vec![Coin::new(bounty_amount.u128(), expected_denom.clone())],
+                ),
+                (
+                    &t.accounts["maker_fee_recipient"].address(),
+                    vec![Coin::new(maker_fee_amount.u128(), expected_denom)],
                 ),
             ]
             .iter()

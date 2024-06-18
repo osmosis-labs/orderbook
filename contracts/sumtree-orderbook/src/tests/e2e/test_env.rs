@@ -3,14 +3,14 @@ use std::{collections::HashMap, path::PathBuf};
 use crate::{
     constants::{MAX_TICK, MIN_TICK},
     msg::{
-        DenomsResponse, ExecuteMsg, GetTotalPoolLiquidityResponse, InstantiateMsg, QueryMsg,
-        TickIdAndState, TicksResponse,
+        AuthExecuteMsg, AuthQueryMsg, DenomsResponse, ExecuteMsg, GetTotalPoolLiquidityResponse,
+        InstantiateMsg, QueryMsg, SudoMsg, TickIdAndState, TicksResponse,
     },
     types::{LimitOrder, OrderDirection},
     ContractError,
 };
 
-use cosmwasm_std::{to_json_binary, Addr, Coin, Coins};
+use cosmwasm_std::{to_json_binary, Addr, Coin, Coins, Decimal256};
 use osmosis_std::types::{
     cosmos::bank::v1beta1::QueryAllBalancesRequest,
     cosmwasm::wasm::v1::MsgExecuteContractResponse,
@@ -190,12 +190,14 @@ impl<'a> OrderbookContract<'a> {
             code_id: _,
         } = cp.contract_info_by_pool_id(&ContractInfoByPoolIdRequest { pool_id })?;
 
-        Ok(Self {
+        let contract = Self {
             app,
             code_id,
             pool_id,
             contract_addr: contract_address,
-        })
+        };
+
+        Ok(contract)
     }
 
     pub fn execute(
@@ -228,6 +230,48 @@ impl<'a> OrderbookContract<'a> {
                 .join("sumtree_orderbook.wasm"),
         )
         .unwrap()
+    }
+
+    pub fn set_admin(&self, app: &OsmosisTestApp, admin: Addr) {
+        app.wasm_sudo(
+            &self.contract_addr,
+            SudoMsg::TransferAdmin { new_admin: admin },
+        )
+        .unwrap();
+        let admin: Option<Addr> = self.query(&QueryMsg::Auth(AuthQueryMsg::Admin {})).unwrap();
+        println!("admin_set: {:?}", admin);
+    }
+
+    pub fn set_maker_fee(
+        &self,
+        signer: &SigningAccount,
+        maker_fee: Decimal256,
+        recipient: &SigningAccount,
+    ) {
+        let res = self
+            .execute(
+                &ExecuteMsg::Auth(AuthExecuteMsg::SetMakerFee { fee: maker_fee }),
+                &[],
+                signer,
+            )
+            .unwrap();
+        println!("events: {:?}", res.events);
+
+        let admin: Option<Addr> = self.query(&QueryMsg::Auth(AuthQueryMsg::Admin {})).unwrap();
+        println!("admin: {:?}, signer: {:?}", admin, signer.address());
+        self.execute(
+            &ExecuteMsg::Auth(AuthExecuteMsg::SetMakerFeeRecipient {
+                recipient: Addr::unchecked(recipient.address()),
+            }),
+            &[],
+            signer,
+        )
+        .unwrap();
+    }
+
+    pub fn get_maker_fee(&self) -> Decimal256 {
+        let maker_fee: Decimal256 = self.query(&QueryMsg::GetMakerFee {}).unwrap();
+        maker_fee
     }
 
     pub fn get_denoms(&self) -> DenomsResponse {

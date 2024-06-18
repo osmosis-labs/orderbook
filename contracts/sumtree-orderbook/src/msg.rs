@@ -1,4 +1,4 @@
-use crate::types::{OrderDirection, TickState};
+use crate::types::{LimitOrder, OrderDirection, TickState};
 use cosmwasm_schema::{cw_serde, QueryResponses};
 use cosmwasm_std::{Addr, Coin, Decimal, Decimal256, Uint128, Uint256};
 use osmosis_std::types::cosmos::base::v1beta1::Coin as ProtoCoin;
@@ -109,7 +109,7 @@ pub enum QueryMsg {
     #[returns(bool)]
     IsActive {},
 
-    #[returns(Vec<crate::types::LimitOrder>)]
+    #[returns(OrdersResponse)]
     OrdersByOwner {
         // The address of the order maker
         owner: Addr,
@@ -199,6 +199,12 @@ pub struct TickUnrealizedCancels {
 #[cw_serde]
 pub struct TickUnrealizedCancelsByIdResponse {
     pub ticks: Vec<TickUnrealizedCancels>,
+}
+
+#[cw_serde]
+pub struct OrdersResponse {
+    pub orders: Vec<LimitOrder>,
+    pub count: u64,
 }
 
 #[cw_serde]

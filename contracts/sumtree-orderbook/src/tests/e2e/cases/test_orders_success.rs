@@ -80,7 +80,7 @@ fn test_basic_order() {
     for case in cases {
         let app = OsmosisTestApp::new();
         let cp = CosmwasmPool::new(&app);
-        let t = setup!(&app, "quote", "base");
+        let t = setup!(&app, "quote", "base", 0);
         let (expected_bid_tick, expected_ask_tick) = if case.order_direction == OrderDirection::Ask
         {
             (MIN_TICK, case.tick_id)
@@ -161,7 +161,7 @@ fn test_basic_order() {
 fn test_cancelled_orders() {
     let app = OsmosisTestApp::new();
     let cp = CosmwasmPool::new(&app);
-    let t = setup!(&app, "quote", "base");
+    let t = setup!(&app, "quote", "base", 0);
     let amount_orders = 3;
 
     for i in 0..amount_orders {

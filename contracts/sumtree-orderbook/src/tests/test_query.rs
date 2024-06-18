@@ -1155,6 +1155,7 @@ struct OrdersByOwnerTestCase {
     name: &'static str,
     pre_operations: Vec<OrderOperation>,
     expected_output: Vec<LimitOrder>,
+    expected_count: u64,
     owner: Addr,
     start_from: Option<(i64, u64)>,
     end_at: Option<(i64, u64)>,
@@ -1172,6 +1173,7 @@ fn test_orders_by_owner() {
             name: "no orders",
             pre_operations: vec![],
             expected_output: vec![],
+            expected_count: 0,
             owner: Addr::unchecked("sender"),
             start_from: None,
             end_at: None,
@@ -1198,6 +1200,7 @@ fn test_orders_by_owner() {
                 Decimal256::zero(),
                 None,
             )],
+            expected_count: 1,
             owner: Addr::unchecked("sender"),
             start_from: None,
             end_at: None,
@@ -1235,6 +1238,7 @@ fn test_orders_by_owner() {
                 Decimal256::zero(),
                 None,
             )],
+            expected_count: 2,
             owner: Addr::unchecked("sender"),
             start_from: None,
             end_at: None,
@@ -1272,6 +1276,7 @@ fn test_orders_by_owner() {
                 Decimal256::zero(),
                 None,
             )],
+            expected_count: 2,
             owner: Addr::unchecked("sender"),
             start_from: Some((0, 1)),
             end_at: None,
@@ -1309,6 +1314,7 @@ fn test_orders_by_owner() {
                 Decimal256::zero(),
                 None,
             )],
+            expected_count: 2,
             owner: Addr::unchecked("sender"),
             start_from: None,
             end_at: Some((0, 0)),
@@ -1385,6 +1391,7 @@ fn test_orders_by_owner() {
                     None,
                 ),
             ],
+            expected_count: 3,
             owner: Addr::unchecked("sender"),
             start_from: None,
             end_at: None,
@@ -1439,8 +1446,13 @@ fn test_orders_by_owner() {
             );
         });
         assert_eq!(
-            res, test.expected_output,
+            res.orders, test.expected_output,
             "{}: output did not match",
+            test.name
+        );
+        assert_eq!(
+            res.count, test.expected_count,
+            "{}: count did not match",
             test.name
         );
     }

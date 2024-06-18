@@ -150,7 +150,7 @@ pub mod assert {
         }
     }
 
-    pub fn with_balance_changes<T: Message + Default>(
+    pub fn balance_changes<T: Message + Default>(
         t: &TestEnv,
         changes: &[(&str, Vec<Coin>)],
         action: impl FnOnce() -> RunnerExecuteResult<T>,
@@ -269,7 +269,7 @@ pub mod orders {
         types::{LimitOrder, OrderDirection},
     };
 
-    use super::assert::with_balance_changes;
+    use super::assert;
 
     pub fn place_limit(
         t: &TestEnv,
@@ -376,7 +376,7 @@ pub mod orders {
             })
             .unwrap();
 
-        with_balance_changes(
+        assert::balance_changes(
             t,
             &[(
                 &t.accounts[sender].address(),
@@ -445,10 +445,11 @@ pub mod orders {
             .effective_total_amount_swapped
             .checked_add(cancelled_amount)
             .unwrap()
-            .to_uint_floor()
-            .checked_sub(Uint256::from(order.quantity.u128()))
+            .checked_sub(order.etas)
             .unwrap()
+            .to_uint_floor()
             .min(Uint256::from(order.quantity.u128()));
+
         let expected_amount = Uint128::try_from(expected_amount_u256).unwrap();
         let price = tick_to_price(order.tick_id).unwrap();
         let mut expected_received_u256 = amount_to_value(
@@ -484,7 +485,7 @@ pub mod orders {
             quote_denom
         };
 
-        with_balance_changes(
+        assert::balance_changes(
             t,
             [
                 (
@@ -535,7 +536,7 @@ pub mod orders {
             base_denom
         };
 
-        with_balance_changes(
+        assert::balance_changes(
             t,
             &[(
                 &t.accounts[sender].address(),

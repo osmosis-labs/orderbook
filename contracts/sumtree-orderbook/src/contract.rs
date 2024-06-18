@@ -152,6 +152,14 @@ pub fn query(deps: Deps, _env: Env, msg: QueryMsg) -> ContractResult<Binary> {
         QueryMsg::TickUnrealizedCancelsById { tick_ids } => Ok(to_json_binary(
             &query::ticks_unrealized_cancels_by_id(deps, tick_ids)?,
         )?),
+        QueryMsg::OrdersByTick {
+            tick_id,
+            start_from,
+            end_at,
+            limit,
+        } => Ok(to_json_binary(&query::orders_by_tick(
+            deps, tick_id, start_from, end_at, limit,
+        )?)?),
 
         // -- Auth Queries --
         QueryMsg::Auth(msg) => Ok(to_json_binary(&auth::query(deps, msg)?)?),

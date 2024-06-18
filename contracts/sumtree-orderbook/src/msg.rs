@@ -121,6 +121,14 @@ pub enum QueryMsg {
         limit: Option<u64>,
     },
 
+    #[returns(OrdersResponse)]
+    OrdersByTick {
+        tick_id: i64,
+        start_from: Option<u64>,
+        end_at: Option<u64>,
+        limit: Option<u64>,
+    },
+
     #[returns(crate::types::Orderbook)]
     OrderbookState {},
 

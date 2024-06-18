@@ -19,7 +19,7 @@ use crate::{
     sudo::ensure_swap_fee,
     sumtree::tree::get_root_node,
     tick_math::tick_to_price,
-    types::{FilterOwnerOrders, LimitOrder, MarketOrder, OrderDirection, Orderbook, TickState},
+    types::{FilterOwnerOrders, MarketOrder, OrderDirection, Orderbook, TickState},
     ContractError,
 };
 
@@ -215,6 +215,35 @@ pub(crate) fn orders_by_owner(
         end_at,
         limit,
     )?;
+
+    Ok(OrdersResponse {
+        count: count as u64,
+        orders,
+    })
+}
+
+pub(crate) fn orders_by_tick(
+    deps: Deps,
+    tick_id: i64,
+    start_from: Option<u64>,
+    end_at: Option<u64>,
+    limit: Option<u64>,
+) -> ContractResult<OrdersResponse> {
+    let count = orders()
+        .prefix(tick_id)
+        .keys(deps.storage, None, None, Order::Ascending)
+        .count();
+    let orders = orders()
+        .prefix(tick_id)
+        .range(
+            deps.storage,
+            start_from.map(Bound::inclusive),
+            end_at.map(Bound::inclusive),
+            Order::Ascending,
+        )
+        .take(limit.unwrap_or(count as u64) as usize)
+        .map(|res| res.unwrap().1)
+        .collect();
 
     Ok(OrdersResponse {
         count: count as u64,

@@ -7,7 +7,7 @@ macro_rules! setup {
         ])
         .unwrap();
 
-        use osmosis_test_tube::Account;
+        // use osmosis_test_tube::Account;
         let t = $crate::tests::e2e::test_env::TestEnvBuilder::new()
             .with_account(
                 "user1",
@@ -64,9 +64,9 @@ macro_rules! setup {
 
         assert!(is_active);
 
-        t.contract.set_admin($app, cosmwasm_std::Addr::unchecked(&t.accounts["contract_admin"].address()));
-        t.contract
-            .set_maker_fee(&t.accounts["contract_admin"], Decimal256::percent($maker_fee), &t.accounts["maker_fee_recipient"]);
+        // t.contract.set_admin($app, cosmwasm_std::Addr::unchecked(&t.accounts["contract_admin"].address()));
+        // t.contract
+        //     .set_maker_fee(&t.accounts["contract_admin"], Decimal256::percent($maker_fee), &t.accounts["maker_fee_recipient"]);
 
         t)*
     }};

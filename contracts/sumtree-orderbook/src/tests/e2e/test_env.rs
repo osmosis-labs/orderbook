@@ -4,7 +4,7 @@ use crate::{
     constants::{MAX_TICK, MIN_TICK},
     msg::{
         AuthExecuteMsg, AuthQueryMsg, DenomsResponse, ExecuteMsg, GetTotalPoolLiquidityResponse,
-        InstantiateMsg, QueryMsg, SudoMsg, TickIdAndState, TicksResponse,
+        InstantiateMsg, OrdersResponse, QueryMsg, SudoMsg, TickIdAndState, TicksResponse,
     },
     types::{LimitOrder, OrderDirection},
     ContractError,
@@ -248,17 +248,13 @@ impl<'a> OrderbookContract<'a> {
         maker_fee: Decimal256,
         recipient: &SigningAccount,
     ) {
-        let res = self
-            .execute(
-                &ExecuteMsg::Auth(AuthExecuteMsg::SetMakerFee { fee: maker_fee }),
-                &[],
-                signer,
-            )
-            .unwrap();
-        println!("events: {:?}", res.events);
+        self.execute(
+            &ExecuteMsg::Auth(AuthExecuteMsg::SetMakerFee { fee: maker_fee }),
+            &[],
+            signer,
+        )
+        .unwrap();
 
-        let admin: Option<Addr> = self.query(&QueryMsg::Auth(AuthQueryMsg::Admin {})).unwrap();
-        println!("admin: {:?}, signer: {:?}", admin, signer.address());
         self.execute(
             &ExecuteMsg::Auth(AuthExecuteMsg::SetMakerFeeRecipient {
                 recipient: Addr::unchecked(recipient.address()),
@@ -318,7 +314,7 @@ impl<'a> OrderbookContract<'a> {
     }
 
     pub fn get_order(&self, sender: String, tick_id: i64, order_id: u64) -> Option<LimitOrder> {
-        let orders: Vec<LimitOrder> = self
+        let OrdersResponse { orders, .. } = self
             .query(&QueryMsg::OrdersByOwner {
                 owner: Addr::unchecked(sender),
                 start_from: Some((tick_id, order_id)),

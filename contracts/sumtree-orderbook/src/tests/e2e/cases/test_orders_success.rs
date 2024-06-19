@@ -174,7 +174,7 @@ fn test_cancelled_orders() {
             "user1",
         )
         .unwrap();
-        orders::cancel_limit_success(&t, "user1", 0, i);
+        orders::cancel_limit_success(&t, "user1", 0, i).unwrap();
     }
     assert::pool_liquidity(&t, 0u8, 0u8, "cancelled orders");
     assert::pool_balance(&t, 0u8, 0u8, "cancelled orders");

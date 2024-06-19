@@ -4,13 +4,14 @@ use crate::{
     constants::{MAX_TICK, MIN_TICK},
     msg::{
         AuthExecuteMsg, AuthQueryMsg, DenomsResponse, ExecuteMsg, GetTotalPoolLiquidityResponse,
-        InstantiateMsg, OrdersResponse, QueryMsg, SudoMsg, TickIdAndState, TicksResponse,
+        InstantiateMsg, OrdersResponse, QueryMsg, SudoMsg, TickIdAndState, TickUnrealizedCancels,
+        TickUnrealizedCancelsByIdResponse, TicksResponse,
     },
     types::{LimitOrder, OrderDirection},
     ContractError,
 };
 
-use cosmwasm_std::{to_json_binary, Addr, Coin, Coins, Decimal256};
+use cosmwasm_std::{to_json_binary, Addr, Coin, Coins, Decimal256, Uint128, Uint256};
 use osmosis_std::types::{
     cosmos::bank::v1beta1::QueryAllBalancesRequest,
     cosmwasm::wasm::v1::MsgExecuteContractResponse,
@@ -263,6 +264,51 @@ impl<'a> OrderbookContract<'a> {
             signer,
         )
         .unwrap();
+    }
+
+    pub fn get_order_claimable_amount(&self, order: LimitOrder) -> Result<u128, String> {
+        let TicksResponse { ticks } = self
+            .query(&QueryMsg::AllTicks {
+                start_from: Some(order.tick_id),
+                end_at: None,
+                limit: Some(1),
+            })
+            .unwrap();
+        let tick = ticks.first().unwrap().tick_state.clone();
+        let tick_values: crate::types::TickValues = tick.get_values(order.order_direction);
+        let TickUnrealizedCancelsByIdResponse { ticks } = self
+            .query(&QueryMsg::TickUnrealizedCancelsById {
+                tick_ids: vec![order.tick_id],
+            })
+            .unwrap();
+        let TickUnrealizedCancels {
+            unrealized_cancels, ..
+        } = ticks.first().unwrap();
+        let cancelled_amount = match order.order_direction {
+            OrderDirection::Bid => unrealized_cancels.bid_unrealized_cancels,
+            OrderDirection::Ask => unrealized_cancels.ask_unrealized_cancels,
+        }
+        .checked_sub(tick_values.cumulative_realized_cancels)
+        .unwrap();
+
+        let synced_etas = tick_values
+            .effective_total_amount_swapped
+            .checked_add(cancelled_amount)
+            .unwrap();
+
+        if synced_etas < order.etas {
+            return Ok(0u128);
+        }
+
+        let expected_amount_u256 = synced_etas
+            .checked_sub(order.etas)
+            .unwrap()
+            .to_uint_floor()
+            .min(Uint256::from(order.quantity.u128()));
+
+        let expected_amount = Uint128::try_from(expected_amount_u256).unwrap();
+
+        Ok(expected_amount.u128())
     }
 
     pub fn get_maker_fee(&self) -> Decimal256 {

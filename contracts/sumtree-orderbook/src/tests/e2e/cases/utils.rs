@@ -178,42 +178,48 @@ pub mod assert {
             })
             .collect();
         let result = action();
-        let post_balances: Vec<(String, Coins)> = changes
-            .iter()
-            .map(|(sender, _)| {
-                (
-                    sender.to_string(),
-                    Coins::try_from(t.get_balance(sender)).unwrap(),
-                )
-            })
-            .collect();
 
-        for (sender, balance_change) in changes.iter().cloned() {
-            let pre_balance = pre_balances
-                .iter()
-                .find(|(s, _)| s == sender)
-                .unwrap()
-                .1
-                .clone();
-            let post_balance = post_balances
-                .iter()
-                .find(|(s, _)| s == sender)
-                .unwrap()
-                .1
-                .clone();
-            for coin in balance_change {
-                let pre_amount = pre_balance.amount_of(&coin.denom);
-                let post_amount = post_balance.amount_of(&coin.denom);
-                let change = post_amount.saturating_sub(pre_amount);
-                assert_eq!(
-                    change, coin.amount,
-                    "Did not receive expected amount change, expected: {}{}, got: {}{}",
-                    coin.amount, coin.denom, change, coin.denom
-                );
+        match result {
+            Ok(res) => {
+                let post_balances: Vec<(String, Coins)> = changes
+                    .iter()
+                    .map(|(sender, _)| {
+                        (
+                            sender.to_string(),
+                            Coins::try_from(t.get_balance(sender)).unwrap(),
+                        )
+                    })
+                    .collect();
+
+                for (sender, balance_change) in changes.iter().cloned() {
+                    let pre_balance = pre_balances
+                        .iter()
+                        .find(|(s, _)| s == sender)
+                        .unwrap()
+                        .1
+                        .clone();
+                    let post_balance = post_balances
+                        .iter()
+                        .find(|(s, _)| s == sender)
+                        .unwrap()
+                        .1
+                        .clone();
+                    for coin in balance_change {
+                        let pre_amount = pre_balance.amount_of(&coin.denom);
+                        let post_amount = post_balance.amount_of(&coin.denom);
+                        let change = post_amount.saturating_sub(pre_amount);
+                        assert_eq!(
+                            change, coin.amount,
+                            "Did not receive expected amount change, expected: {}{}, got: {}{}",
+                            coin.amount, coin.denom, change, coin.denom
+                        );
+                    }
+                }
+
+                Ok(res)
             }
+            Err(e) => Err(e),
         }
-
-        result
     }
 
     pub fn tick_invariants(t: &TestEnv) {
@@ -270,13 +276,10 @@ pub mod orders {
             MsgSwapExactAmountIn, MsgSwapExactAmountInResponse, SwapAmountInRoute,
         },
     };
-    use osmosis_test_tube::{Account, OsmosisTestApp, RunnerExecuteResult};
+    use osmosis_test_tube::{Account, OsmosisTestApp, RunnerError, RunnerExecuteResult};
 
     use crate::{
-        msg::{
-            CalcOutAmtGivenInResponse, DenomsResponse, ExecuteMsg, QueryMsg, TickUnrealizedCancels,
-            TickUnrealizedCancelsByIdResponse, TicksResponse,
-        },
+        msg::{CalcOutAmtGivenInResponse, DenomsResponse, ExecuteMsg, QueryMsg},
         tests::e2e::{modules::cosmwasm_pool::CosmwasmPool, test_env::TestEnv},
         tick_math::{amount_to_value, tick_to_price, RoundingDirection},
         types::{LimitOrder, OrderDirection},
@@ -428,46 +431,20 @@ pub mod orders {
             .contract
             .get_order(t.accounts[owner].address(), tick_id, order_id)
             .unwrap();
-        let TicksResponse { ticks } = t
+        let expected_amount = t
             .contract
-            .query(&QueryMsg::AllTicks {
-                start_from: Some(order.tick_id),
-                end_at: None,
-                limit: Some(1),
-            })
-            .unwrap();
-        let tick = ticks.first().unwrap().tick_state.clone();
-        let tick_values: crate::types::TickValues = tick.get_values(order.order_direction);
-        let TickUnrealizedCancelsByIdResponse { ticks } = t
-            .contract
-            .query(&QueryMsg::TickUnrealizedCancelsById {
-                tick_ids: vec![tick_id],
-            })
-            .unwrap();
-        let TickUnrealizedCancels {
-            unrealized_cancels, ..
-        } = ticks.first().unwrap();
-        let cancelled_amount = match order.order_direction {
-            OrderDirection::Bid => unrealized_cancels.bid_unrealized_cancels,
-            OrderDirection::Ask => unrealized_cancels.ask_unrealized_cancels,
+            .get_order_claimable_amount(order.clone())
+            .map_err(RunnerError::GenericError)?;
+
+        if expected_amount == 0 {
+            return Err(RunnerError::GenericError(
+                "Cannot claim order: nothing to claim".to_string(),
+            ));
         }
-        .checked_sub(tick_values.cumulative_realized_cancels)
-        .unwrap();
-
-        let expected_amount_u256 = tick_values
-            .effective_total_amount_swapped
-            .checked_add(cancelled_amount)
-            .unwrap()
-            .checked_sub(order.etas)
-            .unwrap()
-            .to_uint_floor()
-            .min(Uint256::from(order.quantity.u128()));
-
-        let expected_amount = Uint128::try_from(expected_amount_u256).unwrap();
         let price = tick_to_price(order.tick_id).unwrap();
         let mut expected_received_u256 = amount_to_value(
             order.order_direction,
-            expected_amount,
+            Uint128::from(expected_amount),
             price,
             RoundingDirection::Down,
         )
@@ -551,11 +528,25 @@ pub mod orders {
         )
     }
 
-    pub fn cancel_limit_success(t: &TestEnv, sender: &str, tick_id: i64, order_id: u64) {
+    pub fn cancel_limit_success(
+        t: &TestEnv,
+        sender: &str,
+        tick_id: i64,
+        order_id: u64,
+    ) -> RunnerExecuteResult<MsgExecuteContractResponse> {
         let order: LimitOrder = t
             .contract
             .get_order(t.accounts[sender].address(), tick_id, order_id)
             .unwrap();
+        let claimable = t
+            .contract
+            .get_order_claimable_amount(order.clone())
+            .map_err(RunnerError::GenericError)?;
+        if claimable > 0 {
+            return Err(RunnerError::GenericError(
+                "Cannot cancel order: Order is partially filled".to_string(),
+            ));
+        }
         let order_direction = order.order_direction;
         let quantity = order.quantity;
         let DenomsResponse {
@@ -576,6 +567,5 @@ pub mod orders {
             )],
             || cancel_limit(t, sender, tick_id, order_id),
         )
-        .unwrap();
     }
 }

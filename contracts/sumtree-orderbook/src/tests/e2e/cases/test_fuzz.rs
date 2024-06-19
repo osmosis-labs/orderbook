@@ -1,3 +1,5 @@
+use std::collections::HashMap;
+
 use cosmwasm_std::{Coin, Decimal, Uint256};
 use cosmwasm_std::{Decimal256, Uint128};
 use osmosis_test_tube::{Account, Module, OsmosisTestApp};
@@ -58,6 +60,21 @@ fn test_order_fuzz_linear_large_all_cancelled_orders_small_range() {
     run_fuzz_linear(1000, (-10, 10), 1.0);
 }
 
+#[test]
+fn test_order_fuzz_linear_single_tick() {
+    run_fuzz_linear(1000, (0, 0), 0.2);
+}
+
+#[test]
+fn test_order_fuzz_mixed() {
+    run_fuzz_mixed(2500, (-20, 20));
+}
+
+#[test]
+fn test_order_fuzz_single_tick() {
+    run_fuzz_mixed(1000, (0, 0));
+}
+
 /// Runs a linear fuzz test with the following steps
 /// 1. Place x amount of random limit orders in given tick range and cancel with provided probability
 /// 2. For both directions fill the entire amount of liquidity available using market orders
@@ -81,13 +98,15 @@ fn run_fuzz_linear(amount_limit_orders: u64, tick_range: (i64, i64), cancel_prob
     // Tick state is verified after every order is placed (and cancelled)
     for i in 0..amount_limit_orders {
         let username = format!("user{}", i);
-        let chosen_tick = place_random_order(&mut t, &mut rng, &username, tick_range);
+        let chosen_tick = place_random_limit(&mut t, &mut rng, &username, tick_range);
         let is_cancelled = rng.gen_bool(cancel_probability);
+
         if is_cancelled {
-            orders::cancel_limit_success(&t, &username, chosen_tick, i);
+            orders::cancel_limit_success(&t, &username, chosen_tick, i).unwrap();
         } else {
             orders.push((username, chosen_tick, i));
         }
+
         assert::tick_invariants(&t);
     }
 
@@ -189,8 +208,238 @@ fn run_fuzz_linear(amount_limit_orders: u64, tick_range: (i64, i64), cancel_prob
     );
 }
 
+#[derive(Debug, Eq, PartialEq, Hash)]
+enum MixedFuzzOperation {
+    PlaceLimit,
+    PlaceMarket,
+    CancelLimit,
+    Claim,
+}
+
+impl MixedFuzzOperation {
+    /// Chooses a random fuzz operation
+    fn random(rng: &mut StdRng) -> Self {
+        let index: u32 = rng.gen_range(0..=100);
+
+        if index < 25 {
+            Self::PlaceLimit
+        } else if index < 50 {
+            Self::PlaceMarket
+        } else if index < 75 {
+            Self::CancelLimit
+        } else {
+            Self::Claim
+        }
+    }
+
+    /// Attempts to run the chosen fuzz operation
+    ///
+    /// Returns true if the operation was successful, false otherwise
+    #[allow(clippy::too_many_arguments)]
+    fn run(
+        &self,
+        t: &mut TestEnv,
+        cp: &CosmwasmPool<OsmosisTestApp>,
+        rng: &mut StdRng,
+        iteration: u64,
+        orders: &mut HashMap<u64, (String, i64)>,
+        order_count: &mut u64,
+        tick_bounds: (i64, i64),
+    ) -> Result<bool, &'static str> {
+        let username = format!("user{}", iteration);
+        match self {
+            MixedFuzzOperation::PlaceLimit => {
+                // Determine tick range by finding the minimum and maximum tick ids of the orderbook
+                // Ticks are bounded by the provided tick range
+                // The concept is that ticks may randomly shift up and down until they reach the desired bounds
+                let all_ticks = t.contract.collect_all_ticks();
+                let tick_range = (
+                    all_ticks
+                        .iter()
+                        .min_by_key(|f| f.tick_id)
+                        .map(|f| f.tick_id)
+                        .unwrap_or(0)
+                        - 1.min(tick_bounds.1).max(tick_bounds.0),
+                    all_ticks
+                        .iter()
+                        .max_by_key(|f| f.tick_id)
+                        .map(|f| f.tick_id)
+                        .unwrap_or(0)
+                        + 1.min(tick_bounds.1).max(tick_bounds.0),
+                );
+
+                // Place the limit order
+                let tick_id = place_random_limit(t, rng, &username, tick_range);
+                // Record the order for claims/cancels
+                orders.insert(*order_count, (username, tick_id));
+                *order_count += 1;
+                Ok(true)
+            }
+            MixedFuzzOperation::PlaceMarket => {
+                // Determine the market direction
+                let maybe_market_direction = get_random_market_direction(t, rng);
+                // May error if the orderbook has 0 liquidity for both directions
+                if maybe_market_direction.is_err() {
+                    return Ok(false);
+                }
+                let market_direction = maybe_market_direction.unwrap();
+                // Determine the maximum amount of the opposite direction that can be bought
+                let max_amount = t
+                    .contract
+                    .get_directional_liquidity(market_direction.opposite());
+                // If nothing can be bought then we skip this operation
+                if max_amount == 0 {
+                    return Ok(false);
+                }
+
+                // Place the order
+                place_random_market(cp, t, rng, &username, market_direction, max_amount);
+                Ok(true)
+            }
+            MixedFuzzOperation::CancelLimit => {
+                // If there are no active orders skip the operation
+                if orders.is_empty() {
+                    return Ok(false);
+                }
+
+                // Determine the order to be cancelled
+                let order_ids = orders.keys().collect::<Vec<&u64>>();
+                let order_idx = rng.gen_range(0..order_ids.len());
+                let order_id = *order_ids[order_idx];
+                let (username, tick_id) = orders.get(&order_id).unwrap().clone();
+
+                // We cannot cancel an order if it is partially filled
+                let order = t
+                    .contract
+                    .get_order(t.accounts[&username].address(), tick_id, order_id)
+                    .unwrap();
+                let maybe_amount_claimable = t.contract.get_order_claimable_amount(order.clone());
+
+                // Determine if the order can be cancelled
+                if maybe_amount_claimable.is_err() {
+                    return Ok(false);
+                }
+                let amount_claimable = maybe_amount_claimable.unwrap();
+                if amount_claimable > 0 {
+                    return Ok(false);
+                }
+
+                // Remove the order once we know it is cancellable
+                orders.remove(&order_id).unwrap();
+                // Cancel the order
+                orders::cancel_limit_success(t, &username, tick_id, order_id).unwrap();
+                Ok(true)
+            }
+            MixedFuzzOperation::Claim => {
+                // If there are no active orders skip the operation
+                if orders.is_empty() {
+                    return Ok(false);
+                }
+
+                // Determine the order to be claimed
+                let order_ids = orders.keys().collect::<Vec<&u64>>();
+                let order_idx = rng.gen_range(0..order_ids.len());
+                let order_id = *order_ids[order_idx];
+                let (username, tick_id) = orders.get(&order_id).unwrap().clone();
+
+                // We cannot claim an order if it has nothing to be claimed
+                let order = t
+                    .contract
+                    .get_order(t.accounts[&username].address(), tick_id, order_id)
+                    .unwrap();
+                let maybe_amount_claimable = t.contract.get_order_claimable_amount(order.clone());
+
+                // Determine if the order can be claimed
+                if maybe_amount_claimable.is_err() {
+                    return Ok(false);
+                }
+                let amount_claimable = maybe_amount_claimable.unwrap();
+                if amount_claimable == 0 {
+                    return Ok(false);
+                }
+
+                let claimant = if order.claim_bounty.is_some() {
+                    t.add_account("claimant", vec![Coin::new(1000000000000u128, "uosmo")]);
+                    "claimant"
+                } else {
+                    username.as_str()
+                };
+
+                // Remove the order once we know its claimable
+                orders.remove(&order_id).unwrap();
+                // Claim the order
+                orders::claim_success(t, claimant, &username, tick_id, order_id).unwrap();
+                Ok(true)
+            }
+        }
+    }
+}
+
+/// Runs a fuzz test that randomly chooses between 4 operations:
+/// 1. Place a Limit
+/// 2. Place a Market
+/// 3. Cancel a Limit
+/// 4. Claim a Limit
+///
+/// These operations are chosen at random and if they are an invalid operation they are skipped and a new operation is chosen.
+/// Orders are placing in a tick range determined by the current tick bounds with the intent that ticks spread over time randomly to the desired tick bounds.
+/// Expected errors are handled by skipping the operation and randomly choosing a new operation. Any errors returned are expected to be because of an issue in the orderbook.
+fn run_fuzz_mixed(amount_of_orders: u64, tick_bounds: (i64, i64)) {
+    // -- Test Setup --
+    let seed: u64 = 123456789;
+    let mut rng = StdRng::seed_from_u64(seed);
+
+    let app = OsmosisTestApp::new();
+    let cp = CosmwasmPool::new(&app);
+    let mut t = setup!(&app, "quote", "base", 1);
+    let mut orders: HashMap<u64, (String, i64)> = HashMap::new();
+    let mut order_count = 0;
+
+    let mut oper_count: HashMap<MixedFuzzOperation, u64> = HashMap::new();
+    oper_count.insert(MixedFuzzOperation::PlaceLimit, 0);
+    oper_count.insert(MixedFuzzOperation::PlaceMarket, 0);
+    oper_count.insert(MixedFuzzOperation::CancelLimit, 0);
+    oper_count.insert(MixedFuzzOperation::Claim, 0);
+
+    // -- System Under Test --
+    for i in 0..amount_of_orders {
+        // Chooses an operation at random
+        let mut operation = MixedFuzzOperation::random(&mut rng);
+
+        // We add an escape clause in the case that the test ever gets caught in an infinite loop
+        let mut repeated_failures = 0;
+
+        // Repeat randomising operations until a successful one is chosen
+        while !operation
+            .run(
+                &mut t,
+                &cp,
+                &mut rng,
+                i,
+                &mut orders,
+                &mut order_count,
+                tick_bounds,
+            )
+            .unwrap()
+        {
+            operation = MixedFuzzOperation::random(&mut rng);
+            repeated_failures += 1;
+            if repeated_failures > 100 {
+                panic!("Caught in loop");
+            }
+        }
+        oper_count.entry(operation).and_modify(|c| *c += 1);
+
+        // -- Post operation assertions --
+        assert::tick_invariants(&t);
+    }
+
+    // Assert every operation ran at least once successfully
+    assert!(oper_count.values().all(|c| *c > 0));
+}
+
 /// Places a random limit order in the provided tick range using the provided username
-fn place_random_order(
+fn place_random_limit(
     t: &mut TestEnv,
     rng: &mut StdRng,
     username: &str,
@@ -329,4 +578,33 @@ fn place_random_market(
     // Places the market order and ensures that funds are transferred correctly
     orders::place_market_success(cp, t, order_direction, amount, username).unwrap();
     amount
+}
+
+/// Determines a random market direction based on the available liquidity for bids and asks.
+/// Errors if both directions have no liquidity
+///
+/// Chooses a direction if that direction is the only one with liquidity.
+fn get_random_market_direction<'a>(
+    t: &TestEnv,
+    rng: &mut StdRng,
+) -> Result<OrderDirection, &'a str> {
+    let bid_liquidity = t.contract.get_directional_liquidity(OrderDirection::Bid);
+    let ask_liquidity = t.contract.get_directional_liquidity(OrderDirection::Ask);
+    if bid_liquidity == 0 && ask_liquidity == 0 {
+        return Err("No liquidity available to place market order");
+    }
+
+    let bid_probability = if bid_liquidity != 0 && ask_liquidity == 0 {
+        1.0
+    } else if bid_liquidity != 0 {
+        0.5
+    } else {
+        0.0
+    };
+
+    if rng.gen_bool(bid_probability) {
+        Ok(OrderDirection::Bid)
+    } else {
+        Ok(OrderDirection::Ask)
+    }
 }

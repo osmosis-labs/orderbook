@@ -117,16 +117,13 @@ pub fn place_limit(
     );
 
     let quant_dec256 = Decimal256::from_ratio(limit_order.quantity.u128(), Uint256::one());
-    // Only save the order if not fully filled
-    if limit_order.quantity > Uint128::zero() {
-        // Save the order to the orderbook
-        orders().save(deps.storage, &(tick_id, order_id), &limit_order)?;
+    // Save the order to the orderbook
+    orders().save(deps.storage, &(tick_id, order_id), &limit_order)?;
 
-        tick_values.total_amount_of_liquidity = tick_values
-            .total_amount_of_liquidity
-            .checked_add(quant_dec256)
-            .unwrap();
-    }
+    tick_values.total_amount_of_liquidity = tick_values
+        .total_amount_of_liquidity
+        .checked_add(quant_dec256)
+        .unwrap();
 
     tick_values.cumulative_total_value = tick_values
         .cumulative_total_value
@@ -168,6 +165,19 @@ pub fn cancel_limit(
     ensure_eq!(info.sender, order.owner, ContractError::Unauthorized {});
 
     // Ensure the order has not been filled.
+    let tick_state = TICK_STATE.load(deps.storage, tick_id).unwrap_or_default();
+
+    sync_tick(
+        deps.storage,
+        tick_id,
+        tick_state
+            .get_values(OrderDirection::Bid)
+            .effective_total_amount_swapped,
+        tick_state
+            .get_values(OrderDirection::Ask)
+            .effective_total_amount_swapped,
+    )?;
+
     let tick_state = TICK_STATE.load(deps.storage, tick_id).unwrap_or_default();
     let tick_values = tick_state.get_values(order.order_direction);
     ensure!(
@@ -214,26 +224,15 @@ pub fn cancel_limit(
     );
 
     orders().remove(deps.storage, &(order.tick_id, order.order_id))?;
-
     curr_tick_values.total_amount_of_liquidity = curr_tick_values
         .total_amount_of_liquidity
         .checked_sub(Decimal256::from_ratio(order.quantity, Uint256::one()))?;
+
     curr_tick_state.set_values(order.order_direction, curr_tick_values);
     TICK_STATE.save(deps.storage, order.tick_id, &curr_tick_state)?;
     subtract_directional_liquidity(deps.storage, order.order_direction, quant_dec256)?;
 
     tree.save(deps.storage)?;
-
-    sync_tick(
-        deps.storage,
-        tick_id,
-        curr_tick_state
-            .get_values(OrderDirection::Bid)
-            .effective_total_amount_swapped,
-        curr_tick_state
-            .get_values(OrderDirection::Ask)
-            .effective_total_amount_swapped,
-    )?;
 
     Ok(Response::new()
         .add_attributes(vec![

@@ -163,6 +163,26 @@ pub mod assert {
         }
     }
 
+    pub fn has_liquidity(t: &TestEnv) {
+        let bid_liquidity = t.contract.get_directional_liquidity(OrderDirection::Bid);
+        let ask_liquidity = t.contract.get_directional_liquidity(OrderDirection::Ask);
+        let balance = Coins::try_from(t.get_balance(&t.contract.contract_addr)).unwrap();
+        let bid_balance = balance.amount_of(&t.contract.get_denoms().base_denom);
+        let ask_balance = balance.amount_of(&t.contract.get_denoms().quote_denom);
+        assert!(
+            bid_liquidity <= bid_balance.u128(),
+            "invalid bid liquidity, expected: {}, got: {}",
+            bid_balance,
+            bid_liquidity
+        );
+        assert!(
+            ask_liquidity <= ask_balance.u128(),
+            "invalid ask liquidity, expected: {}, got: {}",
+            ask_balance,
+            ask_liquidity
+        );
+    }
+
     pub fn balance_changes<T: Message + Default>(
         t: &TestEnv,
         changes: &[(&str, Vec<Coin>)],
@@ -431,10 +451,7 @@ pub mod orders {
             .contract
             .get_order(t.accounts[owner].address(), tick_id, order_id)
             .unwrap();
-        let expected_amount = t
-            .contract
-            .get_order_claimable_amount(order.clone())
-            .map_err(RunnerError::GenericError)?;
+        let expected_amount = t.contract.get_order_claimable_amount(order.clone());
 
         if expected_amount == 0 {
             return Err(RunnerError::GenericError(
@@ -450,6 +467,12 @@ pub mod orders {
         )
         .unwrap();
         let immut_expected_received_u256 = expected_received_u256;
+
+        if immut_expected_received_u256.is_zero() {
+            return Err(RunnerError::GenericError(
+                "Cannot claim order: nothing to claim".to_string(),
+            ));
+        }
 
         let mut bounty_amount_256 = Uint256::zero();
         if let Some(bounty) = order.claim_bounty {
@@ -538,10 +561,7 @@ pub mod orders {
             .contract
             .get_order(t.accounts[sender].address(), tick_id, order_id)
             .unwrap();
-        let claimable = t
-            .contract
-            .get_order_claimable_amount(order.clone())
-            .map_err(RunnerError::GenericError)?;
+        let claimable = t.contract.get_order_claimable_amount(order.clone());
         if claimable > 0 {
             return Err(RunnerError::GenericError(
                 "Cannot cancel order: Order is partially filled".to_string(),

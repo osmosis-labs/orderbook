@@ -72,7 +72,7 @@ fn test_order_fuzz_mixed() {
 
 #[test]
 fn test_order_fuzz_single_tick() {
-    run_fuzz_mixed(1000, (0, 0));
+    run_fuzz_mixed(2000, (0, 0))
 }
 
 /// Runs a linear fuzz test with the following steps
@@ -143,6 +143,7 @@ fn run_fuzz_linear(amount_limit_orders: u64, tick_range: (i64, i64), cancel_prob
             // Update the liquidity
             liquidity = t.contract.get_directional_liquidity(order_direction);
             assert::tick_invariants(&t);
+            assert::has_liquidity(&t);
         }
         println!(
             "Placed {} market orders in {} direction",
@@ -246,6 +247,7 @@ impl MixedFuzzOperation {
         order_count: &mut u64,
         tick_bounds: (i64, i64),
     ) -> Result<bool, &'static str> {
+        println!("operation: {self:?}");
         let username = format!("user{}", iteration);
         match self {
             MixedFuzzOperation::PlaceLimit => {
@@ -313,13 +315,9 @@ impl MixedFuzzOperation {
                     .contract
                     .get_order(t.accounts[&username].address(), tick_id, order_id)
                     .unwrap();
-                let maybe_amount_claimable = t.contract.get_order_claimable_amount(order.clone());
+                let amount_claimable = t.contract.get_order_claimable_amount(order.clone());
 
                 // Determine if the order can be cancelled
-                if maybe_amount_claimable.is_err() {
-                    return Ok(false);
-                }
-                let amount_claimable = maybe_amount_claimable.unwrap();
                 if amount_claimable > 0 {
                     return Ok(false);
                 }
@@ -347,14 +345,23 @@ impl MixedFuzzOperation {
                     .contract
                     .get_order(t.accounts[&username].address(), tick_id, order_id)
                     .unwrap();
-                let maybe_amount_claimable = t.contract.get_order_claimable_amount(order.clone());
+                let amount_claimable = t.contract.get_order_claimable_amount(order.clone());
 
                 // Determine if the order can be claimed
-                if maybe_amount_claimable.is_err() {
+                if amount_claimable == 0 {
                     return Ok(false);
                 }
-                let amount_claimable = maybe_amount_claimable.unwrap();
-                if amount_claimable == 0 {
+
+                let price = tick_to_price(order.tick_id).unwrap();
+                let expected_received_u256 = amount_to_value(
+                    order.order_direction,
+                    Uint128::from(amount_claimable),
+                    price,
+                    RoundingDirection::Down,
+                )
+                .unwrap();
+
+                if expected_received_u256.is_zero() {
                     return Ok(false);
                 }
 
@@ -368,8 +375,12 @@ impl MixedFuzzOperation {
                 // Remove the order once we know its claimable
                 orders.remove(&order_id).unwrap();
                 // Claim the order
-                orders::claim_success(t, claimant, &username, tick_id, order_id).unwrap();
-                Ok(true)
+                match orders::claim_success(t, claimant, &username, tick_id, order_id) {
+                    Ok(_) => Ok(true),
+                    Err(e) => {
+                        panic!("{e}")
+                    }
+                }
             }
         }
     }
@@ -408,7 +419,7 @@ fn run_fuzz_mixed(amount_of_orders: u64, tick_bounds: (i64, i64)) {
 
         // We add an escape clause in the case that the test ever gets caught in an infinite loop
         let mut repeated_failures = 0;
-
+        println!("iteration: {}", i);
         // Repeat randomising operations until a successful one is chosen
         while !operation
             .run(
@@ -432,6 +443,32 @@ fn run_fuzz_mixed(amount_of_orders: u64, tick_bounds: (i64, i64)) {
 
         // -- Post operation assertions --
         assert::tick_invariants(&t);
+        assert::has_liquidity(&t);
+    }
+
+    for (order_id, (username, tick_id)) in orders.clone().iter() {
+        match orders::claim_success(&t, username, username, *tick_id, *order_id) {
+            Ok(_) => {
+                continue;
+            }
+            Err(e) => println!("Error claiming order: {e}"),
+        }
+
+        match orders::cancel_limit_success(&t, username, *tick_id, *order_id) {
+            Ok(_) => {
+                continue;
+            }
+            Err(e) => println!("Error cancelling order: {e}"),
+        }
+
+        let order = t
+            .contract
+            .get_order(username.clone(), *tick_id, *order_id)
+            .unwrap();
+        assert!(
+            order.placed_quantity != order.quantity,
+            "order could not be claimed or cancelled: {order:?}"
+        );
     }
 
     // Assert every operation ran at least once successfully
@@ -446,7 +483,7 @@ fn place_random_limit(
     tick_range: (i64, i64),
 ) -> i64 {
     // Quantities are in magnitudes of u32
-    let quantity = Uint128::from(rng.gen::<u32>());
+    let quantity = Uint128::from(rng.gen::<u64>());
     // 50% chance to choose either direction
     let order_direction = if rng.gen_bool(0.5) {
         OrderDirection::Bid
@@ -561,10 +598,21 @@ fn place_random_market(
                 swap_fee: Decimal::zero(),
             });
 
-    // If the provided error cannot be filled then we return a 0 amount
-    if amount == 0 || expected_out.is_err() || expected_out.unwrap().token_out.amount == "0" {
+    if let Ok(expected_out) = expected_out {
+        println!("expected_out: {expected_out:?}");
+        let balance = t.get_balance(&t.contract.contract_addr);
+        if expected_out.token_out.amount == "0" {
+            return 0;
+        }
+        println!("balance: {balance:?}");
+    } else if expected_out.is_err() || amount == 0 {
         return 0;
     }
+
+    // // If the provided error cannot be filled then we return a 0 amount
+    // if amount == 0 || expected_out.is_err() || expected_out.unwrap().token_out.amount == "0" {
+    //     return 0;
+    // }
 
     // Generate the user account
     t.add_account(

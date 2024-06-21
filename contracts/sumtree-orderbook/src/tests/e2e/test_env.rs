@@ -266,7 +266,7 @@ impl<'a> OrderbookContract<'a> {
         .unwrap();
     }
 
-    pub fn get_order_claimable_amount(&self, order: LimitOrder) -> Result<u128, String> {
+    pub fn get_order_claimable_amount(&self, order: LimitOrder) -> u128 {
         let TicksResponse { ticks } = self
             .query(&QueryMsg::AllTicks {
                 start_from: Some(order.tick_id),
@@ -295,20 +295,13 @@ impl<'a> OrderbookContract<'a> {
             .effective_total_amount_swapped
             .checked_add(cancelled_amount)
             .unwrap();
-
-        if synced_etas < order.etas {
-            return Ok(0u128);
-        }
-
         let expected_amount_u256 = synced_etas
-            .checked_sub(order.etas)
-            .unwrap()
+            .saturating_sub(order.etas)
             .to_uint_floor()
             .min(Uint256::from(order.quantity.u128()));
 
         let expected_amount = Uint128::try_from(expected_amount_u256).unwrap();
-
-        Ok(expected_amount.u128())
+        expected_amount.u128()
     }
 
     pub fn get_maker_fee(&self) -> Decimal256 {

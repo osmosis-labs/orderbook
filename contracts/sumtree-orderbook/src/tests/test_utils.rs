@@ -33,8 +33,7 @@ impl OrderOperation {
                     OrderDirection::Bid => MAX_TICK,
                     OrderDirection::Ask => MIN_TICK,
                 };
-                run_market_order(deps.storage, env.contract.address, &mut order, tick_bound)
-                    .unwrap();
+                run_market_order(deps.storage, env.contract.address, &mut order, tick_bound)?;
                 Ok(())
             }
             OrderOperation::PlaceLimitMulti((
@@ -49,7 +48,7 @@ impl OrderOperation {
                     quantity_per_order,
                     direction,
                 );
-                place_multiple_limit_orders(&mut deps, env, info.sender.as_str(), orders).unwrap();
+                place_multiple_limit_orders(&mut deps, env, info.sender.as_str(), orders)?;
                 Ok(())
             }
             OrderOperation::PlaceLimit(limit_order) => {
@@ -83,7 +82,7 @@ impl OrderOperation {
                     .load(deps.as_ref().storage, &(tick_id, order_id))
                     .unwrap();
                 let info = mock_info(order.owner.as_str(), &[]);
-                cancel_limit(deps, env, info, tick_id, order_id).unwrap();
+                cancel_limit(deps, env, info, tick_id, order_id)?;
                 Ok(())
             }
         }

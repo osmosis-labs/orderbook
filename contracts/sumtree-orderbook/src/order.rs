@@ -105,16 +105,27 @@ pub fn place_limit(
     );
 
     let quant_dec256 = Decimal256::from_ratio(limit_order.quantity.u128(), Uint256::one());
-    // Only save the order if not fully filled
-    if limit_order.quantity > Uint128::zero() {
-        // Save the order to the orderbook
-        orders().save(deps.storage, &(tick_id, order_id), &limit_order)?;
 
-        tick_values.total_amount_of_liquidity = tick_values
-            .total_amount_of_liquidity
-            .checked_add(quant_dec256)
-            .unwrap();
-    }
+    // Ensure that the order returns a non-zero amount when being claimed
+    let tick_price = tick_to_price(tick_id)?;
+    let amount_out = amount_to_value(
+        order_direction,
+        quantity,
+        tick_price,
+        RoundingDirection::Down,
+    )?;
+    ensure!(
+        !amount_out.is_zero(),
+        ContractError::InvalidQuantity { quantity }
+    );
+
+    // Save the order to the orderbook
+    orders().save(deps.storage, &(tick_id, order_id), &limit_order)?;
+
+    tick_values.total_amount_of_liquidity = tick_values
+        .total_amount_of_liquidity
+        .checked_add(quant_dec256)
+        .unwrap();
 
     tick_values.cumulative_total_value = tick_values
         .cumulative_total_value

@@ -97,15 +97,26 @@ fn prefix_sum_walk(
     let left_child = node.get_left(storage)?;
     let right_child = node.get_right(storage)?;
 
+    // To prevent requiring a resync there needs to be a condition that covers the case that
+    // when realizing the left node the new ETAS is enough to realize the right node (to some extent)
+    // To cover this we can determine how much of the left node has been realized, using this we can then determine
+    // if realizing what is unrealized from the left node will result in a new ETAS that is enough to realize the
+    // right node (to some extent)
     if left_child.is_some() && right_child.is_some() {
         let left_child = left_child.clone().unwrap();
         let right_child = right_child.clone().unwrap();
 
+        // Calculate what the sum is before realizing the current node
         let sum_at_node = current_sum.checked_sub(node.get_value())?;
+        // Calculate how much of the node has been realized in a previous sync
         let diff_at_node = prev_sum.saturating_sub(sum_at_node);
+        // Calculate how much of the left node is unrealized
         let unrealized_from_left = left_child.get_value().saturating_sub(diff_at_node);
+        // Calculate the new ETAS after realizing what is unrealized from the left node
         let new_etas = target_etas.checked_add(unrealized_from_left)?;
 
+        // if the new ETAS is greater than or equal to the right child's min range, we can walk right
+        // as the left node MUST be realizable given the invariants of the sumtree mechanism
         if new_etas >= right_child.get_min_range() {
             return prefix_sum_walk(storage, &right_child, current_sum, new_etas, prev_sum);
         }

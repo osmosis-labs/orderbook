@@ -90,12 +90,12 @@ fn prefix_sum_walk(
         return Ok(current_sum);
     }
 
-    // --- Attempt walk left ---
-
     // We fetch both children here since we need to access both regardless of
     // whether we walk left or right.
     let left_child = node.get_left(storage)?;
     let right_child = node.get_right(storage)?;
+
+    // -- Resync Condition --
 
     // To prevent requiring a resync there needs to be a condition that covers the case that
     // when realizing the left node the new ETAS is enough to realize the right node (to some extent)
@@ -121,6 +121,8 @@ fn prefix_sum_walk(
             return prefix_sum_walk(storage, &right_child, current_sum, new_etas, prev_sum);
         }
     }
+
+    // --- Attempt walk left ---
 
     // If the left child exists, we run the following logic:
     // * If target ETAS < left child's lower bound, exit early with zero

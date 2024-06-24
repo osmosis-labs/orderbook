@@ -5,7 +5,7 @@ use cosmwasm_std::{
 };
 
 use crate::{
-    constants::{EXPECTED_SWAP_FEE, MAX_TICK, MIN_TICK},
+    constants::EXPECTED_SWAP_FEE,
     orderbook::create_orderbook,
     query,
     state::IS_ACTIVE,

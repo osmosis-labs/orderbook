@@ -176,6 +176,24 @@ fn test_place_limit() {
             claim_bounty: None,
             expected_error: None,
         },
+        PlaceLimitTestCase {
+            name: "invalid quantity: zero claim order ASK",
+            tick_id: LARGE_POSITIVE_TICK,
+            quantity: Uint128::one(),
+            sent: Uint128::one(),
+            order_direction: OrderDirection::Ask,
+            claim_bounty: Some(Decimal256::zero()),
+            expected_error: Some(ContractError::InvalidQuantity { quantity: Uint128::one() }),
+        },
+        PlaceLimitTestCase {
+            name: "invalid quantity: zero claim order BID",
+            tick_id: LARGE_NEGATIVE_TICK,
+            quantity: Uint128::one(),
+            sent: Uint128::one(),
+            order_direction: OrderDirection::Bid,
+            claim_bounty: Some(Decimal256::zero()),
+            expected_error: Some(ContractError::InvalidQuantity { quantity: Uint128::one() }),
+        }
     ];
 
     for test in test_cases {

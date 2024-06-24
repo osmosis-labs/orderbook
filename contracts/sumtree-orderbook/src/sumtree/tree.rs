@@ -46,13 +46,14 @@ pub fn get_prefix_sum(
     storage: &dyn Storage,
     root_node: TreeNode,
     target_etas: Decimal256,
+    prev_sum: Decimal256,
 ) -> ContractResult<Decimal256> {
     // We start from the root node's sum, which includes everything in the tree.
     // The prefix sum algorithm will chip away at this until we have the correct
     // prefux sum in O(log(N)) time.
     let starting_sum = TreeNode::get_value(&root_node);
 
-    prefix_sum_walk(storage, &root_node, starting_sum, target_etas)
+    prefix_sum_walk(storage, &root_node, starting_sum, target_etas, prev_sum)
 }
 
 // prefix_sum_walk is a recursive function that walks the sumtree to calculate the prefix sum below the given
@@ -68,6 +69,7 @@ fn prefix_sum_walk(
     node: &TreeNode,
     mut current_sum: Decimal256,
     target_etas: Decimal256,
+    prev_sum: Decimal256,
 ) -> ContractResult<Decimal256> {
     // Sanity check: target ETAS should be inside node's range.
     if target_etas < node.get_min_range() {
@@ -95,6 +97,20 @@ fn prefix_sum_walk(
     let left_child = node.get_left(storage)?;
     let right_child = node.get_right(storage)?;
 
+    if left_child.is_some() && right_child.is_some() {
+        let left_child = left_child.clone().unwrap();
+        let right_child = right_child.clone().unwrap();
+
+        let sum_at_node = current_sum.checked_sub(node.get_value())?;
+        let diff_at_node = prev_sum.saturating_sub(sum_at_node);
+        let unrealized_from_left = left_child.get_value().saturating_sub(diff_at_node);
+        let new_etas = target_etas.checked_add(unrealized_from_left)?;
+
+        if new_etas >= right_child.get_min_range() {
+            return prefix_sum_walk(storage, &right_child, current_sum, new_etas, prev_sum);
+        }
+    }
+
     // If the left child exists, we run the following logic:
     // * If target ETAS < left child's lower bound, exit early with zero
     // * Else if target ETAS <= upper bound, subtract right child sum from prefix sum and walk left
@@ -118,7 +134,8 @@ fn prefix_sum_walk(
             current_sum = current_sum.checked_sub(right_sum)?;
 
             // Walk left recursively
-            current_sum = prefix_sum_walk(storage, &left_child, current_sum, target_etas)?;
+            current_sum =
+                prefix_sum_walk(storage, &left_child, current_sum, target_etas, prev_sum)?;
 
             return Ok(current_sum);
         }
@@ -149,7 +166,7 @@ fn prefix_sum_walk(
         // to subtract from it yet. The right walk handles this update.
 
         // Walk right recursively
-        current_sum = prefix_sum_walk(storage, &right_child, current_sum, target_etas)?;
+        current_sum = prefix_sum_walk(storage, &right_child, current_sum, target_etas, prev_sum)?;
 
         Ok(current_sum)
     } else {

@@ -183,7 +183,13 @@ fn test_get_prefix_sum_valid() {
         assert_internal_values(test.name, deps.as_ref(), internals, true);
 
         // System under test: get prefix sum
-        let prefix_sum = get_prefix_sum(deps.as_ref().storage, tree, test.target_etas).unwrap();
+        let prefix_sum = get_prefix_sum(
+            deps.as_ref().storage,
+            tree,
+            test.target_etas,
+            Decimal256::zero(),
+        )
+        .unwrap();
 
         // Assert that the correct value was returned
         assert_eq!(

@@ -59,8 +59,14 @@ pub fn sync_tick(
 
         // Calculate the growth in realized cancels since previous sync.
         // This is equivalent to the amount we will need to add to the tick's ETAS.
-        let realized_since_last_sync =
-            new_cumulative_realized_cancels.checked_sub(old_cumulative_realized_cancels)?;
+        let realized_since_last_sync = new_cumulative_realized_cancels
+            .checked_sub(old_cumulative_realized_cancels)
+            .map_err(|_| ContractError::InvalidPrefixSum {
+                error: Some(format!(
+                    "New prefix sum less than previous, previous: {}, new: {}",
+                    old_cumulative_realized_cancels, new_cumulative_realized_cancels
+                )),
+            })?;
 
         // Update the tick state to represent new ETAS and new cumulative realized cancels.
         tick_value.effective_total_amount_swapped = tick_value

@@ -2751,7 +2751,7 @@ fn test_node_insert_large_quantity() {
     // Ensure prefix sum functions correctly
     let root_node = get_root_node(deps.as_mut().storage,  tick_id, direction).unwrap();
 
-    let prefix_sum = get_prefix_sum(deps.as_mut().storage, root_node, target_etas).unwrap();
+    let prefix_sum = get_prefix_sum(deps.as_mut().storage, root_node, target_etas, Decimal256::zero()).unwrap();
     assert_eq!(expected_prefix_sum, prefix_sum);
 }
 

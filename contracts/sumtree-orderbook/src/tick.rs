@@ -56,7 +56,8 @@ pub fn sync_tick(
 
         // Assuming `calculate_prefix_sum` is a function that calculates the prefix sum at the given ETAS.
         // This function needs to be implemented based on your sumtree structure and logic.
-        let new_cumulative_realized_cancels = get_prefix_sum(storage, tree, target_etas)?;
+        let new_cumulative_realized_cancels =
+            get_prefix_sum(storage, tree, target_etas, old_cumulative_realized_cancels)?;
 
         // Calculate the growth in realized cancels since previous sync.
         // This is equivalent to the amount we will need to add to the tick's ETAS.

@@ -1,5 +1,5 @@
 use crate::sumtree::node::{generate_node_id, NodeType, TreeNode, NODES};
-use crate::sumtree::test::test_node::assert_internal_values;
+use crate::sumtree::test::test_node::{assert_internal_values, print_tree};
 use crate::sumtree::tree::{get_or_init_root_node, get_prefix_sum, get_root_node, TREE};
 use crate::types::OrderDirection;
 use cosmwasm_std::Storage;
@@ -175,7 +175,13 @@ fn test_get_prefix_sum_valid() {
         assert_internal_values(test.name, deps.as_ref(), internals, true);
 
         // System under test: get prefix sum
-        let prefix_sum = get_prefix_sum(deps.as_ref().storage, tree, test.target_etas).unwrap();
+        let prefix_sum = get_prefix_sum(
+            deps.as_ref().storage,
+            tree,
+            test.target_etas,
+            Decimal256::zero(),
+        )
+        .unwrap();
 
         // Assert that the correct value was returned
         assert_eq!(
@@ -192,6 +198,101 @@ fn test_get_prefix_sum_valid() {
             "Prefix sum mutated tree. Test case: {}",
             test.name
         );
+    }
+}
+
+struct TestInvariantPrefixCase {
+    name: &'static str,
+    nodes: Vec<NodeType>,
+    new_nodes: Vec<NodeType>,
+    target_etas: Decimal256,
+    expected_sum: Decimal256,
+}
+
+#[test]
+fn test_fuzz_invariant_prefix() {
+    let test_cases = vec![
+        // TestInvariantPrefixCase {
+        //     name: "Single node, target ETAS equal to node ETAS",
+        //     nodes: vec![NodeType::leaf_uint256(10u128, 5u128)],
+        //     new_nodes: vec![NodeType::leaf_uint256(20u128, 5u128)],
+        //     target_etas: Decimal256::from_ratio(10u128, 1u128),
+        //     expected_sum: Decimal256::from_ratio(5u128, 1u128),
+        // },
+        TestInvariantPrefixCase {
+            name: "Single node, target ETAS equal to node ETAS",
+            nodes: vec![
+                NodeType::leaf_uint256(4u128, 8u128),
+                NodeType::leaf_uint256(50u128, 5u128),
+                NodeType::leaf_uint256(152u128, 4u128),
+            ],
+            new_nodes: vec![NodeType::leaf_uint256(169u128, 2u128)],
+            target_etas: Decimal256::from_ratio(141u128, 1u128),
+            expected_sum: Decimal256::from_ratio(13u128, 1u128),
+        },
+        TestInvariantPrefixCase {
+            name: "Multiple nodes, etas overlaps with highest node",
+            nodes: vec![
+                NodeType::leaf_uint256(4u128, 8u128),
+                NodeType::leaf_uint256(50u128, 5u128),
+                NodeType::leaf_uint256(152u128, 4u128),
+            ],
+            new_nodes: vec![NodeType::leaf_uint256(156u128, 2u128)],
+            target_etas: Decimal256::from_ratio(152u128, 1u128),
+            expected_sum: Decimal256::from_ratio(17u128, 1u128),
+        },
+    ];
+
+    let tick_id = 0;
+    let direction = OrderDirection::Ask;
+
+    for test in test_cases {
+        let mut deps = mock_dependencies();
+
+        let mut tree = get_or_init_root_node(deps.as_mut().storage, tick_id, direction).unwrap();
+
+        for node in test.nodes {
+            tree = insert_and_refetch(deps.as_mut().storage, tick_id, direction, &node);
+        }
+
+        let prefix_sum = get_prefix_sum(
+            deps.as_ref().storage,
+            tree.clone(),
+            test.target_etas,
+            Decimal256::zero(),
+        )
+        .unwrap();
+        print_tree("", test.name, &tree, &deps.as_ref());
+        assert_eq!(
+            test.expected_sum, prefix_sum,
+            "{}: Expected prefix sum {}, got {}",
+            test.name, test.expected_sum, prefix_sum
+        );
+
+        let mut starting_etas = tree.get_max_range().checked_add(Decimal256::one()).unwrap();
+        for node in test.new_nodes.iter() {
+            tree = insert_and_refetch(deps.as_mut().storage, tick_id, direction, node);
+            starting_etas = starting_etas
+                .checked_add(Decimal256::from_ratio(10u128, 1u128))
+                .unwrap();
+            println!("inserting {}", node);
+            print_tree("", test.name, &tree, &deps.as_ref());
+
+            let prefix_sum = get_prefix_sum(
+                deps.as_ref().storage,
+                tree.clone(),
+                test.target_etas,
+                Decimal256::zero(),
+            )
+            .unwrap();
+            assert!(
+                test.expected_sum <= prefix_sum,
+                "{}: Expected prefix sum {}, got {}",
+                test.name,
+                test.expected_sum,
+                prefix_sum
+            );
+        }
     }
 }
 

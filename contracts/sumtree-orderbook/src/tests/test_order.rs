@@ -1,8 +1,8 @@
-use std::str::FromStr;
+use std::{collections::HashMap, str::FromStr};
 
 use crate::{
     constants::{MAX_TICK, MIN_TICK}, error::ContractError, order::*, orderbook::*, state::*, sumtree::{
-        node::{NodeType, TreeNode}, tree::get_root_node
+        node::{NodeType, TreeNode}, test::{test_fuzz::assert_sumtree_invariants, test_node::print_tree}, tree::{get_or_init_root_node, get_prefix_sum, get_root_node}
     },
     tests::{mock_querier::mock_dependencies_custom, test_utils::{decimal256_from_u128, place_multiple_limit_orders}},
     types::{
@@ -17,6 +17,7 @@ use cosmwasm_std::{
     Decimal256,
 };
 use cw_utils::PaymentError;
+use rand::{rngs::StdRng, Rng, SeedableRng};
 
 use super::{test_constants::{DEFAULT_OWNER, DEFAULT_SENDER, BASE_DENOM, QUOTE_DENOM, LARGE_POSITIVE_TICK, LARGE_NEGATIVE_TICK}, test_utils::{
     format_test_name, generate_limit_orders, OrderOperation,
@@ -4167,19 +4168,147 @@ fn test_cancelled_orders() {
     create_orderbook(deps.as_mut(), QUOTE_DENOM.to_string(), BASE_DENOM.to_string()).unwrap();
 
     for i in 0..10 {
-        OrderOperation::PlaceLimit(LimitOrder::new(0, i, OrderDirection::Bid, sender.clone(), Uint128::from(100u128), Decimal256::zero(), None)).run(deps.as_mut(), env.clone(), info.clone()).unwrap();
+        OrderOperation::PlaceLimit(LimitOrder::new(0, i, OrderDirection::Bid, sender.clone(), Uint128::from(1u128), Decimal256::zero(), None)).run(deps.as_mut(), env.clone(), info.clone()).unwrap();
         if i % 3 != 0 {
             OrderOperation::Cancel((0, i)).run(deps.as_mut(), env.clone(), info.clone()).unwrap();
         }
 
     }
 
-    OrderOperation::PlaceLimit(LimitOrder::new(0, 10, OrderDirection::Bid, sender.clone(), Uint128::from(100u128), Decimal256::zero(), None)).run(deps.as_mut(), env.clone(), info.clone()).unwrap();
-    OrderOperation::RunMarket(MarketOrder::new(Uint128::from(100u128).checked_mul(Uint128::from(4u128)).unwrap(), OrderDirection::Ask, sender.clone())).run(deps.as_mut(), env.clone(), info.clone()).unwrap();
+    let root = get_or_init_root_node(deps.as_mut().storage, 0, OrderDirection::Bid).unwrap();
+    print_tree("", "", &root, &deps.as_ref());
+
+    OrderOperation::PlaceLimit(LimitOrder::new(0, 10, OrderDirection::Bid, sender.clone(), Uint128::from(1u128), Decimal256::zero(), None)).run(deps.as_mut(), env.clone(), info.clone()).unwrap();
+    OrderOperation::RunMarket(MarketOrder::new(Uint128::from(1u128).checked_mul(Uint128::from(4u128)).unwrap(), OrderDirection::Ask, sender.clone())).run(deps.as_mut(), env.clone(), info.clone()).unwrap();
 
     // Second last order should be claimable
     OrderOperation::Claim((0, 9)).run(deps.as_mut(), env.clone(), info.clone()).unwrap();
     // Last order should NOT be claimable
     let err = OrderOperation::Claim((0, 10)).run(deps.as_mut(), env.clone(), info.clone()).unwrap_err();
     assert_eq!(err, ContractError::ZeroClaim);
+}
+
+#[test]
+fn test_random_orders_single_tick() {
+    let mut rng = StdRng::seed_from_u64(123456789);
+    let mut deps = mock_dependencies_custom();
+    let env = mock_env();
+    let info = mock_info(DEFAULT_SENDER, &[]);
+
+    create_orderbook(deps.as_mut(), QUOTE_DENOM.to_string(), BASE_DENOM.to_string()).unwrap();
+
+    let oper_count = 3000;
+    let order_direction = OrderDirection::Bid;
+    let tick_id = 0;
+    let mut order_count = 0;
+    let mut placed_orders: HashMap<u64, bool> = HashMap::new();
+
+    let sender = Addr::unchecked(DEFAULT_SENDER);
+
+    for i in 0..=oper_count {
+        println!("i: {}", i);
+        let order_roll = rng.gen_range(0..=100);
+        if order_roll < 35 {
+            println!("placing limit");
+            OrderOperation::PlaceLimit(LimitOrder::new(tick_id, order_count, order_direction, sender.clone(), Uint128::from(100u128), Decimal256::zero(), None)).run(deps.as_mut(), env.clone(), info.clone()).unwrap();
+            placed_orders.insert(order_count, true);
+            order_count += 1;
+        } else if order_roll < 60 {
+            println!("running market");
+            match OrderOperation::RunMarket(MarketOrder::new(Uint128::from(50u128), order_direction.opposite(), sender.clone())).run(deps.as_mut(), env.clone(), info.clone()) {
+                Ok(_) => {
+                    println!("successfully ran market order")
+                }
+                Err(e) => {
+                    match e {
+                        ContractError::InsufficientLiquidity => {}
+                        _ => {
+                            panic!("error: {:?}", e);
+                        }
+                    }
+                }
+            }
+        } else if order_roll < 80 {
+            println!("cancelling limit");
+            let orders_clone = placed_orders.clone();
+            let order_ids = orders_clone.keys().collect::<Vec<&u64>>();
+
+            if order_ids.is_empty() {
+                continue;
+            }
+            let order_id = order_ids[rng.gen_range(0..order_ids.len())].clone();
+            println!("order_id: {}", order_id);
+            let order = orders().load(deps.as_mut().storage, &(tick_id, order_id)).unwrap();
+            let root =  get_or_init_root_node(deps.as_mut().storage, tick_id, order.order_direction).unwrap();
+            if !root.get_value().is_zero() {
+                println!("checking tree");
+                assert_sumtree_invariants(deps.as_ref(), &root, "test_random_orders_single_tick");
+            }
+            match OrderOperation::Cancel((tick_id, order_id)).run(deps.as_mut(), env.clone(), info.clone()) {
+                Ok(_) => {
+                    println!("order cancelled");
+                    placed_orders.remove(&order_id);
+                }
+                Err(e) => {
+                    match e {
+                        ContractError::CancelFilledOrder => {
+
+                        }
+                        _ => {
+                            panic!("error: {:?}", e);
+                        }
+                    }
+                }
+            };
+        } else {
+            println!("claiming limit");
+            let orders_clone = placed_orders.clone();
+            let order_ids = orders_clone.keys().collect::<Vec<&u64>>();
+
+            if order_ids.is_empty() {
+                continue;
+            }
+            let order_id = order_ids[rng.gen_range(0..order_ids.len())].clone();
+            println!("order_id: {}", order_id);
+
+            let order = orders().load(deps.as_mut().storage, &(tick_id, order_id)).unwrap();
+            let tick_state = TICK_STATE.load(deps.as_mut().storage, tick_id).unwrap();
+            let tick_values = tick_state.get_values(order.order_direction);
+            let root =  get_or_init_root_node(deps.as_mut().storage, tick_id, order.order_direction).unwrap();
+            if !root.get_value().is_zero() {
+                println!("checking tree");
+                assert_sumtree_invariants(deps.as_ref(), &root, "test_random_orders_single_tick");
+            }
+            println!("target_etas: {}", tick_values.effective_total_amount_swapped);
+            let prefix_sum = get_prefix_sum(deps.as_ref().storage,root, tick_values.effective_total_amount_swapped, tick_values.cumulative_realized_cancels).unwrap();
+            let cancelled_amount = prefix_sum.saturating_sub(tick_values.cumulative_realized_cancels);
+            let synced_etas = tick_values.effective_total_amount_swapped.checked_add(cancelled_amount).unwrap();
+
+
+            let claimable_amount = synced_etas.saturating_sub(cancelled_amount).min(decimal256_from_u128(order.quantity));
+
+            println!("claimable_amount: {}", claimable_amount);
+
+            if claimable_amount.is_zero() {
+                continue;
+            }
+
+            match OrderOperation::Claim((tick_id, order_id)).run(deps.as_mut(), env.clone(), info.clone()) {
+                Ok(_) => {
+                    println!("succesfully claimed limit");
+                    placed_orders.remove(&order_id);
+                }
+                Err(e) => {
+                    match e {
+                        ContractError::ZeroClaim => {
+
+                        }
+                        _ => {
+                            panic!("error: {:?}", e);
+                        }
+                    }
+                }
+            };
+        }
+    }
 }

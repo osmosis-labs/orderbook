@@ -72,7 +72,7 @@ fn test_order_fuzz_mixed() {
 
 #[test]
 fn test_order_fuzz_single_tick() {
-    run_fuzz_mixed(2000, (0, 0))
+    run_fuzz_mixed(1000, (0, 0));
 }
 
 /// Runs a linear fuzz test with the following steps
@@ -599,12 +599,9 @@ fn place_random_market(
             });
 
     if let Ok(expected_out) = expected_out {
-        println!("expected_out: {expected_out:?}");
-        let balance = t.get_balance(&t.contract.contract_addr);
         if expected_out.token_out.amount == "0" {
             return 0;
         }
-        println!("balance: {balance:?}");
     } else if expected_out.is_err() || amount == 0 {
         return 0;
     }

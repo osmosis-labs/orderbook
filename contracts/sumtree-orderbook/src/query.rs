@@ -1,6 +1,6 @@
 use std::str::FromStr;
 
-use cosmwasm_std::{coin, ensure, Addr, Coin, Decimal, Deps, Order, Uint128};
+use cosmwasm_std::{coin, ensure, Addr, Coin, Decimal, Decimal256, Deps, Order, Uint128};
 use cw_storage_plus::Bound;
 
 use crate::{
@@ -17,7 +17,10 @@ use crate::{
         get_directional_liquidity, get_orders_by_owner, orders, IS_ACTIVE, ORDERBOOK, TICK_STATE,
     },
     sudo::ensure_swap_fee,
-    sumtree::tree::get_root_node,
+    sumtree::{
+        node::{NodeType, TreeNode},
+        tree::{get_prefix_sum, get_root_node},
+    },
     tick_math::tick_to_price,
     types::{FilterOwnerOrders, MarketOrder, OrderDirection, Orderbook, TickState},
     ContractError,
@@ -289,15 +292,47 @@ fn get_unrealized_cancels(
     tick_state: TickState,
     tick_id: i64,
 ) -> ContractResult<TickUnrealizedCancelsState> {
-    let bid_unrealized_cancels = get_root_node(deps.storage, tick_id, OrderDirection::Bid).map_or(
-        tick_state.bid_values.cumulative_realized_cancels,
-        |ask_root| ask_root.get_value(),
-    );
+    let bid_unrealized_cancels = if tick_state.bid_values.effective_total_amount_swapped
+        == tick_state.bid_values.last_tick_sync_etas
+    {
+        tick_state.bid_values.cumulative_realized_cancels
+    } else {
+        let bid_root_node =
+            get_root_node(deps.storage, tick_id, OrderDirection::Bid).unwrap_or(TreeNode::new(
+                tick_id,
+                OrderDirection::Bid,
+                0,
+                NodeType::internal(Decimal256::zero(), (Decimal256::zero(), Decimal256::zero())),
+            ));
 
-    let ask_unrealized_cancels = get_root_node(deps.storage, tick_id, OrderDirection::Ask).map_or(
-        tick_state.ask_values.cumulative_realized_cancels,
-        |ask_root| ask_root.get_value(),
-    );
+        get_prefix_sum(
+            deps.storage,
+            bid_root_node,
+            tick_state.bid_values.effective_total_amount_swapped,
+            tick_state.bid_values.cumulative_realized_cancels,
+        )?
+    };
+
+    let ask_unrealized_cancels = if tick_state.ask_values.effective_total_amount_swapped
+        == tick_state.ask_values.last_tick_sync_etas
+    {
+        tick_state.ask_values.cumulative_realized_cancels
+    } else {
+        let ask_root_node =
+            get_root_node(deps.storage, tick_id, OrderDirection::Ask).unwrap_or(TreeNode::new(
+                tick_id,
+                OrderDirection::Ask,
+                0,
+                NodeType::internal(Decimal256::zero(), (Decimal256::zero(), Decimal256::zero())),
+            ));
+
+        get_prefix_sum(
+            deps.storage,
+            ask_root_node,
+            tick_state.ask_values.effective_total_amount_swapped,
+            tick_state.ask_values.cumulative_realized_cancels,
+        )?
+    };
 
     Ok(TickUnrealizedCancelsState {
         ask_unrealized_cancels,

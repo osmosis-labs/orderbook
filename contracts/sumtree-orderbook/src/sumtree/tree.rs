@@ -76,7 +76,7 @@ fn prefix_sum_walk(
     if target_etas < node.get_min_range() {
         // If the target ETAS is below the root node's range, we can return zero early.
         return Ok(Decimal256::zero());
-    } else if target_etas >= node.get_max_range() {
+    } else if target_etas >= node.get_max_range().checked_sub(node.get_value())? {
         return Ok(current_sum);
     }
 

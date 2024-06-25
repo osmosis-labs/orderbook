@@ -54,10 +54,15 @@ pub fn sync_tick(
         // Fetch sumtree for tick by order direction. If none exists, initialize one.
         let tree = get_or_init_root_node(storage, tick_id, direction)?;
 
+        let new_target_etas = target_etas.checked_sub(tick_value.cumulative_realized_cancels)?;
         // Assuming `calculate_prefix_sum` is a function that calculates the prefix sum at the given ETAS.
         // This function needs to be implemented based on your sumtree structure and logic.
-        let new_cumulative_realized_cancels =
-            get_prefix_sum(storage, tree, target_etas, old_cumulative_realized_cancels)?;
+        let new_cumulative_realized_cancels = get_prefix_sum(
+            storage,
+            tree,
+            new_target_etas,
+            old_cumulative_realized_cancels,
+        )?;
 
         // Calculate the growth in realized cancels since previous sync.
         // This is equivalent to the amount we will need to add to the tick's ETAS.

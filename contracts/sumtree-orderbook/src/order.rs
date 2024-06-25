@@ -22,7 +22,7 @@ use cw_utils::{must_pay, nonpayable};
 #[allow(clippy::manual_range_contains, clippy::too_many_arguments)]
 pub fn place_limit(
     deps: &mut DepsMut,
-    _env: Env,
+    env: Env,
     info: MessageInfo,
     tick_id: i64,
     order_direction: OrderDirection,
@@ -102,7 +102,8 @@ pub fn place_limit(
         quantity,
         tick_values.cumulative_total_value,
         claim_bounty,
-    );
+    )
+    .with_placed_at(env.block.time);
 
     let quant_dec256 = Decimal256::from_ratio(limit_order.quantity.u128(), Uint256::one());
     // Only save the order if not fully filled

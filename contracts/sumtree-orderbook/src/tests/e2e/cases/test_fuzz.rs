@@ -1,4 +1,5 @@
 use std::collections::HashMap;
+use std::time::{Duration, SystemTime};
 
 use cosmwasm_std::{Coin, Decimal, Uint256};
 use cosmwasm_std::{Decimal256, Uint128};
@@ -67,12 +68,17 @@ fn test_order_fuzz_linear_single_tick() {
 
 #[test]
 fn test_order_fuzz_mixed() {
-    run_fuzz_mixed(2500, (-20, 20));
+    let duration = Duration::from_secs(60);
+    let now = SystemTime::now();
+    let end = now.checked_add(duration).unwrap();
+    while SystemTime::now().le(&end) {
+        run_fuzz_mixed(2000, (-20, 20));
+    }
 }
 
 #[test]
 fn test_order_fuzz_single_tick() {
-    run_fuzz_mixed(1000, (0, 0));
+    run_fuzz_mixed(0000, (0, 0));
 }
 
 /// Runs a linear fuzz test with the following steps

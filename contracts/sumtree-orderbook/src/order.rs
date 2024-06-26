@@ -672,23 +672,35 @@ pub(crate) fn claim_order(
     // Send claim bounty to sender if applicable
     let mut bounty = Uint256::zero();
     if let Some(claim_bounty) = order.claim_bounty {
-        // Multiply by the claim bounty ratio and convert to Uint128.
-        // Ensure claimed amount is updated to reflect the bounty.
-        let bounty_amount =
-            Decimal256::from_ratio(amount, Uint256::one()).checked_mul(claim_bounty)?;
-        bounty = bounty_amount.to_uint_floor();
-        amount = amount.checked_sub(bounty)?;
+        // Skip this step if the output amount is zero.
+        //
+        // We use a nested if here because combining `let` with logical operator
+        // is currently unstable in Rust.
+        if !amount.is_zero() {
+            // Multiply by the claim bounty ratio and convert to Uint128.
+            // Ensure claimed amount is updated to reflect the bounty.
+            let bounty_amount =
+                Decimal256::from_ratio(amount, Uint256::one()).checked_mul(claim_bounty)?;
+            bounty = bounty_amount.to_uint_floor();
+            amount = amount.checked_sub(bounty)?;
+        }
     }
 
     // Get the current maker fee for this orderbook
     let maker_fee = get_maker_fee(storage)?;
     let mut maker_fee_amount = Uint256::zero();
     if !maker_fee.is_zero() {
-        // Calculate the fee amount based on the quantity originally being sent to the claimer
-        maker_fee_amount = Decimal256::from_ratio(raw_amount, 1u128)
-            .checked_mul(maker_fee)?
-            .to_uint_floor();
-        amount = amount.checked_sub(maker_fee_amount)?;
+        // Skip this step if the output amount is zero.
+        //
+        // We use a nested if here because combining `let` with logical operator
+        // is currently unstable in Rust.
+        if !amount.is_zero() {
+            // Calculate the fee amount based on the quantity originally being sent to the claimer
+            maker_fee_amount = Decimal256::from_ratio(raw_amount, 1u128)
+                .checked_mul(maker_fee)?
+                .to_uint_floor();
+            amount = amount.checked_sub(maker_fee_amount)?;
+        }
     }
 
     let mut bank_msg_vec = vec![];

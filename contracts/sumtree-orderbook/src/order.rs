@@ -692,9 +692,6 @@ pub(crate) fn claim_order(
     // Immutable amount to prevent bounty/maker fee calculations affecting each other
     let raw_amount = amount;
 
-    // Cannot send a zero amount, may be zero'd out by rounding
-    ensure!(!amount.is_zero(), ContractError::ZeroClaim);
-
     let denom = orderbook.get_opposite_denom(&order.order_direction);
 
     // Send claim bounty to sender if applicable
@@ -719,13 +716,17 @@ pub(crate) fn claim_order(
         amount = amount.checked_sub(maker_fee_amount)?;
     }
 
-    // Claimed amount always goes to the order owner
-    let bank_msg = MsgSend256 {
-        from_address: contract_address.to_string(),
-        to_address: order.owner.to_string(),
-        amount: vec![coin_u256(amount, &denom)],
-    };
-    let mut bank_msg_vec = vec![SubMsg::reply_on_error(bank_msg, REPLY_ID_CLAIM)];
+    let mut bank_msg_vec = vec![];
+    // Silently fail on zero claim (dust amount) orders
+    if !amount.is_zero() {
+        // Claimed amount always goes to the order owner
+        let bank_msg = MsgSend256 {
+            from_address: contract_address.to_string(),
+            to_address: order.owner.to_string(),
+            amount: vec![coin_u256(amount, &denom)],
+        };
+        bank_msg_vec.push(SubMsg::reply_on_error(bank_msg, REPLY_ID_CLAIM));
+    }
 
     if !bounty.is_zero() {
         // Bounty always goes to the sender

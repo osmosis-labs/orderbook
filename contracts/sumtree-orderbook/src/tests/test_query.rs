@@ -1802,11 +1802,8 @@ fn test_tick_unrealized_cancels_by_id() {
             .ticks
             .iter()
             .flat_map(|t| {
-                let tick_state = TICK_STATE.load(deps.as_ref().storage, t.tick_id).unwrap();
-                let bid_cancel_diff = t.unrealized_cancels.bid_unrealized_cancels
-                    - tick_state.bid_values.cumulative_realized_cancels;
-                let ask_cancel_diff = t.unrealized_cancels.ask_unrealized_cancels
-                    - tick_state.ask_values.cumulative_realized_cancels;
+                let bid_cancel_diff = t.unrealized_cancels.bid_unrealized_cancels;
+                let ask_cancel_diff = t.unrealized_cancels.ask_unrealized_cancels;
                 vec![
                     (t.tick_id, (OrderDirection::Bid, bid_cancel_diff)),
                     (t.tick_id, (OrderDirection::Ask, ask_cancel_diff)),

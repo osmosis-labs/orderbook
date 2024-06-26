@@ -1,6 +1,6 @@
 use std::str::FromStr;
 
-use cosmwasm_std::{coin, ensure, Addr, Coin, Decimal, Deps, Order, Uint128};
+use cosmwasm_std::{coin, ensure, Addr, Coin, Decimal, Decimal256, Deps, Order, Uint128};
 use cw_storage_plus::Bound;
 
 use crate::{
@@ -14,7 +14,7 @@ use crate::{
     order,
     state::{get_directional_liquidity, get_orders_by_owner, IS_ACTIVE, ORDERBOOK, TICK_STATE},
     sudo::ensure_swap_fee,
-    sumtree::tree::get_root_node,
+    sumtree::tree::{get_prefix_sum, get_root_node},
     tick_math::tick_to_price,
     types::{FilterOwnerOrders, LimitOrder, MarketOrder, OrderDirection, TickState},
     ContractError,
@@ -239,15 +239,30 @@ fn get_unrealized_cancels(
     tick_state: TickState,
     tick_id: i64,
 ) -> ContractResult<TickUnrealizedCancelsState> {
-    let bid_unrealized_cancels = get_root_node(deps.storage, tick_id, OrderDirection::Bid).map_or(
-        tick_state.bid_values.cumulative_realized_cancels,
-        |ask_root| ask_root.get_value(),
-    );
+    let mut cancels: (Decimal256, Decimal256) = (Decimal256::zero(), Decimal256::zero());
+    for direction in [OrderDirection::Ask, OrderDirection::Bid] {
+        let tick_values = tick_state.get_values(direction);
+        let maybe_root_node = get_root_node(deps.storage, tick_id, direction);
 
-    let ask_unrealized_cancels = get_root_node(deps.storage, tick_id, OrderDirection::Ask).map_or(
-        tick_state.ask_values.cumulative_realized_cancels,
-        |ask_root| ask_root.get_value(),
-    );
+        let unrealized_cancels = if maybe_root_node.is_ok() {
+            let root_node = maybe_root_node.unwrap();
+            let total_realized_cancels = get_prefix_sum(
+                deps.storage,
+                root_node,
+                tick_values.effective_total_amount_swapped,
+            )?;
+
+            total_realized_cancels.saturating_sub(tick_values.cumulative_realized_cancels)
+        } else {
+            Decimal256::zero()
+        };
+        match direction {
+            OrderDirection::Ask => cancels.0 = unrealized_cancels,
+            OrderDirection::Bid => cancels.1 = unrealized_cancels,
+        }
+    }
+
+    let (ask_unrealized_cancels, bid_unrealized_cancels) = cancels;
 
     Ok(TickUnrealizedCancelsState {
         ask_unrealized_cancels,

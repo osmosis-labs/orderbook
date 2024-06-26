@@ -219,29 +219,39 @@ pub(crate) fn denoms(deps: Deps) -> ContractResult<DenomsResponse> {
 
 pub(crate) fn orders_by_tick(
     deps: Deps,
-    tick_id: i64,
+    tick_ids: Vec<i64>,
     start_from: Option<u64>,
     end_at: Option<u64>,
     limit: Option<u64>,
 ) -> ContractResult<OrdersResponse> {
-    let count = orders()
-        .prefix(tick_id)
-        .keys(deps.storage, None, None, Order::Ascending)
-        .count();
-    let orders = orders()
-        .prefix(tick_id)
-        .range(
-            deps.storage,
-            start_from.map(Bound::inclusive),
-            end_at.map(Bound::inclusive),
-            Order::Ascending,
-        )
-        .take(limit.unwrap_or(count as u64) as usize)
-        .map(|res| res.unwrap().1)
-        .collect();
+    let mut count = 0;
+    let mut all_orders: Vec<LimitOrder> = vec![];
+    for tick_id in tick_ids {
+        let mut order_count = orders()
+            .prefix(tick_id)
+            .keys(deps.storage, None, None, Order::Ascending)
+            .count();
+        if let Some(limit) = limit {
+            order_count = order_count.min((limit as usize) - count);
+        }
+
+        let orders_for_tick: Vec<LimitOrder> = orders()
+            .prefix(tick_id)
+            .range(
+                deps.storage,
+                start_from.map(Bound::inclusive),
+                end_at.map(Bound::inclusive),
+                Order::Ascending,
+            )
+            .take(order_count)
+            .map(|res| res.unwrap().1)
+            .collect();
+        all_orders.extend(orders_for_tick);
+        count += order_count;
+    }
 
     Ok(OrdersResponse {
         count: count as u64,
-        orders,
+        orders: all_orders,
     })
 }

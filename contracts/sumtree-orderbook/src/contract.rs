@@ -143,13 +143,13 @@ pub fn query(deps: Deps, _env: Env, msg: QueryMsg) -> ContractResult<Binary> {
         } => Ok(to_json_binary(&query::orders_by_owner(
             deps, owner, start_from, end_at, limit,
         )?)?),
-        QueryMsg::OrdersByTick {
-            tick_id,
+        QueryMsg::OrdersByTicks {
+            tick_ids,
             start_from,
             end_at,
             limit,
         } => Ok(to_json_binary(&query::orders_by_tick(
-            deps, tick_id, start_from, end_at, limit,
+            deps, tick_ids, start_from, end_at, limit,
         )?)?),
         QueryMsg::Denoms {} => Ok(to_json_binary(&query::denoms(deps)?)?),
         QueryMsg::GetMakerFee {} => Ok(to_json_binary(&state::get_maker_fee(deps.storage)?)?),

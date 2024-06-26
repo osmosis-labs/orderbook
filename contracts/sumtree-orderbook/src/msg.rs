@@ -120,8 +120,8 @@ pub enum QueryMsg {
     },
 
     #[returns(OrdersResponse)]
-    OrdersByTicks {
-        tick_ids: Vec<i64>,
+    OrdersByTick {
+        tick_id: i64,
         start_from: Option<u64>,
         end_at: Option<u64>,
         limit: Option<u64>,

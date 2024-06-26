@@ -2776,7 +2776,7 @@ fn test_claim_order() {
         // Claim designated order
         let res = claim_limit(
             deps.as_mut(),
-            env,
+            env.clone(),
             info,
             test.tick_id,
             test.order_id,
@@ -2818,7 +2818,7 @@ fn test_claim_order() {
         // Order in state may have been removed
         assert_eq!(
             maybe_order,
-            test.expected_order_state,
+            test.expected_order_state.map(|o| o.with_placed_at(env.block.time)),
             "{}",
             format_test_name(test.name)
         );
@@ -3476,7 +3476,7 @@ fn test_claim_order_moving_tick() {
         // Claim designated order
         let res = claim_limit(
             deps.as_mut(),
-            env,
+            env.clone(),
             info,
             test.tick_id,
             test.order_id,
@@ -3504,7 +3504,7 @@ fn test_claim_order_moving_tick() {
         // Order in state may have been removed
         assert_eq!(
             maybe_order,
-            test.expected_order_state,
+            test.expected_order_state.map(|o| o.with_placed_at(env.block.time)),
             "{}",
             format_test_name(test.name)
         );
@@ -3693,7 +3693,7 @@ fn test_batch_claim_order() {
         let info = mock_info(sender.as_str(), &[]);
 
         // Batch claim orders
-        let res = batch_claim_limits(deps.as_mut(), info.clone(), env, test.orders.clone());
+        let res = batch_claim_limits(deps.as_mut(), info.clone(), env.clone(), test.orders.clone());
 
         if let Some(err) = test.expected_error {
             assert_eq!(res, Err(err), "{}", format_test_name(test.name));
@@ -3739,7 +3739,7 @@ fn test_batch_claim_order() {
                     .find(|order| order.tick_id == *tick_id && order.order_id == *order_id)
             });
             assert_eq!(
-                expected_order_state.cloned(),
+                expected_order_state.cloned().map(|o| o.with_placed_at(env.block.time)),
                 maybe_order,
                 "{} for order_id {} and tick_id {}",
                 format_test_name(test.name),

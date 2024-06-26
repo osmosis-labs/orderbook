@@ -1452,7 +1452,11 @@ fn test_orders_by_owner() {
             );
         });
         assert_eq!(
-            res, test.expected_output,
+            res,
+            test.expected_output
+                .iter()
+                .map(|o| o.clone().with_placed_at(env.block.time))
+                .collect::<Vec<LimitOrder>>(),
             "{}: output did not match",
             test.name
         );

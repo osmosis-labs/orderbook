@@ -217,7 +217,7 @@ pub(crate) fn denoms(deps: Deps) -> ContractResult<DenomsResponse> {
     })
 }
 
-pub(crate) fn orders_by_tick(
+pub(crate) fn orders_by_ticks(
     deps: Deps,
     tick_ids: Vec<i64>,
     start_from: Option<u64>,

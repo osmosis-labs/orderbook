@@ -148,7 +148,7 @@ pub fn query(deps: Deps, _env: Env, msg: QueryMsg) -> ContractResult<Binary> {
             start_from,
             end_at,
             limit,
-        } => Ok(to_json_binary(&query::orders_by_tick(
+        } => Ok(to_json_binary(&query::orders_by_ticks(
             deps, tick_ids, start_from, end_at, limit,
         )?)?),
         QueryMsg::Denoms {} => Ok(to_json_binary(&query::denoms(deps)?)?),

@@ -2,7 +2,7 @@ use core::fmt;
 use std::fmt::Display;
 
 use cosmwasm_schema::cw_serde;
-use cosmwasm_std::{Addr, Decimal256, Uint128};
+use cosmwasm_std::{Addr, Decimal256, Timestamp, Uint128};
 
 #[cw_serde]
 #[derive(Copy)]
@@ -47,6 +47,8 @@ pub struct LimitOrder {
     pub claim_bounty: Option<Decimal256>,
     // Immutable quantity of the order when placed
     pub placed_quantity: Uint128,
+    #[serde(default)]
+    pub placed_at: Timestamp,
 }
 
 impl LimitOrder {
@@ -69,12 +71,18 @@ impl LimitOrder {
             etas,
             claim_bounty,
             placed_quantity: quantity,
+            placed_at: Timestamp::default(),
         }
     }
 
     #[cfg(test)]
     pub(crate) fn with_placed_quantity(mut self, quantity: impl Into<Uint128>) -> Self {
         self.placed_quantity = quantity.into();
+        self
+    }
+
+    pub(crate) fn with_placed_at(mut self, placed_at: Timestamp) -> Self {
+        self.placed_at = placed_at;
         self
     }
 }

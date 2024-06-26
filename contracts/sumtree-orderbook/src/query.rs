@@ -218,20 +218,17 @@ pub(crate) fn denoms(deps: Deps) -> ContractResult<DenomsResponse> {
 }
 
 pub(crate) fn ticks_by_id(deps: Deps, tick_ids: Vec<i64>) -> ContractResult<TicksResponse> {
-    let ticks = tick_ids
-        .iter()
-        .map(|tick_id| {
-            let tick_state = TICK_STATE
-                .load(deps.storage, *tick_id)
-                .map_err(|_| ContractError::InvalidTickId { tick_id: *tick_id })
-                .unwrap();
+    let mut ticks: Vec<TickIdAndState> = vec![];
+    for tick_id in tick_ids {
+        let Some(tick_state) = TICK_STATE.may_load(deps.storage, tick_id)? else {
+            return Err(ContractError::InvalidTickId { tick_id });
+        };
 
-            TickIdAndState {
-                tick_id: *tick_id,
-                tick_state,
-            }
-        })
-        .collect();
+        ticks.push(TickIdAndState {
+            tick_id,
+            tick_state,
+        });
+    }
 
     Ok(TicksResponse { ticks })
 }

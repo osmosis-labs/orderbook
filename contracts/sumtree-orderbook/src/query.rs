@@ -226,7 +226,12 @@ pub(crate) fn orders_by_tick(
 ) -> ContractResult<OrdersResponse> {
     let count = orders()
         .prefix(tick_id)
-        .keys(deps.storage, None, None, Order::Ascending)
+        .keys(
+            deps.storage,
+            start_from.map(Bound::inclusive),
+            end_at.map(Bound::inclusive),
+            Order::Ascending,
+        )
         .count();
     let orders = orders()
         .prefix(tick_id)

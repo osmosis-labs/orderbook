@@ -1776,7 +1776,11 @@ fn test_orders_by_ticks() {
             );
         });
         assert_eq!(
-            res.orders, test.expected_output,
+            res.orders,
+            test.expected_output
+                .iter()
+                .map(|o| o.clone().with_placed_at(env.block.time))
+                .collect::<Vec<LimitOrder>>(),
             "{}: output did not match",
             test.name
         );

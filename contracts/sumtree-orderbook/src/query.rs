@@ -8,10 +8,12 @@ use crate::{
     error::ContractResult,
     msg::{
         AllTicksResponse, CalcOutAmtGivenInResponse, DenomsResponse, GetSwapFeeResponse,
-        GetTotalPoolLiquidityResponse, SpotPriceResponse, TickIdAndState,
+        GetTotalPoolLiquidityResponse, OrdersResponse, SpotPriceResponse, TickIdAndState,
     },
     order,
-    state::{get_directional_liquidity, get_orders_by_owner, IS_ACTIVE, ORDERBOOK, TICK_STATE},
+    state::{
+        get_directional_liquidity, get_orders_by_owner, orders, IS_ACTIVE, ORDERBOOK, TICK_STATE,
+    },
     sudo::ensure_swap_fee,
     tick_math::tick_to_price,
     types::{FilterOwnerOrders, LimitOrder, MarketOrder, OrderDirection},
@@ -212,5 +214,39 @@ pub(crate) fn denoms(deps: Deps) -> ContractResult<DenomsResponse> {
     Ok(DenomsResponse {
         quote_denom: orderbook.quote_denom,
         base_denom: orderbook.base_denom,
+    })
+}
+
+pub(crate) fn orders_by_tick(
+    deps: Deps,
+    tick_id: i64,
+    start_from: Option<u64>,
+    end_at: Option<u64>,
+    limit: Option<u64>,
+) -> ContractResult<OrdersResponse> {
+    let count = orders()
+        .prefix(tick_id)
+        .keys(
+            deps.storage,
+            start_from.map(Bound::inclusive),
+            end_at.map(Bound::inclusive),
+            Order::Ascending,
+        )
+        .count();
+    let orders = orders()
+        .prefix(tick_id)
+        .range(
+            deps.storage,
+            start_from.map(Bound::inclusive),
+            end_at.map(Bound::inclusive),
+            Order::Ascending,
+        )
+        .take(limit.unwrap_or(count as u64) as usize)
+        .map(|res| res.unwrap().1)
+        .collect();
+
+    Ok(OrdersResponse {
+        count: count as u64,
+        orders,
     })
 }

@@ -2773,6 +2773,20 @@ fn test_claim_order() {
                 .unwrap();
         }
 
+        // Ensure that a claimable order cannot be cancelled
+        if test.expected_error.is_none() {
+            let mut info_with_sender = info.clone();
+            info_with_sender.sender = sender.clone();
+            let res = cancel_limit(
+                deps.as_mut(),
+                env.clone(),
+                info_with_sender.clone(),
+                test.tick_id,
+                test.order_id,
+            );
+            assert_eq!(res, Err(ContractError::CancelFilledOrder));
+        }
+
         // Claim designated order
         let res = claim_limit(
             deps.as_mut(),

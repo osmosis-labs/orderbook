@@ -2,7 +2,7 @@ use std::{collections::HashMap, str::FromStr};
 
 use crate::{
     constants::{MAX_TICK, MIN_TICK}, error::ContractError, order::*, orderbook::*, state::*, sumtree::{
-        node::{NodeType, TreeNode}, test::{test_fuzz::assert_sumtree_invariants, test_node::print_tree}, tree::{get_or_init_root_node, get_prefix_sum, get_root_node}
+        node::{NodeType, TreeNode}, test::test_fuzz::assert_sumtree_invariants, tree::{get_or_init_root_node, get_prefix_sum, get_root_node}
     },
     tests::{mock_querier::mock_dependencies_custom, test_utils::{decimal256_from_u128, place_multiple_limit_orders}},
     types::{
@@ -4230,8 +4230,6 @@ fn test_cancelled_orders() {
 
     }
 
-    let root = get_or_init_root_node(deps.as_mut().storage, 0, OrderDirection::Bid).unwrap();
-
     OrderOperation::PlaceLimit(LimitOrder::new(0, 10, OrderDirection::Bid, sender.clone(), Uint128::from(1u128), Decimal256::zero(), None)).run(deps.as_mut(), env.clone(), info.clone()).unwrap();
     OrderOperation::RunMarket(MarketOrder::new(Uint128::from(1u128).checked_mul(Uint128::from(4u128)).unwrap(), OrderDirection::Ask, sender.clone())).run(deps.as_mut(), env.clone(), info.clone()).unwrap();
 
@@ -4290,18 +4288,18 @@ fn test_random_orders_single_tick() {
             if order_ids.is_empty() {
                 continue;
             }
-            let order_id = order_ids[rng.gen_range(0..order_ids.len())].clone();
+            let order_id = order_ids[rng.gen_range(0..order_ids.len())];
             println!("order_id: {}", order_id);
-            let order = orders().load(deps.as_mut().storage, &(tick_id, order_id)).unwrap();
+            let order = orders().load(deps.as_mut().storage, &(tick_id, *order_id)).unwrap();
             let root =  get_or_init_root_node(deps.as_mut().storage, tick_id, order.order_direction).unwrap();
             if !root.get_value().is_zero() {
                 println!("checking tree");
                 assert_sumtree_invariants(deps.as_ref(), &root, "test_random_orders_single_tick");
             }
-            match OrderOperation::Cancel((tick_id, order_id)).run(deps.as_mut(), env.clone(), info.clone()) {
+            match OrderOperation::Cancel((tick_id, *order_id)).run(deps.as_mut(), env.clone(), info.clone()) {
                 Ok(_) => {
                     println!("order cancelled");
-                    placed_orders.remove(&order_id);
+                    placed_orders.remove(order_id);
                 }
                 Err(e) => {
                     match e {
@@ -4322,10 +4320,10 @@ fn test_random_orders_single_tick() {
             if order_ids.is_empty() {
                 continue;
             }
-            let order_id = order_ids[rng.gen_range(0..order_ids.len())].clone();
+            let order_id = order_ids[rng.gen_range(0..order_ids.len())];
             println!("order_id: {}", order_id);
 
-            let order = orders().load(deps.as_mut().storage, &(tick_id, order_id)).unwrap();
+            let order = orders().load(deps.as_mut().storage, &(tick_id, *order_id)).unwrap();
             let tick_state = TICK_STATE.load(deps.as_mut().storage, tick_id).unwrap();
             let tick_values = tick_state.get_values(order.order_direction);
             let root =  get_or_init_root_node(deps.as_mut().storage, tick_id, order.order_direction).unwrap();
@@ -4347,10 +4345,10 @@ fn test_random_orders_single_tick() {
                 continue;
             }
 
-            match OrderOperation::Claim((tick_id, order_id)).run(deps.as_mut(), env.clone(), info.clone()) {
+            match OrderOperation::Claim((tick_id, *order_id)).run(deps.as_mut(), env.clone(), info.clone()) {
                 Ok(_) => {
                     println!("succesfully claimed limit");
-                    placed_orders.remove(&order_id);
+                    placed_orders.remove(order_id);
                 }
                 Err(e) => {
                     match e {

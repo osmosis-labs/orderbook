@@ -43,18 +43,6 @@ pub fn place_limit(
         ContractError::InvalidQuantity { quantity }
     );
 
-    let tick_price = tick_to_price(tick_id)?;
-    let amount_out = amount_to_value(
-        order_direction,
-        quantity,
-        tick_price,
-        RoundingDirection::Down,
-    )?;
-    ensure!(
-        !amount_out.is_zero(),
-        ContractError::InvalidQuantity { quantity }
-    );
-
     // If applicable, ensure claim_bounty is between 0 and 0.01.
     // We set a conservative upper bound of 1% for claim bounties as a guardrail.
     if let Some(claim_bounty_value) = claim_bounty {

@@ -4,8 +4,8 @@ use crate::{
     constants::{MAX_TICK, MIN_TICK},
     msg::{
         AuthExecuteMsg, AuthQueryMsg, DenomsResponse, ExecuteMsg, GetTotalPoolLiquidityResponse,
-        InstantiateMsg, OrdersResponse, QueryMsg, SudoMsg, TickIdAndState, TickUnrealizedCancels,
-        TickUnrealizedCancelsByIdResponse, TicksResponse,
+        GetUnrealizedCancelsResponse, InstantiateMsg, OrdersResponse, QueryMsg, SudoMsg,
+        TickIdAndState, TickUnrealizedCancels, TicksResponse,
     },
     types::{LimitOrder, OrderDirection},
     ContractError,
@@ -233,7 +233,7 @@ impl<'a> OrderbookContract<'a> {
         .unwrap()
     }
 
-    pub fn set_admin(&self, app: &OsmosisTestApp, admin: Addr) {
+    pub fn _set_admin(&self, app: &OsmosisTestApp, admin: Addr) {
         app.wasm_sudo(
             &self.contract_addr,
             SudoMsg::TransferAdmin { new_admin: admin },
@@ -243,7 +243,7 @@ impl<'a> OrderbookContract<'a> {
         println!("admin_set: {:?}", admin);
     }
 
-    pub fn set_maker_fee(
+    pub fn _set_maker_fee(
         &self,
         signer: &SigningAccount,
         maker_fee: Decimal256,
@@ -276,8 +276,8 @@ impl<'a> OrderbookContract<'a> {
             .unwrap();
         let tick = ticks.first().unwrap().tick_state.clone();
         let tick_values: crate::types::TickValues = tick.get_values(order.order_direction);
-        let TickUnrealizedCancelsByIdResponse { ticks } = self
-            .query(&QueryMsg::TickUnrealizedCancelsById {
+        let GetUnrealizedCancelsResponse { ticks } = self
+            .query(&QueryMsg::GetUnrealizedCancels {
                 tick_ids: vec![order.tick_id],
             })
             .unwrap();
@@ -287,9 +287,7 @@ impl<'a> OrderbookContract<'a> {
         let cancelled_amount = match order.order_direction {
             OrderDirection::Bid => unrealized_cancels.bid_unrealized_cancels,
             OrderDirection::Ask => unrealized_cancels.ask_unrealized_cancels,
-        }
-        .checked_sub(tick_values.cumulative_realized_cancels)
-        .unwrap();
+        };
 
         let synced_etas = tick_values
             .effective_total_amount_swapped

@@ -1,7 +1,7 @@
 use std::collections::HashMap;
 use std::time::{Duration, SystemTime};
 
-use cosmwasm_std::{Coin, Decimal, Uint256};
+use cosmwasm_std::{Coin, Decimal};
 use cosmwasm_std::{Decimal256, Uint128};
 use osmosis_test_tube::{Account, Module, OsmosisTestApp};
 use rand::seq::SliceRandom;
@@ -63,7 +63,7 @@ fn test_order_fuzz_linear_large_all_cancelled_orders_small_range() {
 
 #[test]
 fn test_order_fuzz_linear_single_tick() {
-    run_fuzz_linear(1000, (0, 0), 0.2);
+    run_fuzz_linear(2000, (0, 0), 0.2);
 }
 
 #[test]
@@ -78,7 +78,7 @@ fn test_order_fuzz_mixed() {
 
 #[test]
 fn test_order_fuzz_mixed_single_tick() {
-    run_fuzz_mixed(1000, (0, 0));
+    run_fuzz_mixed(5000, (0, 0));
 }
 
 /// Runs a linear fuzz test with the following steps
@@ -518,26 +518,12 @@ fn place_random_limit(
     };
     // Select a random tick from the provided range
     let tick_id = rng.gen_range(tick_range.0..=tick_range.1);
-    // Convert the tick to a price
-    let price = tick_to_price(tick_id).unwrap();
-    // Calculate the minimum amount of the denom that can be bought at the given price
-    let min = Uint128::try_from(
-        amount_to_value(
-            order_direction.opposite(),
-            Uint128::one(),
-            price,
-            RoundingDirection::Up,
-        )
-        .unwrap()
-        .min(Uint256::from(Uint128::MAX)),
-    )
-    .unwrap();
 
     // Add the user account with the appropriate amount of the denom
     t.add_account(
         username,
         vec![
-            Coin::new(quantity.u128().max(min.u128()), expected_denom),
+            Coin::new(quantity.u128(), expected_denom),
             Coin::new(1000000000000000u128, "uosmo"),
         ],
     );
@@ -555,7 +541,7 @@ fn place_random_limit(
         t,
         tick_id,
         order_direction,
-        quantity.max(min),
+        quantity,
         claim_bounty,
         username,
     )

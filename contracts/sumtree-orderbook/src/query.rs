@@ -260,21 +260,17 @@ pub(crate) fn ticks_unrealized_cancels_by_id(
     deps: Deps,
     tick_ids: Vec<i64>,
 ) -> ContractResult<TickUnrealizedCancelsByIdResponse> {
-    let ticks = tick_ids
-        .iter()
-        .map(|tick_id| {
-            let tick_state = TICK_STATE
-                .load(deps.storage, *tick_id)
-                .map_err(|_| ContractError::InvalidTickId { tick_id: *tick_id })
-                .unwrap();
+    let mut ticks: Vec<TickUnrealizedCancels> = vec![];
+    for tick_id in tick_ids {
+        let Some(tick_state) = TICK_STATE.may_load(deps.storage, tick_id)? else {
+            return Err(ContractError::InvalidTickId { tick_id });
+        };
 
-            TickUnrealizedCancels {
-                tick_id: *tick_id,
-                unrealized_cancels: get_unrealized_cancels(deps, tick_state.clone(), *tick_id)
-                    .unwrap(),
-            }
-        })
-        .collect();
+        ticks.push(TickUnrealizedCancels {
+            tick_id,
+            unrealized_cancels: get_unrealized_cancels(deps, tick_state.clone(), tick_id)?,
+        });
+    }
 
     Ok(TickUnrealizedCancelsByIdResponse { ticks })
 }

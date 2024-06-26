@@ -156,6 +156,19 @@ pub fn cancel_limit(
     // Ensure the sender is the order owner
     ensure_eq!(info.sender, order.owner, ContractError::Unauthorized {});
 
+    // Sync tick before checking if order is filled
+    let tick_state = TICK_STATE.load(deps.storage, tick_id).unwrap_or_default();
+    sync_tick(
+        deps.storage,
+        tick_id,
+        tick_state
+            .get_values(OrderDirection::Bid)
+            .effective_total_amount_swapped,
+        tick_state
+            .get_values(OrderDirection::Ask)
+            .effective_total_amount_swapped,
+    )?;
+
     // Ensure the order has not been filled.
     let tick_state = TICK_STATE.load(deps.storage, tick_id).unwrap_or_default();
     let tick_values = tick_state.get_values(order.order_direction);

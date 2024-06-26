@@ -8,8 +8,8 @@ use crate::{
     error::ContractResult,
     msg::{
         CalcOutAmtGivenInResponse, DenomsResponse, GetSwapFeeResponse,
-        GetTotalPoolLiquidityResponse, SpotPriceResponse, TickIdAndState, TickUnrealizedCancels,
-        TickUnrealizedCancelsByIdResponse, TickUnrealizedCancelsState, TicksResponse,
+        GetTotalPoolLiquidityResponse, GetUnrealizedCancelsResponse, SpotPriceResponse,
+        TickIdAndState, TickUnrealizedCancels, TicksResponse, UnrealizedCancels,
     },
     order,
     state::{get_directional_liquidity, get_orders_by_owner, IS_ACTIVE, ORDERBOOK, TICK_STATE},
@@ -238,7 +238,7 @@ fn get_unrealized_cancels(
     deps: Deps,
     tick_state: TickState,
     tick_id: i64,
-) -> ContractResult<TickUnrealizedCancelsState> {
+) -> ContractResult<UnrealizedCancels> {
     let mut cancels: (Decimal256, Decimal256) = (Decimal256::zero(), Decimal256::zero());
     for direction in [OrderDirection::Ask, OrderDirection::Bid] {
         let tick_values = tick_state.get_values(direction);
@@ -264,7 +264,7 @@ fn get_unrealized_cancels(
 
     let (ask_unrealized_cancels, bid_unrealized_cancels) = cancels;
 
-    Ok(TickUnrealizedCancelsState {
+    Ok(UnrealizedCancels {
         ask_unrealized_cancels,
         bid_unrealized_cancels,
     })
@@ -274,7 +274,7 @@ fn get_unrealized_cancels(
 pub(crate) fn ticks_unrealized_cancels_by_id(
     deps: Deps,
     tick_ids: Vec<i64>,
-) -> ContractResult<TickUnrealizedCancelsByIdResponse> {
+) -> ContractResult<GetUnrealizedCancelsResponse> {
     let mut ticks: Vec<TickUnrealizedCancels> = vec![];
     for tick_id in tick_ids {
         let Some(tick_state) = TICK_STATE.may_load(deps.storage, tick_id)? else {
@@ -287,5 +287,5 @@ pub(crate) fn ticks_unrealized_cancels_by_id(
         });
     }
 
-    Ok(TickUnrealizedCancelsByIdResponse { ticks })
+    Ok(GetUnrealizedCancelsResponse { ticks })
 }

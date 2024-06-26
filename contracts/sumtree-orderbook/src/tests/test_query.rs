@@ -8,7 +8,7 @@ use crate::{
     constants::{EXPECTED_SWAP_FEE, MAX_TICK, MIN_TICK},
     orderbook::create_orderbook,
     query,
-    state::{IS_ACTIVE, TICK_STATE},
+    state::IS_ACTIVE,
     tests::mock_querier::mock_dependencies_custom,
     types::{coin_u256, Coin256, LimitOrder, MarketOrder, OrderDirection, TickState, TickValues},
     ContractError,

@@ -1,4 +1,4 @@
-use crate::types::{OrderDirection, TickState};
+use crate::types::{LimitOrder, OrderDirection, TickState};
 use cosmwasm_schema::{cw_serde, QueryResponses};
 use cosmwasm_std::{Addr, Coin, Decimal, Decimal256, Uint128, Uint256};
 use osmosis_std::types::cosmos::base::v1beta1::Coin as ProtoCoin;
@@ -119,6 +119,14 @@ pub enum QueryMsg {
         limit: Option<u64>,
     },
 
+    #[returns(OrdersResponse)]
+    OrdersByTick {
+        tick_id: i64,
+        start_from: Option<u64>,
+        end_at: Option<u64>,
+        limit: Option<u64>,
+    },
+
     #[returns(DenomsResponse)]
     Denoms {},
 }
@@ -171,6 +179,12 @@ pub struct TickIdAndState {
 #[cw_serde]
 pub struct AllTicksResponse {
     pub ticks: Vec<TickIdAndState>,
+}
+
+#[cw_serde]
+pub struct OrdersResponse {
+    pub orders: Vec<LimitOrder>,
+    pub count: u64,
 }
 
 #[cw_serde]

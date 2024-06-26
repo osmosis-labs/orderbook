@@ -146,6 +146,14 @@ pub fn query(deps: Deps, _env: Env, msg: QueryMsg) -> ContractResult<Binary> {
         QueryMsg::TicksById { tick_ids } => {
             Ok(to_json_binary(&query::ticks_by_id(deps, tick_ids)?)?)
         }
+        QueryMsg::OrdersByTick {
+            tick_id,
+            start_from,
+            end_at,
+            limit,
+        } => Ok(to_json_binary(&query::orders_by_tick(
+            deps, tick_id, start_from, end_at, limit,
+        )?)?),
         QueryMsg::Denoms {} => Ok(to_json_binary(&query::denoms(deps)?)?),
         QueryMsg::GetMakerFee {} => Ok(to_json_binary(&state::get_maker_fee(deps.storage)?)?),
         QueryMsg::GetUnrealizedCancels { tick_ids } => Ok(to_json_binary(

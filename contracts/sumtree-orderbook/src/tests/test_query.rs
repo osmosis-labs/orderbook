@@ -1452,8 +1452,341 @@ fn test_orders_by_owner() {
             );
         });
         assert_eq!(
-            res, test.expected_output,
+            res,
+            test.expected_output
+                .iter()
+                .map(|o| o.clone().with_placed_at(env.block.time))
+                .collect::<Vec<LimitOrder>>(),
             "{}: output did not match",
+            test.name
+        );
+    }
+}
+
+struct TestOrdersByTicksCase {
+    name: &'static str,
+    pre_operations: Vec<OrderOperation>,
+    expected_output: Vec<LimitOrder>,
+    expected_count: u64,
+    tick_id: i64,
+    limit: Option<u64>,
+    start_from: Option<u64>,
+    end_at: Option<u64>,
+    expected_error: Option<ContractError>,
+}
+
+#[test]
+fn test_orders_by_ticks() {
+    let test_cases = vec![
+        TestOrdersByTicksCase {
+            name: "no orders",
+            pre_operations: vec![],
+            expected_output: vec![],
+            expected_count: 0,
+            tick_id: 0,
+            limit: None,
+            start_from: None,
+            end_at: None,
+            expected_error: None,
+        },
+        TestOrdersByTicksCase {
+            name: "single order",
+            pre_operations: vec![OrderOperation::PlaceLimit(LimitOrder::new(
+                0,
+                0,
+                OrderDirection::Bid,
+                Addr::unchecked("sender"),
+                Uint128::from(100u128),
+                Decimal256::zero(),
+                None,
+            ))],
+            expected_output: vec![LimitOrder::new(
+                0,
+                0,
+                OrderDirection::Bid,
+                Addr::unchecked("sender"),
+                Uint128::from(100u128),
+                Decimal256::zero(),
+                None,
+            )],
+            expected_count: 1,
+            tick_id: 0,
+            limit: None,
+            expected_error: None,
+            start_from: None,
+            end_at: None,
+        },
+        TestOrdersByTicksCase {
+            name: "multiple orders",
+            pre_operations: vec![
+                OrderOperation::PlaceLimit(LimitOrder::new(
+                    1,
+                    0,
+                    OrderDirection::Bid,
+                    Addr::unchecked("owner"),
+                    Uint128::new(100),
+                    Decimal256::zero(),
+                    None,
+                )),
+                OrderOperation::PlaceLimit(LimitOrder::new(
+                    1,
+                    1,
+                    OrderDirection::Ask,
+                    Addr::unchecked("owner"),
+                    Uint128::new(200),
+                    Decimal256::zero(),
+                    None,
+                )),
+            ],
+            expected_output: vec![
+                LimitOrder::new(
+                    1,
+                    0,
+                    OrderDirection::Bid,
+                    Addr::unchecked("owner"),
+                    Uint128::new(100),
+                    Decimal256::zero(),
+                    None,
+                ),
+                LimitOrder::new(
+                    1,
+                    1,
+                    OrderDirection::Ask,
+                    Addr::unchecked("owner"),
+                    Uint128::new(200),
+                    Decimal256::zero(),
+                    None,
+                ),
+            ],
+            expected_count: 2,
+            tick_id: 1,
+            limit: None,
+            expected_error: None,
+            start_from: None,
+            end_at: None,
+        },
+        TestOrdersByTicksCase {
+            name: "multiple orders w/ limit",
+            pre_operations: vec![
+                OrderOperation::PlaceLimit(LimitOrder::new(
+                    1,
+                    0,
+                    OrderDirection::Bid,
+                    Addr::unchecked("owner"),
+                    Uint128::new(100),
+                    Decimal256::zero(),
+                    None,
+                )),
+                OrderOperation::PlaceLimit(LimitOrder::new(
+                    1,
+                    1,
+                    OrderDirection::Ask,
+                    Addr::unchecked("owner"),
+                    Uint128::new(200),
+                    Decimal256::zero(),
+                    None,
+                )),
+                OrderOperation::PlaceLimit(LimitOrder::new(
+                    1,
+                    2,
+                    OrderDirection::Bid,
+                    Addr::unchecked("owner"),
+                    Uint128::new(100),
+                    Decimal256::zero(),
+                    None,
+                )),
+            ],
+            expected_output: vec![
+                LimitOrder::new(
+                    1,
+                    0,
+                    OrderDirection::Bid,
+                    Addr::unchecked("owner"),
+                    Uint128::new(100),
+                    Decimal256::zero(),
+                    None,
+                ),
+                LimitOrder::new(
+                    1,
+                    1,
+                    OrderDirection::Ask,
+                    Addr::unchecked("owner"),
+                    Uint128::new(200),
+                    Decimal256::zero(),
+                    None,
+                ),
+            ],
+            expected_count: 3,
+            tick_id: 1,
+            limit: Some(2),
+            start_from: None,
+            end_at: None,
+            expected_error: None,
+        },
+        TestOrdersByTicksCase {
+            name: "multiple orders w/ limit + start from",
+            pre_operations: vec![
+                OrderOperation::PlaceLimit(LimitOrder::new(
+                    1,
+                    0,
+                    OrderDirection::Bid,
+                    Addr::unchecked("owner"),
+                    Uint128::new(100),
+                    Decimal256::zero(),
+                    None,
+                )),
+                OrderOperation::PlaceLimit(LimitOrder::new(
+                    1,
+                    1,
+                    OrderDirection::Ask,
+                    Addr::unchecked("owner"),
+                    Uint128::new(200),
+                    Decimal256::zero(),
+                    None,
+                )),
+                OrderOperation::PlaceLimit(LimitOrder::new(
+                    1,
+                    2,
+                    OrderDirection::Bid,
+                    Addr::unchecked("owner"),
+                    Uint128::new(100),
+                    Decimal256::zero(),
+                    None,
+                )),
+            ],
+            expected_output: vec![
+                LimitOrder::new(
+                    1,
+                    1,
+                    OrderDirection::Ask,
+                    Addr::unchecked("owner"),
+                    Uint128::new(200),
+                    Decimal256::zero(),
+                    None,
+                ),
+                LimitOrder::new(
+                    1,
+                    2,
+                    OrderDirection::Bid,
+                    Addr::unchecked("owner"),
+                    Uint128::new(100),
+                    decimal256_from_u128(100u128),
+                    None,
+                ),
+            ],
+            expected_count: 2,
+            tick_id: 1,
+            limit: Some(2),
+            start_from: Some(1),
+            end_at: None,
+            expected_error: None,
+        },
+        TestOrdersByTicksCase {
+            name: "multiple orders w/ limit + end at",
+            pre_operations: vec![
+                OrderOperation::PlaceLimit(LimitOrder::new(
+                    1,
+                    0,
+                    OrderDirection::Bid,
+                    Addr::unchecked("owner"),
+                    Uint128::new(100),
+                    Decimal256::zero(),
+                    None,
+                )),
+                OrderOperation::PlaceLimit(LimitOrder::new(
+                    1,
+                    1,
+                    OrderDirection::Ask,
+                    Addr::unchecked("owner"),
+                    Uint128::new(200),
+                    Decimal256::zero(),
+                    None,
+                )),
+                OrderOperation::PlaceLimit(LimitOrder::new(
+                    1,
+                    2,
+                    OrderDirection::Bid,
+                    Addr::unchecked("owner"),
+                    Uint128::new(100),
+                    Decimal256::zero(),
+                    None,
+                )),
+            ],
+            expected_output: vec![LimitOrder::new(
+                1,
+                0,
+                OrderDirection::Bid,
+                Addr::unchecked("owner"),
+                Uint128::new(100),
+                Decimal256::zero(),
+                None,
+            )],
+            expected_count: 1,
+            tick_id: 1,
+            limit: Some(2),
+            start_from: None,
+            end_at: Some(0),
+            expected_error: None,
+        },
+    ];
+
+    for test in test_cases {
+        // -- Test Setup --
+        let mut deps = mock_dependencies_custom();
+        let env = mock_env();
+        let info = mock_info(DEFAULT_SENDER, &[]);
+
+        create_orderbook(
+            deps.as_mut(),
+            QUOTE_DENOM.to_string(),
+            BASE_DENOM.to_string(),
+        )
+        .unwrap();
+
+        for operation in test.pre_operations {
+            operation
+                .run(deps.as_mut(), env.clone(), info.clone())
+                .unwrap();
+        }
+
+        // -- System under test --
+        let res = query::orders_by_tick(
+            deps.as_ref(),
+            test.tick_id,
+            test.start_from,
+            test.end_at,
+            test.limit,
+        );
+
+        if let Some(err) = test.expected_error {
+            assert_eq!(
+                res.unwrap_err(),
+                err,
+                "{}: did not receive expected error",
+                test.name
+            );
+
+            continue;
+        }
+
+        let res = res.unwrap_or_else(|_| {
+            panic!(
+                "{}: orders_by_owner returned an unexpected error",
+                test.name
+            );
+        });
+        assert_eq!(
+            res.orders,
+            test.expected_output
+                .iter()
+                .map(|o| o.clone().with_placed_at(env.block.time))
+                .collect::<Vec<LimitOrder>>(),
+            "{}: output did not match",
+            test.name
+        );
+        assert_eq!(
+            res.count, test.expected_count,
+            "{}: count did not match",
             test.name
         );
     }

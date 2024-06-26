@@ -4231,7 +4231,6 @@ fn test_cancelled_orders() {
     }
 
     let root = get_or_init_root_node(deps.as_mut().storage, 0, OrderDirection::Bid).unwrap();
-    print_tree("", "", &root, &deps.as_ref());
 
     OrderOperation::PlaceLimit(LimitOrder::new(0, 10, OrderDirection::Bid, sender.clone(), Uint128::from(1u128), Decimal256::zero(), None)).run(deps.as_mut(), env.clone(), info.clone()).unwrap();
     OrderOperation::RunMarket(MarketOrder::new(Uint128::from(1u128).checked_mul(Uint128::from(4u128)).unwrap(), OrderDirection::Ask, sender.clone())).run(deps.as_mut(), env.clone(), info.clone()).unwrap();

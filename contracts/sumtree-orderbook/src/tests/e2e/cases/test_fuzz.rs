@@ -77,8 +77,8 @@ fn test_order_fuzz_mixed() {
 }
 
 #[test]
-fn test_order_fuzz_single_tick() {
-    run_fuzz_mixed(0000, (0, 0));
+fn test_order_fuzz_mixed_single_tick() {
+    run_fuzz_mixed(1000, (0, 0));
 }
 
 /// Runs a linear fuzz test with the following steps
@@ -378,11 +378,20 @@ impl MixedFuzzOperation {
                     username.as_str()
                 };
 
-                // Remove the order once we know its claimable
-                orders.remove(&order_id).unwrap();
                 // Claim the order
                 match orders::claim_success(t, claimant, &username, tick_id, order_id) {
-                    Ok(_) => Ok(true),
+                    Ok(_) => {
+                        let order = t.contract.get_order(
+                            t.accounts[&username].address(),
+                            tick_id,
+                            order_id,
+                        );
+                        if order.is_none() {
+                            // Remove the order once we know its claimable
+                            orders.remove(&order_id).unwrap();
+                        }
+                        Ok(true)
+                    }
                     Err(e) => {
                         panic!("{e}")
                     }

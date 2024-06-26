@@ -9,6 +9,7 @@ struct TestPrefixSumCase {
     name: &'static str,
     nodes: Vec<NodeType>,
     target_etas: Decimal256,
+    prev_sum: Decimal256,
     expected_sum: Decimal256,
 }
 
@@ -21,6 +22,7 @@ fn test_get_prefix_sum_valid() {
             name: "Single node, target ETAS equal to node ETAS",
             nodes: vec![NodeType::leaf_uint256(10u128, 5u128)],
             target_etas: Decimal256::from_ratio(10u128, 1u128),
+            prev_sum: Decimal256::zero(),
             // We expect the full value of the node because the prefix
             // sum is intended to return "all nodes that overlap with
             // the target ETAS".
@@ -33,12 +35,14 @@ fn test_get_prefix_sum_valid() {
             name: "Single node, target ETAS below node range",
             nodes: vec![NodeType::leaf_uint256(50u128, 20u128)],
             target_etas: Decimal256::from_ratio(25u128, 1u128),
+            prev_sum: Decimal256::zero(),
             expected_sum: Decimal256::zero(),
         },
         TestPrefixSumCase {
             name: "Single node, target ETAS above node range",
             nodes: vec![NodeType::leaf_uint256(10u128, 10u128)],
             target_etas: Decimal256::from_ratio(30u128, 1u128),
+            prev_sum: Decimal256::zero(),
             expected_sum: Decimal256::from_ratio(10u128, 1u128),
         },
         TestPrefixSumCase {
@@ -46,10 +50,11 @@ fn test_get_prefix_sum_valid() {
             nodes: vec![
                 NodeType::leaf_uint256(5u128, 10u128),
                 NodeType::leaf_uint256(15u128, 20u128),
-                NodeType::leaf_uint256(35u128, 30u128),
+                NodeType::leaf_uint256(45u128, 30u128),
             ],
             target_etas: Decimal256::from_ratio(20u128, 1u128),
-            expected_sum: Decimal256::from_ratio(60u128, 1u128),
+            prev_sum: Decimal256::from_ratio(10u128, 1u128),
+            expected_sum: Decimal256::from_ratio(30u128, 1u128),
         },
         TestPrefixSumCase {
             name: "Multiple nodes, target ETAS on boundary",
@@ -58,7 +63,7 @@ fn test_get_prefix_sum_valid() {
                 NodeType::leaf_uint256(5u128, 12u128),
             ],
             target_etas: Decimal256::from_ratio(5u128, 1u128),
-
+            prev_sum: Decimal256::zero(),
             expected_sum: Decimal256::from_ratio(15u128, 1u128),
         },
         TestPrefixSumCase {
@@ -69,7 +74,7 @@ fn test_get_prefix_sum_valid() {
                 NodeType::leaf_uint256(40u128, 30u128),
             ],
             target_etas: Decimal256::from_ratio(5u128, 1u128),
-
+            prev_sum: Decimal256::zero(),
             expected_sum: Decimal256::zero(),
         },
         TestPrefixSumCase {
@@ -80,38 +85,40 @@ fn test_get_prefix_sum_valid() {
                 NodeType::leaf_uint256(40u128, 30u128),
             ],
             target_etas: Decimal256::from_ratio(45u128, 1u128),
-
+            prev_sum: Decimal256::zero(),
             expected_sum: Decimal256::from_ratio(60u128, 1u128), // Sum of all nodes
         },
         TestPrefixSumCase {
             name: "Nodes inserted in reverse order",
             nodes: vec![
-                NodeType::leaf_uint256(30u128, 10u128),
+                NodeType::leaf_uint256(40u128, 10u128),
                 NodeType::leaf_uint256(20u128, 5u128),
                 NodeType::leaf_uint256(10u128, 5u128),
             ],
-            target_etas: Decimal256::from_ratio(15u128, 1u128),
+            target_etas: Decimal256::from_ratio(25u128, 1u128),
+            prev_sum: Decimal256::zero(),
             expected_sum: Decimal256::from_ratio(10u128, 1u128),
         },
         TestPrefixSumCase {
             name: "Nodes inserted in shuffled order",
             nodes: vec![
-                NodeType::leaf_uint256(30u128, 10u128),
+                NodeType::leaf_uint256(40u128, 10u128),
                 NodeType::leaf_uint256(10u128, 5u128),
                 NodeType::leaf_uint256(20u128, 5u128),
             ],
-            target_etas: Decimal256::from_ratio(15u128, 1u128),
-
+            target_etas: Decimal256::from_ratio(25u128, 1u128),
+            prev_sum: Decimal256::zero(),
             expected_sum: Decimal256::from_ratio(10u128, 1u128),
         },
         TestPrefixSumCase {
             name: "Nodes inserted in shuffled order, target ETAS at node lower bound",
             nodes: vec![
-                NodeType::leaf_uint256(30u128, 11u128),
+                NodeType::leaf_uint256(35u128, 11u128),
                 NodeType::leaf_uint256(10u128, 7u128),
                 NodeType::leaf_uint256(20u128, 5u128),
             ],
-            target_etas: Decimal256::from_ratio(15u128, 1u128),
+            target_etas: Decimal256::from_ratio(20u128, 1u128),
+            prev_sum: Decimal256::zero(),
             // We expect the sum of the 2nd and 3rd nodes, so 7 + 5
             expected_sum: Decimal256::from_ratio(12u128, 1u128),
         },
@@ -122,7 +129,8 @@ fn test_get_prefix_sum_valid() {
                 NodeType::leaf_uint256(50u128, 20u128),
                 NodeType::leaf_uint256(100u128, 30u128),
             ],
-            target_etas: Decimal256::from_ratio(60u128, 1u128),
+            target_etas: Decimal256::from_ratio(75u128, 1u128),
+            prev_sum: Decimal256::from_ratio(70u128, 1u128),
             expected_sum: Decimal256::from_ratio(30u128, 1u128),
         },
         TestPrefixSumCase {
@@ -133,6 +141,7 @@ fn test_get_prefix_sum_valid() {
                 NodeType::leaf_uint256(30u128, 10u128),
             ],
             target_etas: Decimal256::from_ratio(10u128, 1u128),
+            prev_sum: Decimal256::zero(),
             expected_sum: Decimal256::from_ratio(30u128, 1u128),
         },
         TestPrefixSumCase {
@@ -152,7 +161,8 @@ fn test_get_prefix_sum_valid() {
             ],
             // Target includes everything except the last two nodes
             target_etas: Decimal256::from_ratio(305u128, 1u128),
-
+            // Previous sum at 4th last node max to prevent final two nodes being synced after previous nodes being synced
+            prev_sum: Decimal256::from_ratio(300u128, 1u128),
             // Sum of all nodes except the last two:
             // 5 + 19 + 4 + 10 + 9 + 20 + 50 + 40 + 29 = 186
             expected_sum: Decimal256::from_ratio(186u128, 1u128),
@@ -175,13 +185,8 @@ fn test_get_prefix_sum_valid() {
         assert_internal_values(test.name, deps.as_ref(), internals, true);
 
         // System under test: get prefix sum
-        let prefix_sum = get_prefix_sum(
-            deps.as_ref().storage,
-            tree,
-            test.target_etas,
-            Decimal256::zero(),
-        )
-        .unwrap();
+        let prefix_sum =
+            get_prefix_sum(deps.as_ref().storage, tree, test.target_etas, test.prev_sum).unwrap();
 
         // Assert that the correct value was returned
         assert_eq!(

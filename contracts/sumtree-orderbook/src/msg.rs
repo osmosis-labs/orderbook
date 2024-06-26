@@ -138,8 +138,8 @@ pub enum QueryMsg {
     #[returns(TicksResponse)]
     TicksById { tick_ids: Vec<i64> },
 
-    #[returns(TickUnrealizedCancelsByIdResponse)]
-    TickUnrealizedCancelsById { tick_ids: Vec<i64> },
+    #[returns(GetUnrealizedCancelsResponse)]
+    GetUnrealizedCancels { tick_ids: Vec<i64> },
 }
 
 #[cw_serde]
@@ -193,7 +193,7 @@ pub struct TicksResponse {
 }
 
 #[cw_serde]
-pub struct TickUnrealizedCancelsState {
+pub struct UnrealizedCancels {
     pub ask_unrealized_cancels: Decimal256,
     pub bid_unrealized_cancels: Decimal256,
 }
@@ -201,11 +201,11 @@ pub struct TickUnrealizedCancelsState {
 #[cw_serde]
 pub struct TickUnrealizedCancels {
     pub tick_id: i64,
-    pub unrealized_cancels: TickUnrealizedCancelsState,
+    pub unrealized_cancels: UnrealizedCancels,
 }
 
 #[cw_serde]
-pub struct TickUnrealizedCancelsByIdResponse {
+pub struct GetUnrealizedCancelsResponse {
     pub ticks: Vec<TickUnrealizedCancels>,
 }
 

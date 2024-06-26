@@ -8,7 +8,7 @@ use crate::{
     constants::EXPECTED_SWAP_FEE,
     orderbook::create_orderbook,
     query,
-    state::{IS_ACTIVE, TICK_STATE},
+    state::IS_ACTIVE,
     tests::mock_querier::mock_dependencies_custom,
     types::{coin_u256, Coin256, LimitOrder, MarketOrder, OrderDirection, TickState, TickValues},
     ContractError,
@@ -1463,6 +1463,7 @@ struct TicksByIdTestCase {
     pre_operations: Vec<OrderOperation>,
     expected_output: Vec<TickState>,
     tick_ids: Vec<i64>,
+    expected_error: Option<ContractError>,
 }
 
 #[test]
@@ -1474,6 +1475,7 @@ fn test_ticks_by_id() {
             pre_operations: vec![],
             expected_output: vec![],
             tick_ids: vec![],
+            expected_error: None,
         },
         TicksByIdTestCase {
             name: "single order",
@@ -1497,6 +1499,7 @@ fn test_ticks_by_id() {
                 },
             }],
             tick_ids: vec![1],
+            expected_error: None,
         },
         TicksByIdTestCase {
             name: "multiple orders, multiple ticks",
@@ -1543,6 +1546,7 @@ fn test_ticks_by_id() {
                 },
             ],
             tick_ids: vec![1, 2],
+            expected_error: None,
         },
         TicksByIdTestCase {
             name: "Single order (cancelled + unrealized), single tick",
@@ -1569,6 +1573,7 @@ fn test_ticks_by_id() {
                 bid_values: TickValues::default(),
             }],
             tick_ids: vec![0],
+            expected_error: None,
         },
         TicksByIdTestCase {
             name: "Single order (cancelled + realized), single tick",
@@ -1610,6 +1615,22 @@ fn test_ticks_by_id() {
                 bid_values: TickValues::default(),
             }],
             tick_ids: vec![0],
+            expected_error: None,
+        },
+        TicksByIdTestCase {
+            name: "error: invalid tick id",
+            pre_operations: vec![OrderOperation::PlaceLimit(LimitOrder::new(
+                1,
+                100,
+                OrderDirection::Bid,
+                Addr::unchecked("trader1"),
+                Uint128::new(500),
+                Decimal256::zero(),
+                None,
+            ))],
+            expected_output: vec![],
+            tick_ids: vec![1, 2],
+            expected_error: Some(ContractError::InvalidTickId { tick_id: 2 }),
         },
     ];
 
@@ -1633,7 +1654,18 @@ fn test_ticks_by_id() {
 
         // -- System under test --
 
-        let res = query::ticks_by_id(deps.as_ref(), test.tick_ids).unwrap();
+        let res = query::ticks_by_id(deps.as_ref(), test.tick_ids);
+        if let Some(err) = test.expected_error {
+            assert_eq!(
+                res.unwrap_err(),
+                err,
+                "{}: did not receive expected error",
+                test.name
+            );
+
+            continue;
+        }
+        let res = res.unwrap();
         assert_eq!(
             res.ticks.len(),
             test.expected_output.len(),
@@ -1769,11 +1801,8 @@ fn test_tick_unrealized_cancels_by_id() {
             .ticks
             .iter()
             .flat_map(|t| {
-                let tick_state = TICK_STATE.load(deps.as_ref().storage, t.tick_id).unwrap();
-                let bid_cancel_diff = t.unrealized_cancels.bid_unrealized_cancels
-                    - tick_state.bid_values.cumulative_realized_cancels;
-                let ask_cancel_diff = t.unrealized_cancels.ask_unrealized_cancels
-                    - tick_state.ask_values.cumulative_realized_cancels;
+                let bid_cancel_diff = t.unrealized_cancels.bid_unrealized_cancels;
+                let ask_cancel_diff = t.unrealized_cancels.ask_unrealized_cancels;
                 vec![
                     (t.tick_id, (OrderDirection::Bid, bid_cancel_diff)),
                     (t.tick_id, (OrderDirection::Ask, ask_cancel_diff)),

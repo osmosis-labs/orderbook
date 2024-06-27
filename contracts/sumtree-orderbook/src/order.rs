@@ -22,7 +22,7 @@ use cw_utils::{must_pay, nonpayable};
 #[allow(clippy::manual_range_contains, clippy::too_many_arguments)]
 pub fn place_limit(
     deps: &mut DepsMut,
-    _env: Env,
+    env: Env,
     info: MessageInfo,
     tick_id: i64,
     order_direction: OrderDirection,
@@ -102,19 +102,17 @@ pub fn place_limit(
         quantity,
         tick_values.cumulative_total_value,
         claim_bounty,
-    );
+    )
+    .with_placed_at(env.block.time);
 
     let quant_dec256 = Decimal256::from_ratio(limit_order.quantity.u128(), Uint256::one());
-    // Only save the order if not fully filled
-    if limit_order.quantity > Uint128::zero() {
-        // Save the order to the orderbook
-        orders().save(deps.storage, &(tick_id, order_id), &limit_order)?;
 
-        tick_values.total_amount_of_liquidity = tick_values
-            .total_amount_of_liquidity
-            .checked_add(quant_dec256)
-            .unwrap();
-    }
+    // Save the order to the orderbook
+    orders().save(deps.storage, &(tick_id, order_id), &limit_order)?;
+
+    tick_values.total_amount_of_liquidity = tick_values
+        .total_amount_of_liquidity
+        .checked_add(quant_dec256)?;
 
     tick_values.cumulative_total_value = tick_values
         .cumulative_total_value
@@ -154,6 +152,19 @@ pub fn cancel_limit(
 
     // Ensure the sender is the order owner
     ensure_eq!(info.sender, order.owner, ContractError::Unauthorized {});
+
+    // Sync tick before checking if order is filled
+    let tick_state = TICK_STATE.load(deps.storage, tick_id).unwrap_or_default();
+    sync_tick(
+        deps.storage,
+        tick_id,
+        tick_state
+            .get_values(OrderDirection::Bid)
+            .effective_total_amount_swapped,
+        tick_state
+            .get_values(OrderDirection::Ask)
+            .effective_total_amount_swapped,
+    )?;
 
     // Ensure the order has not been filled.
     let tick_state = TICK_STATE.load(deps.storage, tick_id).unwrap_or_default();
@@ -669,40 +680,53 @@ pub(crate) fn claim_order(
     // Immutable amount to prevent bounty/maker fee calculations affecting each other
     let raw_amount = amount;
 
-    // Cannot send a zero amount, may be zero'd out by rounding
-    ensure!(!amount.is_zero(), ContractError::ZeroClaim);
-
     let denom = orderbook.get_opposite_denom(&order.order_direction);
 
     // Send claim bounty to sender if applicable
     let mut bounty = Uint256::zero();
     if let Some(claim_bounty) = order.claim_bounty {
-        // Multiply by the claim bounty ratio and convert to Uint128.
-        // Ensure claimed amount is updated to reflect the bounty.
-        let bounty_amount =
-            Decimal256::from_ratio(amount, Uint256::one()).checked_mul(claim_bounty)?;
-        bounty = bounty_amount.to_uint_floor();
-        amount = amount.checked_sub(bounty)?;
+        // Skip this step if the output amount is zero.
+        //
+        // We use a nested if here because combining `let` with logical operator
+        // is currently unstable in Rust.
+        if !amount.is_zero() {
+            // Multiply by the claim bounty ratio and convert to Uint128.
+            // Ensure claimed amount is updated to reflect the bounty.
+            let bounty_amount =
+                Decimal256::from_ratio(amount, Uint256::one()).checked_mul(claim_bounty)?;
+            bounty = bounty_amount.to_uint_floor();
+            amount = amount.checked_sub(bounty)?;
+        }
     }
 
     // Get the current maker fee for this orderbook
     let maker_fee = get_maker_fee(storage)?;
     let mut maker_fee_amount = Uint256::zero();
     if !maker_fee.is_zero() {
-        // Calculate the fee amount based on the quantity originally being sent to the claimer
-        maker_fee_amount = Decimal256::from_ratio(raw_amount, 1u128)
-            .checked_mul(maker_fee)?
-            .to_uint_floor();
-        amount = amount.checked_sub(maker_fee_amount)?;
+        // Skip this step if the output amount is zero.
+        //
+        // We use a nested if here because combining `let` with logical operator
+        // is currently unstable in Rust.
+        if !amount.is_zero() {
+            // Calculate the fee amount based on the quantity originally being sent to the claimer
+            maker_fee_amount = Decimal256::from_ratio(raw_amount, 1u128)
+                .checked_mul(maker_fee)?
+                .to_uint_floor();
+            amount = amount.checked_sub(maker_fee_amount)?;
+        }
     }
 
-    // Claimed amount always goes to the order owner
-    let bank_msg = MsgSend256 {
-        from_address: contract_address.to_string(),
-        to_address: order.owner.to_string(),
-        amount: vec![coin_u256(amount, &denom)],
-    };
-    let mut bank_msg_vec = vec![SubMsg::reply_on_error(bank_msg, REPLY_ID_CLAIM)];
+    let mut bank_msg_vec = vec![];
+    // Silently fail on zero claim (dust amount) orders
+    if !amount.is_zero() {
+        // Claimed amount always goes to the order owner
+        let bank_msg = MsgSend256 {
+            from_address: contract_address.to_string(),
+            to_address: order.owner.to_string(),
+            amount: vec![coin_u256(amount, &denom)],
+        };
+        bank_msg_vec.push(SubMsg::reply_on_error(bank_msg, REPLY_ID_CLAIM));
+    }
 
     if !bounty.is_zero() {
         // Bounty always goes to the sender

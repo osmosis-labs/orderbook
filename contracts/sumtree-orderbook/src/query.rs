@@ -1,6 +1,6 @@
 use std::str::FromStr;
 
-use cosmwasm_std::{coin, ensure, Addr, Coin, Decimal, Decimal256, Deps, Order, Uint128};
+use cosmwasm_std::{coin, ensure, Addr, Coin, Decimal, Decimal256, Deps, Fraction, Order, Uint128};
 use cw_storage_plus::Bound;
 
 use crate::{
@@ -17,7 +17,7 @@ use crate::{
     },
     sudo::ensure_swap_fee,
     sumtree::tree::{get_prefix_sum, get_root_node},
-    tick_math::{amount_to_value, tick_to_price, RoundingDirection},
+    tick_math::tick_to_price,
     types::{FilterOwnerOrders, LimitOrder, MarketOrder, OrderDirection, TickState},
     ContractError,
 };
@@ -48,7 +48,7 @@ pub(crate) fn spot_price(
     // Fetch orderbook to retrieve tick info
     let orderbook = ORDERBOOK.load(deps.storage)?;
     // Determine the order direction by denom pairing
-    let direction = orderbook.direction_from_pair(quote_asset_denom, base_asset_denom)?;
+    let direction = orderbook.direction_from_pair(base_asset_denom, quote_asset_denom)?;
 
     // Determine next tick based on desired order direction
     let next_tick = match direction {
@@ -59,7 +59,10 @@ pub(crate) fn spot_price(
     // Generate spot price based on current active tick for desired order direction
     let price = tick_to_price(next_tick)?;
 
-    let spot_price = amount_to_value(direction, Uint128::one(), price, RoundingDirection::Down)?;
+    let spot_price = match direction {
+        OrderDirection::Ask => price.inv().unwrap(),
+        OrderDirection::Bid => price,
+    };
 
     Ok(SpotPriceResponse {
         spot_price: Decimal::from_str(&spot_price.to_string())?,

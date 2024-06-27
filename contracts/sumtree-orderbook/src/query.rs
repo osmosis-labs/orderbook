@@ -8,8 +8,8 @@ use crate::{
     error::ContractResult,
     msg::{
         CalcOutAmtGivenInResponse, DenomsResponse, GetSwapFeeResponse,
-        GetTotalPoolLiquidityResponse, GetUnrealizedCancelsResponse, OrdersResponse, SpotPriceResponse,
-        TickIdAndState, TickUnrealizedCancels, TicksResponse, UnrealizedCancels,
+        GetTotalPoolLiquidityResponse, GetUnrealizedCancelsResponse, OrdersResponse,
+        SpotPriceResponse, TickIdAndState, TickUnrealizedCancels, TicksResponse, UnrealizedCancels,
     },
     order,
     state::{
@@ -17,7 +17,7 @@ use crate::{
     },
     sudo::ensure_swap_fee,
     sumtree::tree::{get_prefix_sum, get_root_node},
-    tick_math::tick_to_price,
+    tick_math::{amount_to_value, tick_to_price, RoundingDirection},
     types::{FilterOwnerOrders, LimitOrder, MarketOrder, OrderDirection, TickState},
     ContractError,
 };
@@ -59,8 +59,10 @@ pub(crate) fn spot_price(
     // Generate spot price based on current active tick for desired order direction
     let price = tick_to_price(next_tick)?;
 
+    let spot_price = amount_to_value(direction, Uint128::one(), price, RoundingDirection::Down)?;
+
     Ok(SpotPriceResponse {
-        spot_price: Decimal::from_str(&price.to_string())?,
+        spot_price: Decimal::from_str(&spot_price.to_string())?,
     })
 }
 

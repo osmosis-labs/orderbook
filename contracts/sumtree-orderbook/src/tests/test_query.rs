@@ -253,7 +253,7 @@ fn test_query_spot_price() {
             ],
             base_denom: QUOTE_DENOM.to_string(),
             quote_denom: BASE_DENOM.to_string(),
-            expected_price: Decimal::percent(50),
+            expected_price: Decimal::percent(200),
             expected_error: None,
         },
         SpotPriceTestCase {

@@ -4227,3 +4227,30 @@ fn test_maker_fee() {
 
 }
 
+
+#[test]
+fn test_cancelled_orders() {
+    let mut deps = mock_dependencies_custom();
+    let sender = Addr::unchecked(DEFAULT_SENDER);
+    let env = mock_env();
+    let info = mock_info(sender.as_str(), &[]);
+
+    create_orderbook(deps.as_mut(), QUOTE_DENOM.to_string(), BASE_DENOM.to_string()).unwrap();
+
+    for i in 0..10 {
+        OrderOperation::PlaceLimit(LimitOrder::new(0, i, OrderDirection::Bid, sender.clone(), Uint128::from(1u128), Decimal256::zero(), None)).run(deps.as_mut(), env.clone(), info.clone()).unwrap();
+        if i % 3 != 0 {
+            OrderOperation::Cancel((0, i)).run(deps.as_mut(), env.clone(), info.clone()).unwrap();
+        }
+
+    }
+
+    OrderOperation::PlaceLimit(LimitOrder::new(0, 10, OrderDirection::Bid, sender.clone(), Uint128::from(1u128), Decimal256::zero(), None)).run(deps.as_mut(), env.clone(), info.clone()).unwrap();
+    OrderOperation::RunMarket(MarketOrder::new(Uint128::from(1u128).checked_mul(Uint128::from(4u128)).unwrap(), OrderDirection::Ask, sender.clone())).run(deps.as_mut(), env.clone(), info.clone()).unwrap();
+
+    // Second last order should be claimable
+    OrderOperation::Claim((0, 9)).run(deps.as_mut(), env.clone(), info.clone()).unwrap();
+    // Last order should NOT be claimable
+    let err = OrderOperation::Claim((0, 10)).run(deps.as_mut(), env.clone(), info.clone()).unwrap_err();
+    assert_eq!(err, ContractError::ZeroClaim);
+}

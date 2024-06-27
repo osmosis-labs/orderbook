@@ -143,8 +143,12 @@ fn prefix_sum_walk(
         // would be zero and the target ETAS would remain unchanged.
         let new_etas = target_etas.checked_add(unrealized_from_left)?;
 
-        // if the new ETAS is greater than or equal to the right child's min range, we can walk right
+        // If the new ETAS is greater than or equal to the right child's min range, we can walk right
         // as the left node MUST be realizable given the invariants of the sumtree mechanism
+        //
+        // Intuition: If all swaps and cancels from the left child put us in the cancel territory of the right side, then we
+        // don't care about the ordering of the swaps and cancels on the left. We know that all the cancels need to be
+        // realized, so we batch realize them by adding *their unrealized portion* to our target ETAS and walking right.
         if new_etas >= right_child.get_min_range() {
             return prefix_sum_walk(storage, &right_child, current_sum, new_etas, prev_sum);
         }

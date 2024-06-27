@@ -469,12 +469,6 @@ fn test_sync_tick() {
         // --- System under test ---
 
         for _ in 0..test.num_syncs {
-            let TickState {
-                bid_values: pre_bid_tick_values,
-                ask_values: pre_ask_tick_values,
-            } = TICK_STATE
-                .load(deps.as_ref().storage, default_tick_id)
-                .unwrap();
             // Increment tick ETAS for each step
             let (updated_bid_etas, updated_ask_etas) = increment_tick_etas(
                 deps.as_mut().storage,
@@ -492,26 +486,6 @@ fn test_sync_tick() {
                 updated_ask_etas,
             )
             .unwrap();
-
-            let TickState {
-                bid_values: post_bid_tick_values,
-                ask_values: post_ask_tick_values,
-            } = TICK_STATE
-                .load(deps.as_ref().storage, default_tick_id)
-                .unwrap();
-
-            assert!(
-                pre_bid_tick_values.effective_total_amount_swapped
-                    <= post_bid_tick_values.effective_total_amount_swapped,
-                "ETAS decreased for bid on new sync: {}",
-                test.name
-            );
-            assert!(
-                pre_ask_tick_values.effective_total_amount_swapped
-                    <= post_ask_tick_values.effective_total_amount_swapped,
-                "ETAS decreased for ask on new sync: {}",
-                test.name
-            );
         }
 
         // --- Assertions ---

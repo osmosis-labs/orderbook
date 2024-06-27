@@ -8,8 +8,8 @@ use crate::{
     error::ContractResult,
     msg::{
         CalcOutAmtGivenInResponse, DenomsResponse, GetSwapFeeResponse,
-        GetTotalPoolLiquidityResponse, GetUnrealizedCancelsResponse, OrdersResponse, SpotPriceResponse,
-        TickIdAndState, TickUnrealizedCancels, TicksResponse, UnrealizedCancels,
+        GetTotalPoolLiquidityResponse, GetUnrealizedCancelsResponse, OrdersResponse,
+        SpotPriceResponse, TickIdAndState, TickUnrealizedCancels, TicksResponse, UnrealizedCancels,
     },
     order,
     state::{
@@ -252,6 +252,7 @@ fn get_unrealized_cancels(
                 deps.storage,
                 root_node,
                 tick_values.effective_total_amount_swapped,
+                tick_values.cumulative_realized_cancels,
             )?;
 
             total_realized_cancels.saturating_sub(tick_values.cumulative_realized_cancels)

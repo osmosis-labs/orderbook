@@ -1,22 +1,24 @@
 use std::str::FromStr;
 
-use cosmwasm_std::{coin, ensure, Addr, Coin, Decimal, Deps, Order, Uint128};
+use cosmwasm_std::{coin, ensure, Addr, Coin, Decimal, Decimal256, Deps, Order, Uint128};
 use cw_storage_plus::Bound;
 
 use crate::{
     constants::{MAX_TICK, MIN_TICK},
     error::ContractResult,
     msg::{
-        AllTicksResponse, CalcOutAmtGivenInResponse, DenomsResponse, GetSwapFeeResponse,
-        GetTotalPoolLiquidityResponse, OrdersResponse, SpotPriceResponse, TickIdAndState,
+        CalcOutAmtGivenInResponse, DenomsResponse, GetSwapFeeResponse,
+        GetTotalPoolLiquidityResponse, GetUnrealizedCancelsResponse, OrdersResponse, SpotPriceResponse,
+        TickIdAndState, TickUnrealizedCancels, TicksResponse, UnrealizedCancels,
     },
     order,
     state::{
         get_directional_liquidity, get_orders_by_owner, orders, IS_ACTIVE, ORDERBOOK, TICK_STATE,
     },
     sudo::ensure_swap_fee,
+    sumtree::tree::{get_prefix_sum, get_root_node},
     tick_math::tick_to_price,
-    types::{FilterOwnerOrders, LimitOrder, MarketOrder, OrderDirection},
+    types::{FilterOwnerOrders, LimitOrder, MarketOrder, OrderDirection, TickState},
     ContractError,
 };
 
@@ -139,7 +141,7 @@ pub(crate) fn all_ticks(
     start_from: Option<i64>,
     end_at: Option<i64>,
     limit: Option<usize>,
-) -> ContractResult<AllTicksResponse> {
+) -> ContractResult<TicksResponse> {
     // Fetch all ticks using pagination
     let all_ticks = TICK_STATE.range(
         deps.storage,
@@ -173,7 +175,7 @@ pub(crate) fn all_ticks(
             .collect()
     };
 
-    Ok(AllTicksResponse {
+    Ok(TicksResponse {
         ticks: all_tick_states,
     })
 }
@@ -215,6 +217,79 @@ pub(crate) fn denoms(deps: Deps) -> ContractResult<DenomsResponse> {
         quote_denom: orderbook.quote_denom,
         base_denom: orderbook.base_denom,
     })
+}
+
+pub(crate) fn ticks_by_id(deps: Deps, tick_ids: Vec<i64>) -> ContractResult<TicksResponse> {
+    let mut ticks: Vec<TickIdAndState> = vec![];
+    for tick_id in tick_ids {
+        let Some(tick_state) = TICK_STATE.may_load(deps.storage, tick_id)? else {
+            return Err(ContractError::InvalidTickId { tick_id });
+        };
+
+        ticks.push(TickIdAndState {
+            tick_id,
+            tick_state,
+        });
+    }
+
+    Ok(TicksResponse { ticks })
+}
+
+/// Determines the amount of liquidity in unrealized cancels
+fn get_unrealized_cancels(
+    deps: Deps,
+    tick_state: TickState,
+    tick_id: i64,
+) -> ContractResult<UnrealizedCancels> {
+    let mut cancels: (Decimal256, Decimal256) = (Decimal256::zero(), Decimal256::zero());
+    for direction in [OrderDirection::Ask, OrderDirection::Bid] {
+        let tick_values = tick_state.get_values(direction);
+        let maybe_root_node = get_root_node(deps.storage, tick_id, direction);
+
+        let unrealized_cancels = if maybe_root_node.is_ok() {
+            let root_node = maybe_root_node.unwrap();
+            let total_realized_cancels = get_prefix_sum(
+                deps.storage,
+                root_node,
+                tick_values.effective_total_amount_swapped,
+            )?;
+
+            total_realized_cancels.saturating_sub(tick_values.cumulative_realized_cancels)
+        } else {
+            Decimal256::zero()
+        };
+        match direction {
+            OrderDirection::Ask => cancels.0 = unrealized_cancels,
+            OrderDirection::Bid => cancels.1 = unrealized_cancels,
+        }
+    }
+
+    let (ask_unrealized_cancels, bid_unrealized_cancels) = cancels;
+
+    Ok(UnrealizedCancels {
+        ask_unrealized_cancels,
+        bid_unrealized_cancels,
+    })
+}
+
+// Gets all ticks for the provided vector of IDs and retrieves the value of their sumtree root
+pub(crate) fn ticks_unrealized_cancels_by_id(
+    deps: Deps,
+    tick_ids: Vec<i64>,
+) -> ContractResult<GetUnrealizedCancelsResponse> {
+    let mut ticks: Vec<TickUnrealizedCancels> = vec![];
+    for tick_id in tick_ids {
+        let Some(tick_state) = TICK_STATE.may_load(deps.storage, tick_id)? else {
+            return Err(ContractError::InvalidTickId { tick_id });
+        };
+
+        ticks.push(TickUnrealizedCancels {
+            tick_id,
+            unrealized_cancels: get_unrealized_cancels(deps, tick_state.clone(), tick_id)?,
+        });
+    }
+
+    Ok(GetUnrealizedCancelsResponse { ticks })
 }
 
 pub(crate) fn orders_by_tick(

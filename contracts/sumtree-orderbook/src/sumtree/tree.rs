@@ -117,7 +117,13 @@ fn prefix_sum_walk(
         // Sanity check: for the root node, this will be 0, since the "current node" is the root and includes the whole
         // tree (so when it is removed, there is nothing left)
         let sum_at_node = current_sum.checked_sub(node.get_value())?;
-        // Calculate how much of the node has been realized in a previous sync
+        // Calculate the amount of cumulative realized cancellations *below the current node*  at the end of the
+        // previous sync.
+        //
+        // Recall that `prev_sum` is the cumulative *global* amount that was realized at the end of the previous sync. 
+        // 
+        // Concretely, if this value is ever nonzero for a node, the amount corresponds exactly to the amount realized
+        // below the node at the end of the previous sync. In all other cases, it will snap to zero due to the saturating sub.
         let diff_at_node = prev_sum.saturating_sub(sum_at_node);
         // Calculate how much of the left node is unrealized
         let unrealized_from_left = left_child.get_value().saturating_sub(diff_at_node);

@@ -136,6 +136,11 @@ fn prefix_sum_walk(
         // amount corresponds exactly to `unrealized_from_left`.
         let unrealized_from_left = left_child.get_value().saturating_sub(diff_at_node);
         // Calculate the new ETAS after realizing what is unrealized from the left node
+        //
+        // Instead of doing this manually (and expensively) by triggering a resync, we simply add `unrealized_from_left`
+        // to the running target ETAS value. This is functionally equivalent to simulating realizing the
+        // remainder of the left child. As a sanity check, if it was already realized, then `unrealized_from_left`
+        // would be zero and the target ETAS would remain unchanged.
         let new_etas = target_etas.checked_add(unrealized_from_left)?;
 
         // if the new ETAS is greater than or equal to the right child's min range, we can walk right

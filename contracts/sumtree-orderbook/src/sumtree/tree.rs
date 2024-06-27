@@ -125,7 +125,15 @@ fn prefix_sum_walk(
         // Concretely, if this value is ever nonzero for a node, the amount corresponds exactly to the amount realized
         // below the node at the end of the previous sync. In all other cases, it will snap to zero due to the saturating sub.
         let diff_at_node = prev_sum.saturating_sub(sum_at_node);
-        // Calculate how much of the left node is unrealized
+        // `unrealized_from_left` is the amount in the left child that remained unrealized at the end of the previous
+        // sync.
+        //
+        // If the left child is fully realized then the subtraction here will either be zero (if none of the right child is
+        // realized) or negative (if some of the right child is realized), since `diff_at_node` = amount realized below left
+        // and below right children. Saturating sub will ensure both of these cases snap to zero.
+        // 
+        // Thus, if this value is ever nonzero, it means that the left child had some unrealized cancels in it, and the
+        // amount corresponds exactly to `unrealized_from_left`.
         let unrealized_from_left = left_child.get_value().saturating_sub(diff_at_node);
         // Calculate the new ETAS after realizing what is unrealized from the left node
         let new_etas = target_etas.checked_add(unrealized_from_left)?;

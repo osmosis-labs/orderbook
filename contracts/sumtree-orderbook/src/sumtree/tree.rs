@@ -111,7 +111,11 @@ fn prefix_sum_walk(
         let left_child = left_child.clone().unwrap();
         let right_child = right_child.clone().unwrap();
 
-        // Calculate what the sum is before realizing the current node
+        // `sum_at_node` corresponds to everything to the left and in the current node.
+        // We don't know which component of the current node, if any, will be included, so we remove the whole thing.
+        // 
+        // Sanity check: for the root node, this will be 0, since the "current node" is the root and includes the whole
+        // tree (so when it is removed, there is nothing left)
         let sum_at_node = current_sum.checked_sub(node.get_value())?;
         // Calculate how much of the node has been realized in a previous sync
         let diff_at_node = prev_sum.saturating_sub(sum_at_node);

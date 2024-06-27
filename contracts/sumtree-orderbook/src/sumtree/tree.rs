@@ -97,11 +97,16 @@ fn prefix_sum_walk(
 
     // -- Resync Condition --
 
-    // To prevent requiring a resync there needs to be a condition that covers the case that
-    // when realizing the left node the new ETAS is enough to realize the right node (to some extent)
-    // To cover this we can determine how much of the left node has been realized, using this we can then determine
-    // if realizing what is unrealized from the left node will result in a new ETAS that is enough to realize the
-    // right node (to some extent)
+    // To prevent requiring one or multiple resyncs, we add an optimization step that dynamically batches multiple
+    // syncs into one when applicable. This is achieved through an early check that is triggered in the case where
+    // all orders up to a certain point are either filled or canceled, as in this context we do not care about the order
+    // in which cancels are realized and can simply "batch realize" all of them.
+    //
+    // This case is characterized by when the amount filled on the current tick + the unrealized cancellations in the
+    //  left child of a node pushes ETAS into the range of the right child node (i.e. where the next order in line, after
+    // the sync is complete, is guaranteed to be another cancel). In this case, we count the left child as fully realized
+    // and roll the newly realized portion into the target ETAS. This is functionally equivalent to batching multiple
+    // syncs into one.
     if left_child.is_some() && right_child.is_some() {
         let left_child = left_child.clone().unwrap();
         let right_child = right_child.clone().unwrap();

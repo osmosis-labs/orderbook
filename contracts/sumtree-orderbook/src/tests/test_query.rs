@@ -1,3 +1,5 @@
+use std::str::FromStr;
+
 use cosmwasm_std::{
     coin,
     testing::{mock_env, mock_info},
@@ -5,7 +7,7 @@ use cosmwasm_std::{
 };
 
 use crate::{
-    constants::{EXPECTED_SWAP_FEE, MIN_TICK},
+    constants::{EXPECTED_SWAP_FEE, MAX_TICK, MIN_TICK},
     orderbook::create_orderbook,
     query,
     state::IS_ACTIVE,
@@ -146,6 +148,38 @@ fn test_query_spot_price() {
             expected_error: None,
         },
         SpotPriceTestCase {
+            name: "BID: max tick",
+            pre_operations: vec![OrderOperation::PlaceLimit(LimitOrder::new(
+                MAX_TICK,
+                0,
+                OrderDirection::Ask,
+                sender.clone(),
+                Uint128::one(),
+                Decimal256::zero(),
+                None,
+            ))],
+            base_denom: QUOTE_DENOM.to_string(),
+            quote_denom: BASE_DENOM.to_string(),
+            expected_price: Decimal::from_ratio(340282300000000000000u128, 1u128),
+            expected_error: None,
+        },
+        SpotPriceTestCase {
+            name: "BID: min tick",
+            pre_operations: vec![OrderOperation::PlaceLimit(LimitOrder::new(
+                MIN_TICK,
+                0,
+                OrderDirection::Ask,
+                sender.clone(),
+                Uint128::one(),
+                Decimal256::zero(),
+                None,
+            ))],
+            base_denom: QUOTE_DENOM.to_string(),
+            quote_denom: BASE_DENOM.to_string(),
+            expected_price: Decimal::from_str("0.000000000001").unwrap(),
+            expected_error: None,
+        },
+        SpotPriceTestCase {
             name: "ASK: basic price 1 query",
             pre_operations: vec![OrderOperation::PlaceLimit(LimitOrder::new(
                 0,
@@ -281,22 +315,33 @@ fn test_query_spot_price() {
         },
         SpotPriceTestCase {
             name: "ASK: max tick",
-            pre_operations: vec![
-                OrderOperation::PlaceLimit(LimitOrder::new(
-                    MIN_TICK,
-                    0,
-                    OrderDirection::Bid,
-                    sender.clone(),
-                    Uint128::MAX,
-                    Decimal256::zero(),
-                    None,
-                )),
-                OrderOperation::RunMarket(MarketOrder::new(
-                    Uint128::from(100u128),
-                    OrderDirection::Ask,
-                    sender.clone(),
-                )),
-            ],
+            pre_operations: vec![OrderOperation::PlaceLimit(LimitOrder::new(
+                MAX_TICK,
+                0,
+                OrderDirection::Bid,
+                sender.clone(),
+                Uint128::MAX,
+                Decimal256::zero(),
+                None,
+            ))],
+            base_denom: BASE_DENOM.to_string(),
+            quote_denom: QUOTE_DENOM.to_string(),
+            // At max tick the price is 2.9387365e-21 which is outside the range of the `Decimal` type
+            // As such the returned price is zero
+            expected_price: Decimal::zero(),
+            expected_error: None,
+        },
+        SpotPriceTestCase {
+            name: "ASK: min tick",
+            pre_operations: vec![OrderOperation::PlaceLimit(LimitOrder::new(
+                MIN_TICK,
+                0,
+                OrderDirection::Bid,
+                sender.clone(),
+                Uint128::MAX,
+                Decimal256::zero(),
+                None,
+            ))],
             base_denom: BASE_DENOM.to_string(),
             quote_denom: QUOTE_DENOM.to_string(),
             expected_price: Decimal::from_ratio(1000000000000u128, 1u128),

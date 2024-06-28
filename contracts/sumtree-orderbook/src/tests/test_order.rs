@@ -2,7 +2,7 @@ use std::str::FromStr;
 
 use crate::{
     constants::{MAX_TICK, MIN_TICK}, error::ContractError, order::*, orderbook::*, state::*, sumtree::{
-        node::{NodeType, TreeNode},tree::get_root_node
+        node::{NodeType, TreeNode}, test::test_node::print_tree, tree::{get_or_init_root_node, get_root_node}
     },
     tests::{mock_querier::mock_dependencies_custom, test_utils::{decimal256_from_u128, place_multiple_limit_orders}},
     types::{
@@ -4248,13 +4248,13 @@ fn test_cancelled_orders() {
 
     // Tree after cancelling every order that is not evenly divisible by 3:
     //
-    //                                                      5: 6 1-9                                                                
-    //                           ┌────────────────────────────────────────────────────────────────────┐                                
-    //                       1: 2 1-3                                                           9: 4 4-9                                
-    //           ┌────────────────────────────────┐                                ┌────────────────────────────────┐                
-    //         2: 1 1                          3: 2 1                            7: 2 4-6                       11: 2 7-9                
+    //                                                  5: 12 2-18                                                                
+    //                      ┌────────────────────────────────────────────────────────────────────┐                                
+    //                      1: 4 2-6                                                       9: 8 8-18                                
+    //         ┌────────────────────────────────┐                                ┌────────────────────────────────┐                
+    //      2: 2 2                          3: 4 2                           7: 4 8-12                      11: 4 14-18                
     //                                                                  ┌────────────────┐                ┌────────────────┐        
-    //                                                              4: 4 1          6: 5 1             8: 7 1         10: 8 1    
+    //                                                               4: 8 2         6: 10 2            8: 14 2         10: 16 2   
 
     // Last order should be unclaimable
     let err = OrderOperation::Claim((0, 9)).run(deps.as_mut(), env.clone(), info.clone()).unwrap_err();

@@ -333,12 +333,122 @@ fn test_sync_tick() {
                 1u128,
             ),
         },
+        SyncTickTestCase {
+            name: "Batch realization: simple case",
+            // Tick with:
+            // * 100 units of available liquidity for bid
+            // * 50 units of unrealized cancellations for bid
+            initial_tick_bid_values: build_tick_values(100, 50),
+            initial_tick_ask_values: build_tick_values(0, 0),
+
+            // Multiple unrealized cancels for both bid and ask
+            unrealized_cancels_bid: vec![
+                NodeType::leaf_uint256(45u32, 25u32),
+                NodeType::leaf_uint256(10u32, 25u32),
+            ],
+            unrealized_cancels_ask: vec![],
+
+            // Increment tick ETAS by 10 for bid and 40 for ask per iteration for 2 iterations
+            new_bid_etas_per_sync: Decimal256::from_ratio(10u128, 1u128),
+            new_ask_etas_per_sync: Decimal256::zero(),
+            num_syncs: 2,
+
+            // By end of iteration 2 both bid nodes should be included.
+            expected_cumulative_realized_bid: Decimal256::from_ratio(50u128, 1u128),
+            expected_cumulative_realized_ask: Decimal256::zero(),
+
+            // The new ETAS includes all the incremented amounts which represent fills,
+            // plus the amount of realized cancellations for both bid and ask
+            expected_new_bid_etas_post_sync: Decimal256::from_ratio(
+                (2u128 * 10u128) + 50u128,
+                1u128,
+            ),
+            expected_new_ask_etas_post_sync: Decimal256::zero(),
+        },
+        SyncTickTestCase {
+            name: "Batch realization: all but most right",
+            // Tick with:
+            // * 200 units of available liquidity for bid
+            // * 78 units of unrealized cancellations for bid
+            initial_tick_bid_values: build_tick_values(200, 78),
+            initial_tick_ask_values: build_tick_values(0, 0),
+
+            // Multiple unrealized cancels for both bid and ask
+            unrealized_cancels_bid: vec![
+                NodeType::leaf_uint256(180u32, 3u32),
+                NodeType::leaf_uint256(130u32, 15u32),
+                NodeType::leaf_uint256(45u32, 25u32),
+                NodeType::leaf_uint256(90u32, 10u32),
+                NodeType::leaf_uint256(10u32, 25u32),
+            ],
+            unrealized_cancels_ask: vec![],
+
+            // Increment tick ETAS by 20 for bid per iteration for 4 iterations
+            new_bid_etas_per_sync: Decimal256::from_ratio(20u128, 1u128),
+            new_ask_etas_per_sync: Decimal256::zero(),
+            num_syncs: 4,
+
+            // By end of iteration 4 there should be enough liquidity to realize everything except the last cancellation
+            // Hence total realized becomes 25+10+25+15 = 75
+            expected_cumulative_realized_bid: Decimal256::from_ratio(75u128, 1u128),
+            expected_cumulative_realized_ask: Decimal256::zero(),
+
+            // The new ETAS includes all the incremented amounts which represent fills,
+            // plus the amount of realized cancellations for both bid and ask
+            // 20+20+20+20 = 80 + 75 = 155
+            expected_new_bid_etas_post_sync: Decimal256::from_ratio(
+                (4u128 * 20u128) + 75u128,
+                1u128,
+            ),
+            expected_new_ask_etas_post_sync: Decimal256::zero(),
+        },
+        SyncTickTestCase {
+            name: "Batch realization: chained batch claim (worst case for non-optimized)",
+            // Tick with:
+            // * 10 units of available liquidity for bid
+            // * 10 units of unrealized cancellations for bid
+            initial_tick_bid_values: build_tick_values(10, 10),
+            initial_tick_ask_values: build_tick_values(0, 0),
+
+            // Multiple unrealized cancels for both bid and ask
+            unrealized_cancels_bid: vec![
+                NodeType::leaf_uint256(1u32, 1u32),
+                NodeType::leaf_uint256(2u32, 1u32),
+                NodeType::leaf_uint256(3u32, 1u32),
+                NodeType::leaf_uint256(4u32, 1u32),
+                NodeType::leaf_uint256(5u32, 1u32),
+                NodeType::leaf_uint256(6u32, 1u32),
+                NodeType::leaf_uint256(7u32, 1u32),
+                NodeType::leaf_uint256(8u32, 1u32),
+                NodeType::leaf_uint256(9u32, 1u32),
+                NodeType::leaf_uint256(10u32, 1u32),
+            ],
+            unrealized_cancels_ask: vec![],
+
+            // Increment tick ETAS by 1 for bid per iteration for 1 iteration
+            new_bid_etas_per_sync: Decimal256::from_ratio(1u128, 1u128),
+            new_ask_etas_per_sync: Decimal256::zero(),
+            num_syncs: 1,
+
+            // The first iteration should realize all the cancellations
+            // In a naiive approach we would require multiple resyncs to realize all cancellations
+            // Here all should be realized on first pass
+            expected_cumulative_realized_bid: Decimal256::from_ratio(10u128, 1u128),
+            expected_cumulative_realized_ask: Decimal256::zero(),
+
+            // The new ETAS includes all the incremented amounts which represent fills,
+            // plus the amount of realized cancellations for both bid and ask
+            expected_new_bid_etas_post_sync: Decimal256::from_ratio(1u128 + 10u128, 1u128),
+            expected_new_ask_etas_post_sync: Decimal256::zero(),
+        },
     ];
 
     for test in test_cases {
         // --- Setup ---
 
+        // Create two dependency objects to allow tracking of a mutating state (closer to actual implementation)
         let mut deps = mock_dependencies();
+        let mut mutable_tick_deps = mock_dependencies();
 
         // Create and save default tick state
         let mut tick_state = TickState::default();
@@ -346,6 +456,13 @@ fn test_sync_tick() {
         tick_state.set_values(OrderDirection::Ask, test.initial_tick_ask_values);
         TICK_STATE
             .save(deps.as_mut().storage, default_tick_id, &tick_state)
+            .unwrap();
+        TICK_STATE
+            .save(
+                mutable_tick_deps.as_mut().storage,
+                default_tick_id,
+                &tick_state,
+            )
             .unwrap();
 
         // Insert specified nodes into tree
@@ -355,12 +472,41 @@ fn test_sync_tick() {
         ] {
             for node in unrealized_cancels.iter() {
                 insert_and_refetch(deps.as_mut().storage, default_tick_id, direction, node);
+                insert_and_refetch(
+                    mutable_tick_deps.as_mut().storage,
+                    default_tick_id,
+                    direction,
+                    node,
+                );
             }
         }
 
         // --- System under test ---
 
         for _ in 0..test.num_syncs {
+            // Sync both the mutable state and static state independently
+            let mut mutable_tick = TICK_STATE
+                .load(deps.as_mut().storage, default_tick_id)
+                .unwrap();
+            let (updated_bid_etas, updated_ask_etas) = increment_tick_etas(
+                deps.as_mut().storage,
+                default_tick_id,
+                &mut mutable_tick,
+                test.new_bid_etas_per_sync,
+                test.new_ask_etas_per_sync,
+            );
+            // Run sync
+            sync_tick(
+                mutable_tick_deps.as_mut().storage,
+                default_tick_id,
+                updated_bid_etas,
+                updated_ask_etas,
+            )
+            .unwrap();
+            let mutable_tick_post_sync = TICK_STATE
+                .load(mutable_tick_deps.as_ref().storage, default_tick_id)
+                .unwrap();
+
             // Increment tick ETAS for each step
             let (updated_bid_etas, updated_ask_etas) = increment_tick_etas(
                 deps.as_mut().storage,
@@ -378,6 +524,24 @@ fn test_sync_tick() {
                 updated_ask_etas,
             )
             .unwrap();
+            let tick_state_post_sync = TICK_STATE
+                .load(deps.as_ref().storage, default_tick_id)
+                .unwrap();
+
+            // As adding to the ETAS each iteration is effectively simulating a market order for the increment no matter if the state is mutating or not
+            // both states should end up with the same realized cancels
+            for direction in [OrderDirection::Ask, OrderDirection::Bid] {
+                let mutable_tick_value = mutable_tick_post_sync.get_values(direction);
+                let tick_state_value = tick_state_post_sync.get_values(direction);
+
+                assert_eq!(
+                    mutable_tick_value.cumulative_realized_cancels,
+                    tick_state_value.cumulative_realized_cancels,
+                    "{}: Cumulative realized cancels did not match for direction: {}",
+                    test.name,
+                    direction
+                );
+            }
         }
 
         // --- Assertions ---

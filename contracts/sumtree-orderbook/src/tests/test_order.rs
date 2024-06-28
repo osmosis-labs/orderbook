@@ -2822,10 +2822,24 @@ fn test_claim_order() {
                 .unwrap();
         }
 
+        // Ensure that a claimable order cannot be cancelled
+        if test.expected_error.is_none() {
+            let mut info_with_sender = info.clone();
+            info_with_sender.sender = sender.clone();
+            let res = cancel_limit(
+                deps.as_mut(),
+                env.clone(),
+                info_with_sender.clone(),
+                test.tick_id,
+                test.order_id,
+            );
+            assert_eq!(res, Err(ContractError::CancelFilledOrder));
+        }
+
         // Claim designated order
         let res = claim_limit(
             deps.as_mut(),
-            env,
+            env.clone(),
             info,
             test.tick_id,
             test.order_id,
@@ -2872,7 +2886,7 @@ fn test_claim_order() {
         // Order in state may have been removed
         assert_eq!(
             maybe_order,
-            test.expected_order_state,
+            test.expected_order_state.map(|o| o.with_placed_at(env.block.time)),
             "{}",
             format_test_name(test.name)
         );
@@ -3530,7 +3544,7 @@ fn test_claim_order_moving_tick() {
         // Claim designated order
         let res = claim_limit(
             deps.as_mut(),
-            env,
+            env.clone(),
             info,
             test.tick_id,
             test.order_id,
@@ -3558,7 +3572,7 @@ fn test_claim_order_moving_tick() {
         // Order in state may have been removed
         assert_eq!(
             maybe_order,
-            test.expected_order_state,
+            test.expected_order_state.map(|o| o.with_placed_at(env.block.time)),
             "{}",
             format_test_name(test.name)
         );
@@ -3747,7 +3761,7 @@ fn test_batch_claim_order() {
         let info = mock_info(sender.as_str(), &[]);
 
         // Batch claim orders
-        let res = batch_claim_limits(deps.as_mut(), info.clone(), env, test.orders.clone());
+        let res = batch_claim_limits(deps.as_mut(), info.clone(), env.clone(), test.orders.clone());
 
         if let Some(err) = test.expected_error {
             assert_eq!(res, Err(err), "{}", format_test_name(test.name));
@@ -3793,7 +3807,7 @@ fn test_batch_claim_order() {
                     .find(|order| order.tick_id == *tick_id && order.order_id == *order_id)
             });
             assert_eq!(
-                expected_order_state.cloned(),
+                expected_order_state.cloned().map(|o| o.with_placed_at(env.block.time)),
                 maybe_order,
                 "{} for order_id {} and tick_id {}",
                 format_test_name(test.name),
@@ -4222,145 +4236,66 @@ fn test_cancelled_orders() {
 
     create_orderbook(deps.as_mut(), QUOTE_DENOM.to_string(), BASE_DENOM.to_string()).unwrap();
 
+    // Place 10 orders and cancel every order that is not evenly divisible by 3
+    // This leaves orders 0, 3, 6 and 9 uncancelled
     for i in 0..10 {
-        OrderOperation::PlaceLimit(LimitOrder::new(0, i, OrderDirection::Bid, sender.clone(), Uint128::from(1u128), Decimal256::zero(), None)).run(deps.as_mut(), env.clone(), info.clone()).unwrap();
+        OrderOperation::PlaceLimit(LimitOrder::new(0, i, OrderDirection::Bid, sender.clone(), Uint128::from(2u128), Decimal256::zero(), None)).run(deps.as_mut(), env.clone(), info.clone()).unwrap();
         if i % 3 != 0 {
             OrderOperation::Cancel((0, i)).run(deps.as_mut(), env.clone(), info.clone()).unwrap();
         }
 
     }
 
-    OrderOperation::PlaceLimit(LimitOrder::new(0, 10, OrderDirection::Bid, sender.clone(), Uint128::from(1u128), Decimal256::zero(), None)).run(deps.as_mut(), env.clone(), info.clone()).unwrap();
-    OrderOperation::RunMarket(MarketOrder::new(Uint128::from(1u128).checked_mul(Uint128::from(4u128)).unwrap(), OrderDirection::Ask, sender.clone())).run(deps.as_mut(), env.clone(), info.clone()).unwrap();
+    // Tree after cancelling every order that is not evenly divisible by 3:
+    //
+    //                                                  5: 12 2-18                                                                
+    //                      ┌────────────────────────────────────────────────────────────────────┐                                
+    //                      1: 4 2-6                                                       9: 8 8-18                                
+    //         ┌────────────────────────────────┐                                ┌────────────────────────────────┐                
+    //      2: 2 2                          3: 4 2                           7: 4 8-12                      11: 4 14-18                
+    //                                                                  ┌────────────────┐                ┌────────────────┐        
+    //                                                               4: 8 2         6: 10 2            8: 14 2         10: 16 2   
 
-    // Second last order should be claimable
-    OrderOperation::Claim((0, 9)).run(deps.as_mut(), env.clone(), info.clone()).unwrap();
-    // Last order should NOT be claimable
-    let err = OrderOperation::Claim((0, 10)).run(deps.as_mut(), env.clone(), info.clone()).unwrap_err();
+    // Last order should be unclaimable
+    let err = OrderOperation::Claim((0, 9)).run(deps.as_mut(), env.clone(), info.clone()).unwrap_err();
     assert_eq!(err, ContractError::ZeroClaim);
-}
 
-#[test]
-fn test_random_orders_single_tick() {
-    let mut rng = StdRng::seed_from_u64(123456789);
-    let mut deps = mock_dependencies_custom();
-    let env = mock_env();
-    let info = mock_info(DEFAULT_SENDER, &[]);
+    OrderOperation::PlaceLimit(LimitOrder::new(0, 10, OrderDirection::Bid, sender.clone(), Uint128::from(2u128), Decimal256::zero(), None)).run(deps.as_mut(), env.clone(), info.clone()).unwrap();
 
-    create_orderbook(deps.as_mut(), QUOTE_DENOM.to_string(), BASE_DENOM.to_string()).unwrap();
+    // Fill half of the final order
+    OrderOperation::RunMarket(MarketOrder::new(Uint128::from(1u128).checked_mul(Uint128::from(7u128)).unwrap(), OrderDirection::Ask, sender.clone())).run(deps.as_mut(), env.clone(), info.clone()).unwrap();
 
-    let oper_count = 3000;
-    let order_direction = OrderDirection::Bid;
-    let tick_id = 0;
-    let mut order_count = 0;
-    let mut placed_orders: HashMap<u64, bool> = HashMap::new();
+    // Order of checks should not matter
+    for id in [9, 3, 6, 0] {
+        // All non-cancelled orders should be claimable and uncancellable
+        let err = OrderOperation::Cancel((0, id)).run(deps.as_mut(), env.clone(), info.clone()).unwrap_err();
+        assert_eq!(err, ContractError::CancelFilledOrder);
+        OrderOperation::Claim((0, id)).run(deps.as_mut(), env.clone(), info.clone()).unwrap();
 
-    let sender = Addr::unchecked(DEFAULT_SENDER);
-
-    for i in 0..=oper_count {
-        println!("i: {}", i);
-        let order_roll = rng.gen_range(0..=100);
-        if order_roll < 35 {
-            println!("placing limit");
-            OrderOperation::PlaceLimit(LimitOrder::new(tick_id, order_count, order_direction, sender.clone(), Uint128::from(100u128), Decimal256::zero(), None)).run(deps.as_mut(), env.clone(), info.clone()).unwrap();
-            placed_orders.insert(order_count, true);
-            order_count += 1;
-        } else if order_roll < 60 {
-            println!("running market");
-            match OrderOperation::RunMarket(MarketOrder::new(Uint128::from(50u128), order_direction.opposite(), sender.clone())).run(deps.as_mut(), env.clone(), info.clone()) {
-                Ok(_) => {
-                    println!("successfully ran market order")
-                }
-                Err(e) => {
-                    match e {
-                        ContractError::InsufficientLiquidity => {}
-                        _ => {
-                            panic!("error: {:?}", e);
-                        }
-                    }
-                }
-            }
-        } else if order_roll < 80 {
-            println!("cancelling limit");
-            let orders_clone = placed_orders.clone();
-            let order_ids = orders_clone.keys().collect::<Vec<&u64>>();
-
-            if order_ids.is_empty() {
-                continue;
-            }
-            let order_id = order_ids[rng.gen_range(0..order_ids.len())];
-            println!("order_id: {}", order_id);
-            let order = orders().load(deps.as_mut().storage, &(tick_id, *order_id)).unwrap();
-            let root =  get_or_init_root_node(deps.as_mut().storage, tick_id, order.order_direction).unwrap();
-            if !root.get_value().is_zero() {
-                println!("checking tree");
-                assert_sumtree_invariants(deps.as_ref(), &root, "test_random_orders_single_tick");
-            }
-            match OrderOperation::Cancel((tick_id, *order_id)).run(deps.as_mut(), env.clone(), info.clone()) {
-                Ok(_) => {
-                    println!("order cancelled");
-                    placed_orders.remove(order_id);
-                }
-                Err(e) => {
-                    match e {
-                        ContractError::CancelFilledOrder => {
-
-                        }
-                        _ => {
-                            panic!("error: {:?}", e);
-                        }
-                    }
-                }
-            };
-        } else {
-            println!("claiming limit");
-            let orders_clone = placed_orders.clone();
-            let order_ids = orders_clone.keys().collect::<Vec<&u64>>();
-
-            if order_ids.is_empty() {
-                continue;
-            }
-            let order_id = order_ids[rng.gen_range(0..order_ids.len())];
-            println!("order_id: {}", order_id);
-
-            let order = orders().load(deps.as_mut().storage, &(tick_id, *order_id)).unwrap();
-            let tick_state = TICK_STATE.load(deps.as_mut().storage, tick_id).unwrap();
-            let tick_values = tick_state.get_values(order.order_direction);
-            let root =  get_or_init_root_node(deps.as_mut().storage, tick_id, order.order_direction).unwrap();
-            if !root.get_value().is_zero() {
-                println!("checking tree");
-                assert_sumtree_invariants(deps.as_ref(), &root, "test_random_orders_single_tick");
-            }
-            println!("target_etas: {}", tick_values.effective_total_amount_swapped);
-            let prefix_sum = get_prefix_sum(deps.as_ref().storage,root, tick_values.effective_total_amount_swapped, tick_values.cumulative_realized_cancels).unwrap();
-            let cancelled_amount = prefix_sum.saturating_sub(tick_values.cumulative_realized_cancels);
-            let synced_etas = tick_values.effective_total_amount_swapped.checked_add(cancelled_amount).unwrap();
-
-
-            let claimable_amount = synced_etas.saturating_sub(cancelled_amount).min(decimal256_from_u128(order.quantity));
-
-            println!("claimable_amount: {}", claimable_amount);
-
-            if claimable_amount.is_zero() {
-                continue;
-            }
-
-            match OrderOperation::Claim((tick_id, *order_id)).run(deps.as_mut(), env.clone(), info.clone()) {
-                Ok(_) => {
-                    println!("succesfully claimed limit");
-                    placed_orders.remove(order_id);
-                }
-                Err(e) => {
-                    match e {
-                        ContractError::ZeroClaim => {
-
-                        }
-                        _ => {
-                            panic!("error: {:?}", e);
-                        }
-                    }
-                }
-            };
+        // Last order should be cancellable after being claimed
+        if id == 9 {
+            OrderOperation::Cancel((0, id)).run(deps.as_mut(), env.clone(), info.clone()).unwrap();
         }
     }
+
+    // Last order should NOT be claimable and can be cancelled
+    let err = OrderOperation::Claim((0, 10)).run(deps.as_mut(), env.clone(), info.clone()).unwrap_err();
+    assert_eq!(err, ContractError::ZeroClaim);
+    OrderOperation::Cancel((0, 10)).run(deps.as_mut(), env.clone(), info.clone()).unwrap();
+
+    // All orders should have been claimed or cancelled
+    for i in 0..10 {
+        let order = orders().may_load(deps.as_mut().storage, &(0, i)).unwrap();
+        assert!(order.is_none(), "Order {} should have been removed", i);
+    }
+
+    let tick_state = TICK_STATE.load(deps.as_mut().storage, 0).unwrap();
+    // Cancels from orders 1, 2, 4, 5, 7 and 8 should have been realized
+    assert_eq!(tick_state.get_values(OrderDirection::Bid).cumulative_realized_cancels, Decimal256::from_ratio(12u64, 1u64));
+    // ETAS should be cumulative realized cancels (12) + amount sold (7) = 19
+    assert_eq!(tick_state.get_values(OrderDirection::Bid).effective_total_amount_swapped, Decimal256::from_ratio(19u64, 1u64));
+    assert_eq!(tick_state.get_values(OrderDirection::Bid).last_tick_sync_etas, Decimal256::from_ratio(19u64, 1u64));
+    // No orders should be left
+    assert_eq!(tick_state.get_values(OrderDirection::Bid).total_amount_of_liquidity, Decimal256::zero());
+    assert_eq!(tick_state.get_values(OrderDirection::Bid).cumulative_total_value, Decimal256::from_ratio(22u128, 1u128));
 }

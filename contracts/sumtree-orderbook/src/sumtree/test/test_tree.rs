@@ -167,6 +167,96 @@ fn test_get_prefix_sum_valid() {
             // 5 + 19 + 4 + 10 + 9 + 20 + 50 + 40 + 29 = 186
             expected_sum: Decimal256::from_ratio(186u128, 1u128),
         },
+        TestPrefixSumCase {
+            name: "batch realization case: cancels are back to back",
+            nodes: vec![
+                NodeType::leaf_uint256(10u128, 10u128),
+                NodeType::leaf_uint256(20u128, 10u128),
+                NodeType::leaf_uint256(30u128, 10u128),
+            ],
+            target_etas: Decimal256::from_ratio(10u128, 1u128),
+            prev_sum: Decimal256::zero(),
+            expected_sum: Decimal256::from_ratio(30u128, 1u128),
+        },
+        TestPrefixSumCase {
+            name: "batch realization case: gap between cancels that is filled",
+            nodes: vec![
+                NodeType::leaf_uint256(10u128, 10u128),
+                NodeType::leaf_uint256(30u128, 10u128),
+                NodeType::leaf_uint256(40u128, 10u128),
+            ],
+            // Gap from 0-10 + Gap from 20-30 = 20
+            target_etas: Decimal256::from_ratio(20u128, 1u128),
+            prev_sum: Decimal256::zero(),
+            expected_sum: Decimal256::from_ratio(30u128, 1u128),
+        },
+        TestPrefixSumCase {
+            name: "batch realization case: partially realized left node",
+            nodes: vec![
+                NodeType::leaf_uint256(10u128, 10u128),
+                NodeType::leaf_uint256(20u128, 10u128),
+                NodeType::leaf_uint256(30u128, 10u128),
+                NodeType::leaf_uint256(40u128, 10u128),
+            ],
+            target_etas: Decimal256::from_ratio(20u128, 1u128),
+            prev_sum: Decimal256::from_ratio(10u128, 1u128),
+            expected_sum: Decimal256::from_ratio(40u128, 1u128),
+        },
+        TestPrefixSumCase {
+            name: "batch realization case: fully realized left node",
+            nodes: vec![
+                NodeType::leaf_uint256(10u128, 10u128),
+                NodeType::leaf_uint256(20u128, 10u128),
+                NodeType::leaf_uint256(30u128, 10u128),
+                NodeType::leaf_uint256(40u128, 10u128),
+            ],
+            target_etas: Decimal256::from_ratio(20u128, 1u128),
+            prev_sum: Decimal256::from_ratio(20u128, 1u128),
+            // Left node is fully realized and ETAS is < right node min
+            // Hence only left node is included in prefix sum and 20 is returned
+            expected_sum: Decimal256::from_ratio(20u128, 1u128),
+        },
+        TestPrefixSumCase {
+            name: "batch realization case: fully realized left node with gap",
+            nodes: vec![
+                NodeType::leaf_uint256(10u128, 10u128),
+                NodeType::leaf_uint256(30u128, 10u128),
+                NodeType::leaf_uint256(50u128, 10u128),
+                NodeType::leaf_uint256(60u128, 10u128),
+            ],
+            target_etas: Decimal256::from_ratio(30u128, 1u128),
+            prev_sum: Decimal256::from_ratio(20u128, 1u128),
+            // Left node is fully realized and ETAS is < right node min
+            // Hence only left node is included in prefix sum and 20 is returned
+            expected_sum: Decimal256::from_ratio(20u128, 1u128),
+        },
+        TestPrefixSumCase {
+            name: "batch realization case: partially realized left node with gap",
+            nodes: vec![
+                NodeType::leaf_uint256(10u128, 10u128),
+                NodeType::leaf_uint256(30u128, 10u128),
+                NodeType::leaf_uint256(40u128, 10u128),
+                NodeType::leaf_uint256(50u128, 10u128),
+            ],
+            target_etas: Decimal256::from_ratio(30u128, 1u128),
+            prev_sum: Decimal256::from_ratio(10u128, 1u128),
+            // Left node is partially realized and realizing the remaining amount makes the target ETAS > 40 which causes both right leaves to be realized
+            expected_sum: Decimal256::from_ratio(40u128, 1u128),
+        },
+        TestPrefixSumCase {
+            name: "batch realization case: partially realized left node with gap does not cause overlap",
+            nodes: vec![
+                NodeType::leaf_uint256(10u128, 10u128),
+                NodeType::leaf_uint256(30u128, 10u128),
+                NodeType::leaf_uint256(50u128, 10u128),
+                NodeType::leaf_uint256(60u128, 10u128),
+            ],
+            target_etas: Decimal256::from_ratio(30u128, 1u128),
+            prev_sum: Decimal256::from_ratio(10u128, 1u128),
+            // Left node is partially realized and ETAS + Remaining Unrealized on Left is < right node min
+            // Hence only left node is included in prefix sum and 20 is returned
+            expected_sum: Decimal256::from_ratio(20u128, 1u128),
+        },
     ];
 
     for test in test_cases {

@@ -4239,7 +4239,7 @@ fn test_cancelled_orders() {
     // Place 10 orders and cancel every order that is not evenly divisible by 3
     // This leaves orders 0, 3, 6 and 9 uncancelled
     for i in 0..10 {
-        OrderOperation::PlaceLimit(LimitOrder::new(0, i, OrderDirection::Bid, sender.clone(), Uint128::from(1u128), Decimal256::zero(), None)).run(deps.as_mut(), env.clone(), info.clone()).unwrap();
+        OrderOperation::PlaceLimit(LimitOrder::new(0, i, OrderDirection::Bid, sender.clone(), Uint128::from(2u128), Decimal256::zero(), None)).run(deps.as_mut(), env.clone(), info.clone()).unwrap();
         if i % 3 != 0 {
             OrderOperation::Cancel((0, i)).run(deps.as_mut(), env.clone(), info.clone()).unwrap();
         }
@@ -4260,8 +4260,10 @@ fn test_cancelled_orders() {
     let err = OrderOperation::Claim((0, 9)).run(deps.as_mut(), env.clone(), info.clone()).unwrap_err();
     assert_eq!(err, ContractError::ZeroClaim);
 
-    OrderOperation::PlaceLimit(LimitOrder::new(0, 10, OrderDirection::Bid, sender.clone(), Uint128::from(1u128), Decimal256::zero(), None)).run(deps.as_mut(), env.clone(), info.clone()).unwrap();
-    OrderOperation::RunMarket(MarketOrder::new(Uint128::from(1u128).checked_mul(Uint128::from(4u128)).unwrap(), OrderDirection::Ask, sender.clone())).run(deps.as_mut(), env.clone(), info.clone()).unwrap();
+    OrderOperation::PlaceLimit(LimitOrder::new(0, 10, OrderDirection::Bid, sender.clone(), Uint128::from(2u128), Decimal256::zero(), None)).run(deps.as_mut(), env.clone(), info.clone()).unwrap();
+
+    // Fill half of the final order
+    OrderOperation::RunMarket(MarketOrder::new(Uint128::from(1u128).checked_mul(Uint128::from(7u128)).unwrap(), OrderDirection::Ask, sender.clone())).run(deps.as_mut(), env.clone(), info.clone()).unwrap();
 
     // Order of checks should not matter
     for id in [9, 3, 6, 0] {
@@ -4269,10 +4271,31 @@ fn test_cancelled_orders() {
         let err = OrderOperation::Cancel((0, id)).run(deps.as_mut(), env.clone(), info.clone()).unwrap_err();
         assert_eq!(err, ContractError::CancelFilledOrder);
         OrderOperation::Claim((0, id)).run(deps.as_mut(), env.clone(), info.clone()).unwrap();
+
+        // Last order should be cancellable after being claimed
+        if id == 9 {
+            OrderOperation::Cancel((0, id)).run(deps.as_mut(), env.clone(), info.clone()).unwrap();
+        }
     }
 
     // Last order should NOT be claimable and can be cancelled
     let err = OrderOperation::Claim((0, 10)).run(deps.as_mut(), env.clone(), info.clone()).unwrap_err();
     assert_eq!(err, ContractError::ZeroClaim);
     OrderOperation::Cancel((0, 10)).run(deps.as_mut(), env.clone(), info.clone()).unwrap();
+
+    // All orders should have been claimed or cancelled
+    for i in 0..10 {
+        let order = orders().may_load(deps.as_mut().storage, &(0, i)).unwrap();
+        assert!(order.is_none(), "Order {} should have been removed", i);
+    }
+
+    let tick_state = TICK_STATE.load(deps.as_mut().storage, 0).unwrap();
+    // Cancels from orders 1, 2, 4, 5, 7 and 8 should have been realized
+    assert_eq!(tick_state.get_values(OrderDirection::Bid).cumulative_realized_cancels, Decimal256::from_ratio(12u64, 1u64));
+    // ETAS should be cumulative realized cancels (12) + amount sold (7) = 19
+    assert_eq!(tick_state.get_values(OrderDirection::Bid).effective_total_amount_swapped, Decimal256::from_ratio(19u64, 1u64));
+    assert_eq!(tick_state.get_values(OrderDirection::Bid).last_tick_sync_etas, Decimal256::from_ratio(19u64, 1u64));
+    // No orders should be left
+    assert_eq!(tick_state.get_values(OrderDirection::Bid).total_amount_of_liquidity, Decimal256::zero());
+    assert_eq!(tick_state.get_values(OrderDirection::Bid).cumulative_total_value, Decimal256::from_ratio(22u128, 1u128));
 }

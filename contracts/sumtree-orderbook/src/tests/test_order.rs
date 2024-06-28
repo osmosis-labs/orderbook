@@ -1,8 +1,8 @@
-use std::{collections::HashMap, str::FromStr};
+use std::str::FromStr;
 
 use crate::{
     constants::{MAX_TICK, MIN_TICK}, error::ContractError, order::*, orderbook::*, state::*, sumtree::{
-        node::{NodeType, TreeNode}, test::test_fuzz::assert_sumtree_invariants, tree::{get_or_init_root_node, get_prefix_sum, get_root_node}
+        node::{NodeType, TreeNode}, tree::get_root_node
     },
     tests::{mock_querier::mock_dependencies_custom, test_utils::{decimal256_from_u128, place_multiple_limit_orders}},
     types::{
@@ -17,8 +17,6 @@ use cosmwasm_std::{
     Decimal256,
 };
 use cw_utils::PaymentError;
-use rand::{rngs::StdRng, Rng, SeedableRng};
-
 use super::{test_constants::{DEFAULT_OWNER, DEFAULT_SENDER, BASE_DENOM, QUOTE_DENOM, LARGE_POSITIVE_TICK, LARGE_NEGATIVE_TICK}, test_utils::{
     format_test_name, generate_limit_orders, OrderOperation,
 }};

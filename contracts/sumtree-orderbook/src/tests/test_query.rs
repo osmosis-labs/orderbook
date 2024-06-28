@@ -1446,7 +1446,7 @@ fn test_orders_by_owner() {
             );
         });
         assert_eq!(
-            res,
+            res.orders,
             test.expected_output
                 .iter()
                 .map(|o| o.clone().with_placed_at(env.block.time))

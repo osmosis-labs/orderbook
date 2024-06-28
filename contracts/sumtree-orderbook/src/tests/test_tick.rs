@@ -446,7 +446,9 @@ fn test_sync_tick() {
     for test in test_cases {
         // --- Setup ---
 
+        // Create two dependency objects to allow tracking of a mutating state (closer to actual implementation)
         let mut deps = mock_dependencies();
+        let mut mutable_tick_deps = mock_dependencies();
 
         // Create and save default tick state
         let mut tick_state = TickState::default();
@@ -454,6 +456,13 @@ fn test_sync_tick() {
         tick_state.set_values(OrderDirection::Ask, test.initial_tick_ask_values);
         TICK_STATE
             .save(deps.as_mut().storage, default_tick_id, &tick_state)
+            .unwrap();
+        TICK_STATE
+            .save(
+                mutable_tick_deps.as_mut().storage,
+                default_tick_id,
+                &tick_state,
+            )
             .unwrap();
 
         // Insert specified nodes into tree
@@ -463,12 +472,41 @@ fn test_sync_tick() {
         ] {
             for node in unrealized_cancels.iter() {
                 insert_and_refetch(deps.as_mut().storage, default_tick_id, direction, node);
+                insert_and_refetch(
+                    mutable_tick_deps.as_mut().storage,
+                    default_tick_id,
+                    direction,
+                    node,
+                );
             }
         }
 
         // --- System under test ---
 
         for _ in 0..test.num_syncs {
+            // Sync both the mutable state and static state independently
+            let mut mutable_tick = TICK_STATE
+                .load(deps.as_mut().storage, default_tick_id)
+                .unwrap();
+            let (updated_bid_etas, updated_ask_etas) = increment_tick_etas(
+                deps.as_mut().storage,
+                default_tick_id,
+                &mut mutable_tick,
+                test.new_bid_etas_per_sync,
+                test.new_ask_etas_per_sync,
+            );
+            // Run sync
+            sync_tick(
+                mutable_tick_deps.as_mut().storage,
+                default_tick_id,
+                updated_bid_etas,
+                updated_ask_etas,
+            )
+            .unwrap();
+            let mutable_tick_post_sync = TICK_STATE
+                .load(mutable_tick_deps.as_ref().storage, default_tick_id)
+                .unwrap();
+
             // Increment tick ETAS for each step
             let (updated_bid_etas, updated_ask_etas) = increment_tick_etas(
                 deps.as_mut().storage,
@@ -486,6 +524,24 @@ fn test_sync_tick() {
                 updated_ask_etas,
             )
             .unwrap();
+            let tick_state_post_sync = TICK_STATE
+                .load(deps.as_ref().storage, default_tick_id)
+                .unwrap();
+
+            // As adding to the ETAS each iteration is effectively simulating a market order for the increment no matter if the state is mutating or not
+            // both states should end up with the same realized cancels
+            for direction in [OrderDirection::Ask, OrderDirection::Bid] {
+                let mutable_tick_value = mutable_tick_post_sync.get_values(direction);
+                let tick_state_value = tick_state_post_sync.get_values(direction);
+
+                assert_eq!(
+                    mutable_tick_value.cumulative_realized_cancels,
+                    tick_state_value.cumulative_realized_cancels,
+                    "{}: Cumulative realized cancels did not match for direction: {}",
+                    test.name,
+                    direction
+                );
+            }
         }
 
         // --- Assertions ---

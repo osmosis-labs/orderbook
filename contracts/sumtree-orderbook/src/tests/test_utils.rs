@@ -79,8 +79,7 @@ impl OrderOperation {
                     env.contract.address,
                     tick_id,
                     order_id,
-                )
-                .unwrap();
+                )?;
                 Ok(())
             }
             OrderOperation::Cancel((tick_id, order_id)) => {
@@ -88,7 +87,7 @@ impl OrderOperation {
                     .load(deps.as_ref().storage, &(tick_id, order_id))
                     .unwrap();
                 let info = mock_info(order.owner.as_str(), &[]);
-                cancel_limit(deps, env, info, tick_id, order_id).unwrap();
+                cancel_limit(deps, env, info, tick_id, order_id)?;
                 Ok(())
             }
         }

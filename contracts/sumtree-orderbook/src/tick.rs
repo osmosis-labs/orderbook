@@ -74,6 +74,7 @@ pub fn sync_tick(
             .effective_total_amount_swapped
             .checked_add(realized_since_last_sync)?;
         tick_value.cumulative_realized_cancels = new_cumulative_realized_cancels;
+        tick_value.last_tick_sync_etas = target_etas;
 
         // Defense in depth guardrail: ensure that tick sync does not push tick ETAS past CTT.
         ensure!(

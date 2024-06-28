@@ -1932,7 +1932,7 @@ fn test_ticks_by_id() {
                     cumulative_total_value: decimal256_from_u128(2u8),
                     effective_total_amount_swapped: decimal256_from_u128(2u8),
                     cumulative_realized_cancels: Decimal256::one(),
-                    last_tick_sync_etas: Decimal256::zero(),
+                    last_tick_sync_etas: Decimal256::one(),
                 },
                 bid_values: TickValues::default(),
             }],

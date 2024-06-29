@@ -557,6 +557,14 @@ pub(crate) fn run_market_order_internal(
             tick_price,
             RoundingDirection::Up,
         )?;
+
+        ensure!(
+            !input_filled.is_zero(),
+            ContractError::InvalidSwap {
+                error: "Input amount for a given swap step cannot be zero".to_string()
+            }
+        );
+
         order.quantity = order
             .quantity
             // Safe conversions as amount filled should never be larger than order quantity which is upper bounded by Uint128::MAX

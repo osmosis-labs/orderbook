@@ -88,6 +88,9 @@ pub enum ContractError {
     #[error("Invalid tick state: syncing tick pushed ETAS past CTT")]
     InvalidTickSync,
 
+    #[error("Invalid prefix sum: {error:?}")]
+    InvalidPrefixSum { error: Option<String> },
+
     #[error("Zero Claim: Nothing to be claimed yet")]
     ZeroClaim,
 

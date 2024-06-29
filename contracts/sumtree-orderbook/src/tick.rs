@@ -55,18 +55,26 @@ pub fn sync_tick(
 
         // Assuming `calculate_prefix_sum` is a function that calculates the prefix sum at the given ETAS.
         // This function needs to be implemented based on your sumtree structure and logic.
-        let new_cumulative_realized_cancels = get_prefix_sum(storage, tree, target_etas)?;
+        let new_cumulative_realized_cancels =
+            get_prefix_sum(storage, tree, target_etas, old_cumulative_realized_cancels)?;
 
         // Calculate the growth in realized cancels since previous sync.
         // This is equivalent to the amount we will need to add to the tick's ETAS.
-        let realized_since_last_sync =
-            new_cumulative_realized_cancels.checked_sub(old_cumulative_realized_cancels)?;
+        let realized_since_last_sync = new_cumulative_realized_cancels
+            .checked_sub(old_cumulative_realized_cancels)
+            .map_err(|_| ContractError::InvalidPrefixSum {
+                error: Some(format!(
+                    "New prefix sum less than previous, previous: {}, new: {}",
+                    old_cumulative_realized_cancels, new_cumulative_realized_cancels
+                )),
+            })?;
 
         // Update the tick state to represent new ETAS and new cumulative realized cancels.
         tick_value.effective_total_amount_swapped = tick_value
             .effective_total_amount_swapped
             .checked_add(realized_since_last_sync)?;
         tick_value.cumulative_realized_cancels = new_cumulative_realized_cancels;
+        tick_value.last_tick_sync_etas = target_etas;
 
         // Defense in depth guardrail: ensure that tick sync does not push tick ETAS past CTT.
         ensure!(

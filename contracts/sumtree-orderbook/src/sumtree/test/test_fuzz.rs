@@ -74,7 +74,13 @@ fn test_fuzz_insert() {
             assert_sumtree_invariants(deps.as_ref(), &tree, &test_name);
 
             // Assert prefix sum correctness
-            let prefix_sum = get_prefix_sum(deps.as_ref().storage, tree, target_etas).unwrap();
+            let prefix_sum = get_prefix_sum(
+                deps.as_ref().storage,
+                tree.clone(),
+                target_etas,
+                tree.get_value(),
+            )
+            .unwrap();
             assert_eq!(
                 expected_prefix_sum, prefix_sum,
                 "{test_name}: Expected prefix sum {expected_prefix_sum}, got {prefix_sum}. Target ETAS: {target_etas}",

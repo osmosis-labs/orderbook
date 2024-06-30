@@ -25,6 +25,30 @@ pub(crate) const LARGE_POSITIVE_TICK: i64 = 1000000;
 // Tick Price = 0.5
 pub(crate) const LARGE_NEGATIVE_TICK: i64 = -5000000;
 
+// Loops over a provided action for the provided duration
+// Tracks the number of operations and iterations
+// Duration is in seconds
+fn run_for_duration(
+    duration: u64,
+    count_per_iteration: u64,
+    action: impl FnOnce(u64) + std::marker::Copy,
+) {
+    let duration = Duration::from_secs(duration);
+    let now = SystemTime::now();
+    let end = now.checked_add(duration).unwrap();
+
+    let mut oper_count = 0;
+    let mut iterations = 0;
+    while SystemTime::now().le(&end) {
+        action(count_per_iteration);
+
+        oper_count += count_per_iteration;
+        iterations += 1;
+    }
+    println!("operations: {}", oper_count);
+    println!("iterations: {}", iterations);
+}
+
 #[test]
 fn test_order_fuzz_linear_large_orders_small_range() {
     run_fuzz_linear(2000, (-10, 10), 0.2);
@@ -68,26 +92,20 @@ fn test_order_fuzz_linear_single_tick() {
 
 #[test]
 fn test_order_fuzz_mixed() {
-    let duration = Duration::from_secs(60 * 1);
-    let now = SystemTime::now();
-    let end = now.checked_add(duration).unwrap();
-
     let oper_per_iteration = 1000;
-    let mut oper_count = 0;
-    let mut iterations = 0;
-    while SystemTime::now().le(&end) {
-        run_fuzz_mixed(oper_per_iteration, (-20, 20));
 
-        oper_count += oper_per_iteration;
-        iterations += 1;
-    }
-    println!("operations: {}", oper_count);
-    println!("iterations: {}", iterations);
+    run_for_duration(60, oper_per_iteration, |count| {
+        run_fuzz_mixed(count, (-20, 20));
+    });
 }
 
 #[test]
 fn test_order_fuzz_mixed_single_tick() {
-    run_fuzz_mixed(1000, (0, 0));
+    let oper_per_iteration = 1000;
+
+    run_for_duration(60, oper_per_iteration, |count| {
+        run_fuzz_mixed(count, (0, 0));
+    });
 }
 
 /// Runs a linear fuzz test with the following steps

@@ -534,6 +534,10 @@ pub(crate) fn run_market_order_internal(
             break;
         }
 
+        if current_tick_values.total_amount_of_liquidity.is_zero() {
+            continue;
+        }
+
         // Update current tick pointer as we visit ticks that contribute to filling the order
         match order.order_direction.opposite() {
             OrderDirection::Ask => orderbook.next_ask_tick = current_tick_id,

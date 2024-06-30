@@ -126,6 +126,8 @@ fn run_fuzz_linear(amount_limit_orders: u64, tick_range: (i64, i64), cancel_prob
 
     // -- System Under Test --
 
+    // -- Step 1: Place Limits --
+
     // Places the set amount of orders within the provided tick range
     // Orders will be cancelled with a chance equal to the provided cancel_probability
     // Tick state is verified after every order is placed (and cancelled)
@@ -142,6 +144,8 @@ fn run_fuzz_linear(amount_limit_orders: u64, tick_range: (i64, i64), cancel_prob
 
         assert::tick_invariants(&t);
     }
+
+    // -- Step 2: Place Market Orders --
 
     // For both directions fill the entire amount of liquidity available using market orders
     // For certain cases it is not possible to fill the entire liquidity so a remainder of 1 may occur
@@ -194,11 +198,12 @@ fn run_fuzz_linear(amount_limit_orders: u64, tick_range: (i64, i64), cancel_prob
         .unwrap();
     println!("Total remaining pool liquidity: {:?}", total_pool_liquidity);
 
+    // -- Step 3: Claim Orders --
+
     // Shuffle the order of recorded orders (as liquidity is fully filled (except the possibility of a 1 remainder))
     // every order should be claimable and the order should not matter
     orders.shuffle(&mut rng);
 
-    let mut remainder_orders = 0;
     for (username, tick_id, order_id) in orders.iter() {
         // If the order has a claim bounty we will use a separate sender to verify that the bounty is claimed correctly
         // Otherwise we will use the original sender to verify that the order is claimed correctly
@@ -230,19 +235,14 @@ fn run_fuzz_linear(amount_limit_orders: u64, tick_range: (i64, i64), cancel_prob
             order.order_id,
         );
         if let Some(order) = maybe_order {
-            println!("order: {:?}", order);
-            remainder_orders += 1;
+            orders::cancel_limit_and_assert_balance(&t, username, order.tick_id, order.order_id)
+                .unwrap();
         }
     }
 
     // -- Post Test Assertions --
-
-    // Assert orders were filled correctly
-    assert!(
-        remainder_orders <= 2,
-        "There should be at most 2 orders that have a remainder, received {}",
-        remainder_orders
-    );
+    assert::clean_ticks(&t);
+    assert::no_remaining_orders(&t);
 }
 
 #[derive(Debug, Eq, PartialEq, Hash)]
@@ -522,7 +522,10 @@ fn run_fuzz_mixed(amount_of_orders: u64, tick_bounds: (i64, i64)) {
     // -- Post test assertions --
 
     // Assert every operation ran at least once successfully
-    assert!(oper_count.values().all(|c| *c > 0));
+    assert!(
+        oper_count.values().all(|c| *c > 0),
+        "not all operations were used"
+    );
     assert::no_remaining_orders(&t);
     assert::clean_ticks(&t);
 }

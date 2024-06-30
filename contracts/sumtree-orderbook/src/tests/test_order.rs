@@ -655,21 +655,23 @@ fn test_run_market_order() {
             orders: generate_limit_orders(
                 &[-1500000],
                 // 1000 units of liquidity total
-                10,
+                12,
                 default_quantity,
                 OrderDirection::Ask,
             ),
             // Bidding 1000 units of input into tick -1500000, which corresponds to $0.85,
-            // implies 1000*0.85 = 850 units of output.
-            expected_output: Uint256::from_u128(850),
-            expected_tick_etas: vec![(-1500000, decimal256_from_u128(Uint128::new(850)))],
+            // implies 1000 / 0.85 = 1176 units of output. As a sanity check, a bid is a
+            // buy on the other asset, so we should expect >1000 output due to the price
+            // being below $1.
+            expected_output: Uint256::from_u128(1176),
+            expected_tick_etas: vec![(-1500000, decimal256_from_u128(Uint128::new(1176)))],
             expected_tick_pointers: vec![(OrderDirection::Ask, -1500000)],
             expected_error: None,
         },
         RunMarketOrderTestCase {
             name: "happy path bid at positive tick",
             placed_order: MarketOrder::new(
-                Uint128::new(1000),
+                Uint128::new(100_000),
                 OrderDirection::Bid,
                 Addr::unchecked(DEFAULT_SENDER),
             ),
@@ -680,15 +682,15 @@ fn test_run_market_order() {
                 // Two orders with sufficient total liquidity to process the
                 // full market order
                 2,
-                Uint128::new(25_000_000),
+                Uint128::new(1),
                 OrderDirection::Ask,
             ),
-            // Bidding 1000 units of input into tick 40,000,000, which corresponds to a
+            // Bidding 100,000 units of input into tick 40,000,000, which corresponds to a
             // price of $50000 (from tick math test cases).
             //
-            // This implies 1000*50000 = 50,000,000 units of output.
-            expected_output: Uint256::from_u128(50_000_000),
-            expected_tick_etas: vec![(40000000, decimal256_from_u128(Uint128::new(50_000_000)))],
+            // This implies 100,000 / 50,000 = 2 units of output.
+            expected_output: Uint256::from_u128(2),
+            expected_tick_etas: vec![(40000000, decimal256_from_u128(Uint128::new(2)))],
             expected_tick_pointers: vec![(OrderDirection::Ask, 40000000)],
             expected_error: None,
         },
@@ -706,23 +708,23 @@ fn test_run_market_order() {
                 // Four limit orders with sufficient total liquidity to process the
                 // full market order
                 4,
-                Uint128::new(3),
+                Uint128::new(20_250),
                 OrderDirection::Ask,
             ),
             // Bidding 1000 units of input into tick -17765433, which corresponds to a
             // price of $0.012345670000000000 (from tick math test cases).
             //
-            // This implies 1000*0.012345670000000000 = 12.34567 units of output,
+            // This implies 1000 / 0.012345670000000000 = 81,000 units of output,
             // truncated to 12 units.
-            expected_output: Uint256::from_u128(12),
-            expected_tick_etas: vec![(-17765433, decimal256_from_u128(Uint128::new(12)))],
+            expected_output: Uint256::from_u128(81_000),
+            expected_tick_etas: vec![(-17765433, decimal256_from_u128(Uint128::new(81_000)))],
             expected_tick_pointers: vec![(OrderDirection::Ask, -17765433)],
             expected_error: None,
         },
         RunMarketOrderTestCase {
             name: "bid across multiple ticks",
             placed_order: MarketOrder::new(
-                Uint128::new(589 + 1),
+                Uint128::new(510 + 3),
                 OrderDirection::Bid,
                 Addr::unchecked(DEFAULT_SENDER),
             ),
@@ -730,26 +732,26 @@ fn test_run_market_order() {
             // Orders to fill against
             orders: generate_limit_orders(
                 &[-1500000, 1500000],
-                // 500 units of liquidity on each tick
-                5,
+                // 600 units of liquidity on each tick
+                6,
                 default_quantity,
                 OrderDirection::Ask,
             ),
             // Bidding 1000 units of input into tick -1500000, which corresponds to $0.85,
-            // implies 1000*0.85 = 850 units of output, but there is only 500 on the tick.
+            // implies 1000 / 0.85 = 1176 units of output, but there is only 600 on the tick.
             //
-            // So 500 gets filled at -1500000, corresponding to ~589 of the input (500/0.85).
-            // The remaining 1 unit is filled at tick 1500000 (price $2.5), which
-            // corresponds to the remaining liquidity.
+            // So 600 gets filled at -1500000, corresponding to ~510 of the input (600 * 0.85).
+            // The remaining 3 units of input is filled at tick 1500000 (price $2.5), which
+            // corresponds to the remaining liquidity (3 / 2.5 = 1.2 -> truncated to 1).
             //
-            // Thus, the total expected output is 502.
+            // Thus, the total expected output is 600 + 1.
             //
             // Note: this case does not cover rounding for input consumption since it overfills
             // the tick.
-            expected_output: Uint256::from_u128(502),
+            expected_output: Uint256::from_u128(601),
             expected_tick_etas: vec![
-                (-1500000, decimal256_from_u128(Uint128::new(500))),
-                (1500000, decimal256_from_u128(Uint128::new(2))),
+                (-1500000, decimal256_from_u128(Uint128::new(600))),
+                (1500000, decimal256_from_u128(Uint128::new(1))),
             ],
             expected_tick_pointers: vec![(OrderDirection::Ask, 1500000)],
             expected_error: None,
@@ -757,7 +759,7 @@ fn test_run_market_order() {
         RunMarketOrderTestCase {
             name: "happy path ask at positive tick",
             placed_order: MarketOrder::new(
-                Uint128::new(100000),
+                Uint128::new(100),
                 OrderDirection::Ask,
                 Addr::unchecked(DEFAULT_SENDER),
             ),
@@ -767,16 +769,16 @@ fn test_run_market_order() {
                 &[40000000],
                 // Two orders with sufficient total liquidity to process the
                 // full market order
-                2,
-                Uint128::new(1),
+                5,
+                Uint128::new(1_000_000),
                 OrderDirection::Bid,
             ),
-            // Asking 100,000 units of input into tick 40,000,000, which corresponds to a
-            // price of $1/50000 (from tick math test cases).
+            // Asking 100 units of input into tick 40,000,000, which corresponds to a
+            // price of $50,000 (from tick math test cases).
             //
-            // This implies 100,000/50000 = 2 units of output.
-            expected_output: Uint256::from_u128(2),
-            expected_tick_etas: vec![(40000000, decimal256_from_u128(Uint128::new(2)))],
+            // This implies 100 * 50,000 = 5,000,000 units of output.
+            expected_output: Uint256::from_u128(5_000_000),
+            expected_tick_etas: vec![(40000000, decimal256_from_u128(Uint128::new(5_000_000)))],
             expected_tick_pointers: vec![(OrderDirection::Bid, 40000000)],
             expected_error: None,
         },
@@ -794,16 +796,16 @@ fn test_run_market_order() {
                 // Two orders with sufficient total liquidity to process the
                 // full market order
                 2,
-                Uint128::new(50_000),
+                Uint128::new(10),
                 OrderDirection::Bid,
             ),
             // The order asks with 1000 units of input into tick -17765433, which corresponds
             // to a price of $0.012345670000000000 (from tick math test cases).
             //
-            // This implies 1000 / 0.012345670000000000 = 81,000.059 units of output,
-            // which gets truncated to 81,000 units.
-            expected_output: Uint256::from_u128(81_000),
-            expected_tick_etas: vec![(-17765433, decimal256_from_u128(Uint128::new(81_000)))],
+            // This implies 1000 * 0.012345670000000000 = 12.34567 units of output,
+            // which gets truncated to 12 units.
+            expected_output: Uint256::from_u128(12),
+            expected_tick_etas: vec![(-17765433, decimal256_from_u128(Uint128::new(12)))],
             expected_tick_pointers: vec![(OrderDirection::Bid, -17765433)],
             expected_error: None,
         },

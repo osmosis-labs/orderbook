@@ -146,7 +146,7 @@ pub fn amount_to_value(
         return Ok(Uint256::zero());
     }
     match order {
-        OrderDirection::Bid => multiply_by_price(amount, price, rounding_direction),
-        OrderDirection::Ask => divide_by_price(amount, price, rounding_direction),
+        OrderDirection::Bid => divide_by_price(amount, price, rounding_direction),
+        OrderDirection::Ask => multiply_by_price(amount, price, rounding_direction),
     }
 }

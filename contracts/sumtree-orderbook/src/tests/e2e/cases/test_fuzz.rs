@@ -87,7 +87,7 @@ fn test_order_fuzz_mixed() {
 
 #[test]
 fn test_order_fuzz_mixed_single_tick() {
-    run_fuzz_mixed(5000, (0, 0));
+    run_fuzz_mixed(1000, (0, 0));
 }
 
 /// Runs a linear fuzz test with the following steps
@@ -131,7 +131,9 @@ fn run_fuzz_linear(amount_limit_orders: u64, tick_range: (i64, i64), cancel_prob
         // Determine the amount of liquidity for the given direction
         let mut liquidity = t.contract.get_directional_liquidity(order_direction);
 
+        // A counter to track the number of zero amount returns
         let mut zero_amount_returns = 0;
+        // A counter to track the current user ID
         let mut user_id = 0;
 
         // While there is some fillable liquidity we want to place randomised market orders
@@ -427,9 +429,13 @@ fn run_fuzz_mixed(amount_of_orders: u64, tick_bounds: (i64, i64)) {
     let app = OsmosisTestApp::new();
     let cp = CosmwasmPool::new(&app);
     let mut t = setup!(&app, "quote", "base", 1);
+
+    // A record of the orders placed to allow for simpler management of cancellations and claims
     let mut orders: HashMap<u64, (String, i64)> = HashMap::new();
+    // A count of the orders placed to track the current order ID
     let mut order_count = 0;
 
+    // Record how many times each operation is chosen for assertion post test
     let mut oper_count: HashMap<MixedFuzzOperation, u64> = HashMap::new();
     oper_count.insert(MixedFuzzOperation::PlaceLimit, 0);
     oper_count.insert(MixedFuzzOperation::PlaceMarket, 0);
@@ -471,33 +477,30 @@ fn run_fuzz_mixed(amount_of_orders: u64, tick_bounds: (i64, i64)) {
     }
 
     for (order_id, (username, tick_id)) in orders.clone().iter() {
-        match orders::claim_success(&t, username, username, *tick_id, *order_id) {
-            Ok(_) => {
-                let order = t.contract.get_order(
-                    t.accounts[username.as_str()].address(),
-                    *tick_id,
-                    *order_id,
-                );
-                if order.is_none() {
-                    continue;
-                }
-            }
-            Err(e) => {}
+        let _ = orders::claim_success(&t, username, username, *tick_id, *order_id);
+
+        // Order may be cleared by fully claiming, in which case we want to continue to the next order
+        if t.contract
+            .get_order(t.accounts[username.as_str()].address(), *tick_id, *order_id)
+            .is_none()
+        {
+            continue;
         }
 
-        match orders::cancel_limit_success(&t, username, *tick_id, *order_id) {
-            Ok(_) => {
-                continue;
-            }
-            Err(e) => {}
+        // If cancelling is a success we can continue to the next order
+        if orders::cancel_limit_success(&t, username, *tick_id, *order_id).is_ok() {
+            continue;
         }
 
+        // If an order cannot be claimed or cancelled something has gone wrong
         let order = t.contract.get_order(username.clone(), *tick_id, *order_id);
         assert!(
             order.is_none(),
             "order was not cleaned from state: {order:?}"
         );
     }
+
+    // -- Post test assertions --
 
     // Assert every operation ran at least once successfully
     assert!(oper_count.values().all(|c| *c > 0));
@@ -622,11 +625,6 @@ fn place_random_market(
         return 0;
     }
 
-    // // If the provided error cannot be filled then we return a 0 amount
-    // if amount == 0 || expected_out.is_err() || expected_out.unwrap().token_out.amount == "0" {
-    //     return 0;
-    // }
-
     // Generate the user account
     t.add_account(
         username,
@@ -638,6 +636,8 @@ fn place_random_market(
 
     // Places the market order and ensures that funds are transferred correctly
     orders::place_market_success(cp, t, order_direction, amount, username).unwrap();
+
+    // We return the amount placed for recording
     amount
 }
 

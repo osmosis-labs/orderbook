@@ -373,13 +373,12 @@ impl<'a> OrderbookContract<'a> {
         let OrdersResponse { orders, .. } = self
             .query(&QueryMsg::OrdersByOwner {
                 owner: Addr::unchecked(sender),
-                start_from: None,
+                start_from: Some((tick_id, order_id)),
                 end_at: None,
-                limit: None,
+                limit: Some(1),
             })
             .unwrap();
-        let order = orders.iter().find(|o| o.order_id == order_id).cloned();
-        order
+        orders.first().cloned()
     }
 }
 

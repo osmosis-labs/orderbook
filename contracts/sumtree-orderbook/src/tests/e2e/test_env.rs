@@ -1,4 +1,4 @@
-use std::{collections::HashMap, path::PathBuf};
+use std::{collections::HashMap, path::PathBuf, str::FromStr};
 
 use crate::{
     constants::{MAX_TICK, MIN_TICK},
@@ -7,6 +7,8 @@ use crate::{
         GetUnrealizedCancelsResponse, InstantiateMsg, OrdersResponse, QueryMsg, SudoMsg,
         TickIdAndState, TickUnrealizedCancels, TicksResponse,
     },
+    tests::test_utils::decimal256_from_u128,
+    tick_math::{amount_to_value, tick_to_price, RoundingDirection},
     types::{LimitOrder, OrderDirection},
     ContractError,
 };
@@ -379,6 +381,39 @@ impl<'a> OrderbookContract<'a> {
             })
             .unwrap();
         orders.first().cloned()
+    }
+
+    pub fn get_max_market_amount(&self, direction: OrderDirection) -> u128 {
+        let mut max_amount: u128 = 0;
+        let ticks = self.collect_all_ticks();
+        for tick in ticks {
+            let value = tick.tick_state.get_values(direction.opposite());
+            if value.total_amount_of_liquidity.is_zero() {
+                continue;
+            }
+
+            let price = tick_to_price(tick.tick_id).unwrap();
+            let amount_of_liquidity = Uint128::from_str(
+                &(value
+                    .total_amount_of_liquidity
+                    .min(decimal256_from_u128(u128::MAX)))
+                .to_string(),
+            )
+            .unwrap();
+            let amount_u256 = amount_to_value(
+                direction.opposite(),
+                amount_of_liquidity,
+                price,
+                RoundingDirection::Up,
+            )
+            .unwrap();
+            let amount =
+                Uint128::from_str(&(amount_u256.min(Uint256::from_u128(u128::MAX))).to_string())
+                    .unwrap();
+
+            max_amount += amount.u128();
+        }
+        max_amount
     }
 }
 

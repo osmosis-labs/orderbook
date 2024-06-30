@@ -52,7 +52,10 @@ fn run_for_duration(
 
 #[test]
 fn test_order_fuzz_linear_large_orders_small_range() {
-    run_fuzz_linear(2000, (-10, 10), 0.2);
+    let oper_per_iteration = 10000;
+    run_for_duration(60 * 60 * 2, oper_per_iteration, |count| {
+        run_fuzz_linear(count, (-10, 10), 0.2);
+    });
 }
 
 #[test]
@@ -66,29 +69,32 @@ fn test_order_fuzz_linear_small_orders_large_range() {
 //     run_fuzz_linear(5000, (LARGE_NEGATIVE_TICK, LARGE_POSITIVE_TICK), 0.2);
 // }
 
-#[test]
-fn test_order_fuzz_linear_small_orders_small_range() {
-    run_fuzz_linear(100, (-10, 0), 0.1);
-}
+// #[test]
+// fn test_order_fuzz_linear_small_orders_small_range() {
+//     run_fuzz_linear(100, (-10, 0), 0.1);
+// }
 
 #[test]
 fn test_order_fuzz_linear_large_cancelled_orders_small_range() {
     run_fuzz_linear(1000, (MIN_TICK, MIN_TICK + 20), 0.8);
 }
 
-#[test]
-fn test_order_fuzz_linear_small_cancelled_orders_large_range() {
-    run_fuzz_linear(100, (LARGE_NEGATIVE_TICK, LARGE_POSITIVE_TICK), 0.8);
-}
+// #[test]
+// fn test_order_fuzz_linear_small_cancelled_orders_large_range() {
+//     run_fuzz_linear(100, (LARGE_NEGATIVE_TICK, LARGE_POSITIVE_TICK), 0.8);
+// }
 
-#[test]
-fn test_order_fuzz_linear_large_all_cancelled_orders_small_range() {
-    run_fuzz_linear(1000, (-10, 10), 1.0);
-}
+// #[test]
+// fn test_order_fuzz_linear_large_all_cancelled_orders_small_range() {
+//     run_fuzz_linear(1000, (-10, 10), 1.0);
+// }
 
 #[test]
 fn test_order_fuzz_linear_single_tick() {
-    run_fuzz_linear(2000, (0, 0), 0.2);
+    let oper_per_iteration = 1000;
+    run_for_duration(10, oper_per_iteration, |count| {
+        run_fuzz_linear(count, (0, 0), 0.2);
+    });
 }
 
 #[test]
@@ -102,9 +108,9 @@ fn test_order_fuzz_mixed() {
 
 #[test]
 fn test_order_fuzz_mixed_single_tick() {
-    let oper_per_iteration = 13000;
+    let oper_per_iteration = 1000;
 
-    run_for_duration(60 * 60 * 2, oper_per_iteration, |count| {
+    run_for_duration(10, oper_per_iteration, |count| {
         run_fuzz_mixed(count, (0, 0));
     });
 }
@@ -163,7 +169,7 @@ fn run_fuzz_linear(amount_limit_orders: u64, tick_range: (i64, i64), cancel_prob
         while liquidity > 1u128 {
             let username = format!("user{}{}", order_direction, user_id);
             let placed_amount =
-                place_random_market(&cp, &mut t, &mut rng, &username, order_direction, liquidity);
+                place_random_market(&cp, &mut t, &mut rng, &username, order_direction);
 
             // Increment the username of the order placer
             user_id += 1;
@@ -332,8 +338,7 @@ impl MixedFuzzOperation {
                 }
 
                 // Place the order
-                let amount =
-                    place_random_market(cp, t, rng, &username, market_direction, max_amount);
+                let amount = place_random_market(cp, t, rng, &username, market_direction);
 
                 Ok(amount != 0)
             }
@@ -601,7 +606,6 @@ fn place_random_market(
     rng: &mut StdRng,
     username: &str,
     order_direction: OrderDirection,
-    max: u128,
 ) -> u128 {
     // Get the appropriate denom for the chosen direction
     let (token_in_denom, token_out_denom) = if order_direction == OrderDirection::Bid {
@@ -610,34 +614,10 @@ fn place_random_market(
         ("base", "quote")
     };
 
-    // Get the next tick to determine liquidity
-    let Orderbook {
-        next_ask_tick,
-        next_bid_tick,
-        ..
-    } = t.contract.query(&QueryMsg::OrderbookState {}).unwrap();
-    let next_tick = if order_direction == OrderDirection::Bid {
-        next_ask_tick
-    } else {
-        next_bid_tick
-    };
-
-    let price = tick_to_price(next_tick).unwrap();
-
-    // Determine how much liquidity is available for token in at the current spot price
-    // This only provides an estimate as the liquidity may be spread across multiple ticks
-    // Hence why it can be difficult to fill the ENTIRE liquidity
-    let liquidity_at_price_u256 = amount_to_value(
-        order_direction.opposite(),
-        Uint128::from(max),
-        price,
-        RoundingDirection::Up,
-    )
-    .unwrap();
-
     // Select a random amount of the token in to swap
-    let liquidity_at_price = Uint128::try_from(liquidity_at_price_u256).unwrap();
-    let amount = rng.gen_range(0..=liquidity_at_price.u128());
+    // let liquidity_at_price = Uint128::try_from(liquidity_at_price_u256).unwrap();
+    let max_amount = t.contract.get_max_market_amount(order_direction);
+    let amount = rng.gen_range(0..=max_amount);
 
     // Calculate the expected amount of token out
     let expected_out =

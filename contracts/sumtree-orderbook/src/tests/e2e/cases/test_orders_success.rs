@@ -111,7 +111,7 @@ fn test_basic_order() {
         assert::spot_price(&t, expected_bid_tick, expected_ask_tick, case.name);
 
         // Fill limit order
-        orders::place_market_success(
+        orders::place_market_and_assert_balance(
             &cp,
             &t,
             case.order_direction.opposite(),
@@ -142,7 +142,7 @@ fn test_basic_order() {
         assert::spot_price(&t, expected_bid_tick, expected_ask_tick, case.name);
 
         // Claim limit
-        orders::claim_success(&t, case.claimer, "user1", 0, 0).unwrap();
+        orders::claim_and_assert_balance(&t, case.claimer, "user1", 0, 0).unwrap();
         match case.order_direction {
             OrderDirection::Ask => {
                 assert::pool_liquidity(&t, case.placed_amount - case.filled_amount, 0u8, case.name);
@@ -174,7 +174,7 @@ fn test_cancelled_orders() {
             "user1",
         )
         .unwrap();
-        orders::cancel_limit_success(&t, "user1", 0, i).unwrap();
+        orders::cancel_limit_and_assert_balance(&t, "user1", 0, i).unwrap();
     }
     assert::pool_liquidity(&t, 0u8, 0u8, "cancelled orders");
     assert::pool_balance(&t, 0u8, 0u8, "cancelled orders");
@@ -193,7 +193,7 @@ fn test_cancelled_orders() {
     assert::pool_balance(&t, 100u8, 0u8, "cancelled orders");
     assert::tick_invariants(&t);
 
-    orders::place_market_success(
+    orders::place_market_and_assert_balance(
         &cp,
         &t,
         OrderDirection::Bid,

@@ -1,3 +1,4 @@
+/// Sets up the testing environment for the orderbook
 #[macro_export]
 macro_rules! setup {
     ($($app:expr, $quote_denom:expr, $base_denom:expr, $maker_fee:expr),* ) => {{
@@ -64,6 +65,7 @@ macro_rules! setup {
 
         assert!(is_active);
 
+        // NOTE: wasm_sudo does not currently maintain state so these calls will not work
         // t.contract.set_admin($app, cosmwasm_std::Addr::unchecked(&t.accounts["contract_admin"].address()));
         // t.contract
         //     .set_maker_fee(&t.accounts["contract_admin"], Decimal256::percent($maker_fee), &t.accounts["maker_fee_recipient"]);
@@ -72,6 +74,8 @@ macro_rules! setup {
     }};
 }
 
+// -- Assertions --
+// Assertions about current state
 pub mod assert {
     use crate::{
         msg::{
@@ -85,6 +89,9 @@ pub mod assert {
     use cosmwasm_std::{Coin, Coins};
     use osmosis_test_tube::{cosmrs::proto::prost::Message, RunnerExecuteResult};
 
+    // -- Contract State Assertions
+
+    /// Asserts that the orderbook's current liquidity matches what is provided
     pub fn pool_liquidity(
         t: &TestEnv,
         base_liquidity: impl Into<u128>,
@@ -112,6 +119,7 @@ pub mod assert {
         );
     }
 
+    /// Asserts that the contract's balance matches what is provided
     pub fn pool_balance(
         t: &TestEnv,
         base_liquidity: impl Into<u128>,
@@ -136,6 +144,7 @@ pub mod assert {
         );
     }
 
+    /// Asserts that the orderbook spot price matches what is provided
     pub fn spot_price(t: &TestEnv, bid_tick: i64, ask_tick: i64, label: &str) {
         let bid_price = tick_to_price(bid_tick).unwrap();
         let ask_price = tick_to_price(ask_tick).unwrap();
@@ -166,12 +175,16 @@ pub mod assert {
         }
     }
 
+    /// Asserts that the contract balance is greater than or equal to what is recorded in the orderbook directional liquidity state
+    /// If this assertion is ever false then the orderbook is "out of balance" and cannot provide liquidity for future orders
     pub fn has_liquidity(t: &TestEnv) {
         let bid_liquidity = t.contract.get_directional_liquidity(OrderDirection::Bid);
         let ask_liquidity = t.contract.get_directional_liquidity(OrderDirection::Ask);
+
         let balance = Coins::try_from(t.get_balance(&t.contract.contract_addr)).unwrap();
         let bid_balance = balance.amount_of(&t.contract.get_denoms().base_denom);
         let ask_balance = balance.amount_of(&t.contract.get_denoms().quote_denom);
+
         assert!(
             bid_liquidity <= bid_balance.u128(),
             "invalid bid liquidity, expected: {}, got: {}",
@@ -186,65 +199,12 @@ pub mod assert {
         );
     }
 
-    pub fn balance_changes<T: Message + Default>(
-        t: &TestEnv,
-        changes: &[(&str, Vec<Coin>)],
-        action: impl FnOnce() -> RunnerExecuteResult<T>,
-    ) -> RunnerExecuteResult<T> {
-        let pre_balances: Vec<(String, Coins)> = changes
-            .iter()
-            .map(|(sender, _)| {
-                (
-                    sender.to_string(),
-                    Coins::try_from(t.get_balance(sender)).unwrap(),
-                )
-            })
-            .collect();
-        let result = action();
-
-        match result {
-            Ok(res) => {
-                let post_balances: Vec<(String, Coins)> = changes
-                    .iter()
-                    .map(|(sender, _)| {
-                        (
-                            sender.to_string(),
-                            Coins::try_from(t.get_balance(sender)).unwrap(),
-                        )
-                    })
-                    .collect();
-
-                for (sender, balance_change) in changes.iter().cloned() {
-                    let pre_balance = pre_balances
-                        .iter()
-                        .find(|(s, _)| s == sender)
-                        .unwrap()
-                        .1
-                        .clone();
-                    let post_balance = post_balances
-                        .iter()
-                        .find(|(s, _)| s == sender)
-                        .unwrap()
-                        .1
-                        .clone();
-                    for coin in balance_change {
-                        let pre_amount = pre_balance.amount_of(&coin.denom);
-                        let post_amount = post_balance.amount_of(&coin.denom);
-                        let change = post_amount.saturating_sub(pre_amount);
-                        assert_eq!(
-                            change, coin.amount,
-                            "Did not receive expected amount change, expected: {}{}, got: {}{}",
-                            coin.amount, coin.denom, change, coin.denom
-                        );
-                    }
-                }
-
-                Ok(res)
-            }
-            Err(e) => Err(e),
-        }
-    }
-
+    /// Assertions about tick state
+    /// 1. All ticks have a cumulative value that is greater than or equal to the effective total amount swapped
+    /// 2. The next ask tick is less than or equal to the minimum tick with an ask amount
+    /// 3. The next bid tick is greater than or equal to the maximum tick with a bid amount
+    ///
+    /// This assertion can be run mid test as it must always be true
     pub fn tick_invariants(t: &TestEnv) {
         let ticks = t.contract.collect_all_ticks();
 
@@ -287,11 +247,15 @@ pub mod assert {
         }
     }
 
+    /// Asserts that there are no remaining orders in the orderbook
     pub fn no_remaining_orders(t: &TestEnv) {
         let all_orders = t.contract.collect_all_orders();
         assert_eq!(all_orders.len(), 0);
     }
 
+    /// Asserts that all ticks are fully synced
+    ///
+    /// **Should be run AFTER a fuzz test**
     pub fn clean_ticks(t: &TestEnv) {
         let all_ticks = t.contract.collect_all_ticks();
         for tick in all_ticks {
@@ -323,6 +287,10 @@ pub mod assert {
                     }
                 };
 
+                // As a tick may not be fully synced due to the last order being a cancellation rather than a claim
+                // we check that if the tick was fully synced then ETAS == CTT must be true
+                // In the case that the tick was already synced then unrealized cancels is 0 and we are doing a direct
+                // ETAS == CTT comparison
                 assert_eq!(
                     values
                         .effective_total_amount_swapped
@@ -333,8 +301,73 @@ pub mod assert {
             }
         }
     }
+
+    // -- Balance Assertions --
+
+    /// An assertion that records balances before an action and compares the balances after the provided action
+    /// Comparisons are only done for the vector of addresses provided in the second parameter
+    pub fn balance_changes<T: Message + Default>(
+        t: &TestEnv,
+        changes: &[(&str, Vec<Coin>)],
+        action: impl FnOnce() -> RunnerExecuteResult<T>,
+    ) -> RunnerExecuteResult<T> {
+        // Record balances before the action
+        let pre_balances: Vec<(String, Coins)> = changes
+            .iter()
+            .map(|(sender, _)| {
+                (
+                    sender.to_string(),
+                    Coins::try_from(t.get_balance(sender)).unwrap(),
+                )
+            })
+            .collect();
+
+        // Run the action
+        let result = action()?;
+
+        // Check balances after running the action
+        let post_balances: Vec<(String, Coins)> = changes
+            .iter()
+            .map(|(sender, _)| {
+                (
+                    sender.to_string(),
+                    Coins::try_from(t.get_balance(sender)).unwrap(),
+                )
+            })
+            .collect();
+
+        // Check all expected balance changes
+        for (sender, balance_change) in changes.iter().cloned() {
+            let pre_balance = pre_balances
+                .iter()
+                .find(|(s, _)| s == sender)
+                .unwrap()
+                .1
+                .clone();
+            let post_balance = post_balances
+                .iter()
+                .find(|(s, _)| s == sender)
+                .unwrap()
+                .1
+                .clone();
+
+            for coin in balance_change {
+                let pre_amount = pre_balance.amount_of(&coin.denom);
+                let post_amount = post_balance.amount_of(&coin.denom);
+                let change = post_amount.saturating_sub(pre_amount);
+                assert_eq!(
+                    change, coin.amount,
+                    "Did not receive expected amount change, expected: {}{}, got: {}{}",
+                    coin.amount, coin.denom, change, coin.denom
+                );
+            }
+        }
+
+        Ok(result)
+    }
 }
 
+/// Utili functions for interacting with the orderbook
 pub mod orders {
     use std::str::FromStr;
 
@@ -346,7 +379,7 @@ pub mod orders {
             MsgSwapExactAmountIn, MsgSwapExactAmountInResponse, SwapAmountInRoute,
         },
     };
-    use osmosis_test_tube::{Account, OsmosisTestApp, RunnerError, RunnerExecuteResult};
+    use osmosis_test_tube::{Account, OsmosisTestApp, RunnerExecuteResult};
 
     use crate::{
         msg::{CalcOutAmtGivenInResponse, DenomsResponse, ExecuteMsg, QueryMsg},
@@ -429,7 +462,10 @@ pub mod orders {
         )
     }
 
-    pub fn place_market_success(
+    /// Places a market order and asserts that the sender's balance changes correctly
+    ///
+    /// Note: this check has some circularity to it as the expected out depends on the `CalcOutAmtGivenInResponse`
+    pub fn place_market_and_assert_balance(
         cp: &CosmwasmPool<OsmosisTestApp>,
         t: &TestEnv,
         order_direction: OrderDirection,
@@ -464,6 +500,7 @@ pub mod orders {
 
         assert::balance_changes(
             t,
+            // Users receives expected amount out in token out denom
             &[(
                 &t.accounts[sender].address(),
                 vec![Coin::new(
@@ -490,7 +527,10 @@ pub mod orders {
         )
     }
 
-    pub fn claim_success(
+    /// Claims a given order using the provided sender account name
+    ///
+    /// Asserts that the sender and order owner's balances change correctly
+    pub fn claim_and_assert_balance(
         t: &TestEnv,
         sender: &str,
         owner: &str,
@@ -501,13 +541,11 @@ pub mod orders {
             .contract
             .get_order(t.accounts[owner].address(), tick_id, order_id)
             .unwrap();
+
+        // Get how much is expected out given the current tick state (accounts for unrealized cancels)
         let expected_amount = t.contract.get_order_claimable_amount(order.clone());
 
-        if expected_amount == 0 {
-            return Err(RunnerError::GenericError(
-                "Cannot claim order: nothing to claim".to_string(),
-            ));
-        }
+        // Convert the expected amount to the price of the order
         let price = tick_to_price(order.tick_id).unwrap();
         let mut expected_received_u256 = amount_to_value(
             order.order_direction,
@@ -516,14 +554,10 @@ pub mod orders {
             RoundingDirection::Down,
         )
         .unwrap();
+        // Create immutable expected received for calculating claim and maker fees
         let immut_expected_received_u256 = expected_received_u256;
 
-        if immut_expected_received_u256.is_zero() {
-            return Err(RunnerError::GenericError(
-                "Cannot claim order: nothing to claim".to_string(),
-            ));
-        }
-
+        // Calculate the bounty amount if there is one
         let mut bounty_amount_256 = Uint256::zero();
         if let Some(bounty) = order.claim_bounty {
             if order.owner != t.accounts[sender].address() {
@@ -532,12 +566,15 @@ pub mod orders {
                         .checked_mul(bounty)
                         .unwrap()
                         .to_uint_floor();
+                // Subtract the bounty from the expected received
                 expected_received_u256 = expected_received_u256
                     .checked_sub(bounty_amount_256)
                     .unwrap();
             }
         }
 
+        // Calculate the maker fee
+        // May be zero
         let maker_fee = t.contract.get_maker_fee();
         let maker_fee_amount_u256 =
             Decimal256::from_ratio(immut_expected_received_u256, Uint256::one())
@@ -546,6 +583,7 @@ pub mod orders {
                 .to_uint_floor();
         let maker_fee_amount = Uint128::try_from(maker_fee_amount_u256).unwrap();
 
+        // Subtract the maker fee from the expected received
         expected_received_u256 = expected_received_u256
             .checked_sub(maker_fee_amount_u256)
             .unwrap();
@@ -566,20 +604,24 @@ pub mod orders {
         assert::balance_changes(
             t,
             [
+                // Assert owner receives amount - maker fee - claim bounty
                 (
                     order.owner.as_str(),
                     vec![Coin::new(expected_received.u128(), expected_denom.clone())],
                 ),
+                // Assert sender receives bounty (will be 0 if the sender is the owner)
                 (
                     &t.accounts[sender].address(),
                     vec![Coin::new(bounty_amount.u128(), expected_denom.clone())],
                 ),
+                // Assert maker fee recipient receives maker fee
                 (
                     &t.accounts["maker_fee_recipient"].address(),
                     vec![Coin::new(maker_fee_amount.u128(), expected_denom)],
                 ),
             ]
             .iter()
+            // Remove any 0 checks
             .filter(|x| x.1.iter().all(|y| !y.amount.is_zero()))
             .cloned()
             .collect::<Vec<(&str, Vec<Coin>)>>()
@@ -601,22 +643,18 @@ pub mod orders {
         )
     }
 
-    pub fn cancel_limit_success(
+    /// Cancels a limit order and asserts that the owner receives back the remaining order quantity (may be partially filled)
+    pub fn cancel_limit_and_assert_balance(
         t: &TestEnv,
         sender: &str,
         tick_id: i64,
         order_id: u64,
     ) -> RunnerExecuteResult<MsgExecuteContractResponse> {
-        let order: LimitOrder = t
+        let order = t
             .contract
             .get_order(t.accounts[sender].address(), tick_id, order_id)
             .unwrap();
-        let claimable = t.contract.get_order_claimable_amount(order.clone());
-        if claimable > 0 {
-            return Err(RunnerError::GenericError(
-                "Cannot cancel order: Order is partially filled".to_string(),
-            ));
-        }
+
         let order_direction = order.order_direction;
         let quantity = order.quantity;
         let DenomsResponse {
@@ -631,6 +669,7 @@ pub mod orders {
 
         assert::balance_changes(
             t,
+            // Assert owner receives back the remaining order quantity
             &[(
                 &t.accounts[sender].address(),
                 vec![Coin::new(quantity.u128(), token_in_denom)],

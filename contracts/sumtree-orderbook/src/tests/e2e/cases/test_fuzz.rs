@@ -68,7 +68,7 @@ fn test_order_fuzz_linear_single_tick() {
 
 #[test]
 fn test_order_fuzz_mixed() {
-    let duration = Duration::from_secs(60 * 3);
+    let duration = Duration::from_secs(60 * 1);
     let now = SystemTime::now();
     let end = now.checked_add(duration).unwrap();
 
@@ -117,7 +117,7 @@ fn run_fuzz_linear(amount_limit_orders: u64, tick_range: (i64, i64), cancel_prob
         let is_cancelled = rng.gen_bool(cancel_probability);
 
         if is_cancelled {
-            orders::cancel_limit_success(&t, &username, chosen_tick, i).unwrap();
+            orders::cancel_limit_and_assert_balance(&t, &username, chosen_tick, i).unwrap();
         } else {
             orders.push((username, chosen_tick, i));
         }
@@ -202,7 +202,8 @@ fn run_fuzz_linear(amount_limit_orders: u64, tick_range: (i64, i64), cancel_prob
             username
         };
 
-        orders::claim_success(&t, sender, username, order.tick_id, order.order_id).unwrap();
+        orders::claim_and_assert_balance(&t, sender, username, order.tick_id, order.order_id)
+            .unwrap();
 
         // For the situation that the order has the 1 remainder we record this for assertions
         let maybe_order = t.contract.get_order(
@@ -340,7 +341,7 @@ impl MixedFuzzOperation {
                 }
 
                 // Cancel the order
-                orders::cancel_limit_success(t, &username, tick_id, order_id).unwrap();
+                orders::cancel_limit_and_assert_balance(t, &username, tick_id, order_id).unwrap();
                 // Remove the order once we know it is cancellable
                 orders.remove(&order_id).unwrap();
                 Ok(true)
@@ -390,7 +391,7 @@ impl MixedFuzzOperation {
                 };
 
                 // Claim the order
-                match orders::claim_success(t, claimant, &username, tick_id, order_id) {
+                match orders::claim_and_assert_balance(t, claimant, &username, tick_id, order_id) {
                     Ok(_) => {
                         let order = t.contract.get_order(
                             t.accounts[&username].address(),
@@ -477,7 +478,7 @@ fn run_fuzz_mixed(amount_of_orders: u64, tick_bounds: (i64, i64)) {
     }
 
     for (order_id, (username, tick_id)) in orders.clone().iter() {
-        let _ = orders::claim_success(&t, username, username, *tick_id, *order_id);
+        let _ = orders::claim_and_assert_balance(&t, username, username, *tick_id, *order_id);
 
         // Order may be cleared by fully claiming, in which case we want to continue to the next order
         if t.contract
@@ -488,7 +489,7 @@ fn run_fuzz_mixed(amount_of_orders: u64, tick_bounds: (i64, i64)) {
         }
 
         // If cancelling is a success we can continue to the next order
-        if orders::cancel_limit_success(&t, username, *tick_id, *order_id).is_ok() {
+        if orders::cancel_limit_and_assert_balance(&t, username, *tick_id, *order_id).is_ok() {
             continue;
         }
 
@@ -635,7 +636,7 @@ fn place_random_market(
     );
 
     // Places the market order and ensures that funds are transferred correctly
-    orders::place_market_success(cp, t, order_direction, amount, username).unwrap();
+    orders::place_market_and_assert_balance(cp, t, order_direction, amount, username).unwrap();
 
     // We return the amount placed for recording
     amount

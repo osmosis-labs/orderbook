@@ -10,9 +10,10 @@ use rand::{rngs::StdRng, SeedableRng};
 
 use super::utils::{assert, orders};
 use crate::constants::MIN_TICK;
-use crate::msg::{CalcOutAmtGivenInResponse, QueryMsg, SpotPriceResponse};
+use crate::msg::{CalcOutAmtGivenInResponse, QueryMsg};
 use crate::tests::e2e::modules::cosmwasm_pool::CosmwasmPool;
 use crate::tick_math::{amount_to_value, tick_to_price, RoundingDirection};
+use crate::types::Orderbook;
 use crate::{
     msg::{DenomsResponse, GetTotalPoolLiquidityResponse},
     setup,
@@ -94,16 +95,16 @@ fn test_order_fuzz_linear_single_tick() {
 fn test_order_fuzz_mixed() {
     let oper_per_iteration = 1000;
 
-    run_for_duration(60, oper_per_iteration, |count| {
+    run_for_duration(10, oper_per_iteration, |count| {
         run_fuzz_mixed(count, (-20, 20));
     });
 }
 
 #[test]
 fn test_order_fuzz_mixed_single_tick() {
-    let oper_per_iteration = 1000;
+    let oper_per_iteration = 13000;
 
-    run_for_duration(60, oper_per_iteration, |count| {
+    run_for_duration(60 * 60 * 2, oper_per_iteration, |count| {
         run_fuzz_mixed(count, (0, 0));
     });
 }
@@ -331,8 +332,10 @@ impl MixedFuzzOperation {
                 }
 
                 // Place the order
-                place_random_market(cp, t, rng, &username, market_direction, max_amount);
-                Ok(true)
+                let amount =
+                    place_random_market(cp, t, rng, &username, market_direction, max_amount);
+
+                Ok(amount != 0)
             }
             MixedFuzzOperation::CancelLimit => {
                 // If there are no active orders skip the operation
@@ -606,14 +609,20 @@ fn place_random_market(
     } else {
         ("base", "quote")
     };
-    // Get the spot price for the given denoms
-    let SpotPriceResponse { spot_price } = t
-        .contract
-        .query(&QueryMsg::SpotPrice {
-            base_asset_denom: token_in_denom.to_string(),
-            quote_asset_denom: token_out_denom.to_string(),
-        })
-        .unwrap();
+
+    // Get the next tick to determine liquidity
+    let Orderbook {
+        next_ask_tick,
+        next_bid_tick,
+        ..
+    } = t.contract.query(&QueryMsg::OrderbookState {}).unwrap();
+    let next_tick = if order_direction == OrderDirection::Bid {
+        next_ask_tick
+    } else {
+        next_bid_tick
+    };
+
+    let price = tick_to_price(next_tick).unwrap();
 
     // Determine how much liquidity is available for token in at the current spot price
     // This only provides an estimate as the liquidity may be spread across multiple ticks
@@ -621,7 +630,7 @@ fn place_random_market(
     let liquidity_at_price_u256 = amount_to_value(
         order_direction.opposite(),
         Uint128::from(max),
-        Decimal256::from(spot_price),
+        price,
         RoundingDirection::Up,
     )
     .unwrap();

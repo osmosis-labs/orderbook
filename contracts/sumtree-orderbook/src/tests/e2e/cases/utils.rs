@@ -74,7 +74,10 @@ macro_rules! setup {
 
 pub mod assert {
     use crate::{
-        msg::{DenomsResponse, GetTotalPoolLiquidityResponse, QueryMsg, SpotPriceResponse},
+        msg::{
+            DenomsResponse, GetTotalPoolLiquidityResponse, GetUnrealizedCancelsResponse, QueryMsg,
+            SpotPriceResponse,
+        },
         tests::e2e::test_env::TestEnv,
         tick_math::tick_to_price,
         types::{OrderDirection, Orderbook},
@@ -281,6 +284,53 @@ pub mod assert {
         }
         if let Some(max_tick_with_bid) = max_tick_with_bid {
             assert!(next_bid_tick >= max_tick_with_bid.tick_id);
+        }
+    }
+
+    pub fn no_remaining_orders(t: &TestEnv) {
+        let all_orders = t.contract.collect_all_orders();
+        assert_eq!(all_orders.len(), 0);
+    }
+
+    pub fn clean_ticks(t: &TestEnv) {
+        let all_ticks = t.contract.collect_all_ticks();
+        for tick in all_ticks {
+            let GetUnrealizedCancelsResponse { ticks } = t
+                .contract
+                .query(&QueryMsg::GetUnrealizedCancels {
+                    tick_ids: vec![tick.tick_id],
+                })
+                .unwrap();
+            let unrealized_cancels_state = ticks.first().unwrap();
+            for direction in [OrderDirection::Ask, OrderDirection::Bid] {
+                let values = tick.tick_state.get_values(direction);
+                assert!(
+                    values.total_amount_of_liquidity.is_zero(),
+                    "tick {} has liquidity",
+                    tick.tick_id
+                );
+
+                let unrealized_cancels = match direction {
+                    OrderDirection::Ask => {
+                        unrealized_cancels_state
+                            .unrealized_cancels
+                            .ask_unrealized_cancels
+                    }
+                    OrderDirection::Bid => {
+                        unrealized_cancels_state
+                            .unrealized_cancels
+                            .bid_unrealized_cancels
+                    }
+                };
+
+                assert_eq!(
+                    values
+                        .effective_total_amount_swapped
+                        .checked_add(unrealized_cancels)
+                        .unwrap(),
+                    values.cumulative_total_value
+                );
+            }
         }
     }
 }

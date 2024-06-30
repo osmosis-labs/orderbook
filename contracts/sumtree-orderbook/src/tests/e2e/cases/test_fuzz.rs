@@ -68,12 +68,21 @@ fn test_order_fuzz_linear_single_tick() {
 
 #[test]
 fn test_order_fuzz_mixed() {
-    let duration = Duration::from_secs(60);
+    let duration = Duration::from_secs(60 * 3);
     let now = SystemTime::now();
     let end = now.checked_add(duration).unwrap();
+
+    let oper_per_iteration = 1000;
+    let mut oper_count = 0;
+    let mut iterations = 0;
     while SystemTime::now().le(&end) {
-        run_fuzz_mixed(2000, (-20, 20));
+        run_fuzz_mixed(oper_per_iteration, (-20, 20));
+
+        oper_count += oper_per_iteration;
+        iterations += 1;
     }
+    println!("operations: {}", oper_count);
+    println!("iterations: {}", iterations);
 }
 
 #[test]
@@ -253,7 +262,7 @@ impl MixedFuzzOperation {
         order_count: &mut u64,
         tick_bounds: (i64, i64),
     ) -> Result<bool, &'static str> {
-        println!("operation: {self:?}");
+        // println!("operation: {self:?}");
         let username = format!("user{}", iteration);
         match self {
             MixedFuzzOperation::PlaceLimit => {
@@ -328,10 +337,10 @@ impl MixedFuzzOperation {
                     return Ok(false);
                 }
 
-                // Remove the order once we know it is cancellable
-                orders.remove(&order_id).unwrap();
                 // Cancel the order
                 orders::cancel_limit_success(t, &username, tick_id, order_id).unwrap();
+                // Remove the order once we know it is cancellable
+                orders.remove(&order_id).unwrap();
                 Ok(true)
             }
             MixedFuzzOperation::Claim => {
@@ -434,7 +443,7 @@ fn run_fuzz_mixed(amount_of_orders: u64, tick_bounds: (i64, i64)) {
 
         // We add an escape clause in the case that the test ever gets caught in an infinite loop
         let mut repeated_failures = 0;
-        println!("iteration: {}", i);
+        // println!("iteration: {}", i);
         // Repeat randomising operations until a successful one is chosen
         while !operation
             .run(
@@ -464,30 +473,36 @@ fn run_fuzz_mixed(amount_of_orders: u64, tick_bounds: (i64, i64)) {
     for (order_id, (username, tick_id)) in orders.clone().iter() {
         match orders::claim_success(&t, username, username, *tick_id, *order_id) {
             Ok(_) => {
-                continue;
+                let order = t.contract.get_order(
+                    t.accounts[username.as_str()].address(),
+                    *tick_id,
+                    *order_id,
+                );
+                if order.is_none() {
+                    continue;
+                }
             }
-            Err(e) => println!("Error claiming order: {e}"),
+            Err(e) => {}
         }
 
         match orders::cancel_limit_success(&t, username, *tick_id, *order_id) {
             Ok(_) => {
                 continue;
             }
-            Err(e) => println!("Error cancelling order: {e}"),
+            Err(e) => {}
         }
 
-        let order = t
-            .contract
-            .get_order(username.clone(), *tick_id, *order_id)
-            .unwrap();
+        let order = t.contract.get_order(username.clone(), *tick_id, *order_id);
         assert!(
-            order.placed_quantity != order.quantity,
-            "order could not be claimed or cancelled: {order:?}"
+            order.is_none(),
+            "order was not cleaned from state: {order:?}"
         );
     }
 
     // Assert every operation ran at least once successfully
     assert!(oper_count.values().all(|c| *c > 0));
+    assert::no_remaining_orders(&t);
+    assert::clean_ticks(&t);
 }
 
 /// Places a random limit order in the provided tick range using the provided username

@@ -331,6 +331,25 @@ impl<'a> OrderbookContract<'a> {
         ticks
     }
 
+    pub fn collect_all_orders(&self) -> Vec<LimitOrder> {
+        let ticks = self.collect_all_ticks();
+
+        let mut all_orders: Vec<LimitOrder> = vec![];
+        for tick in ticks {
+            let orders: OrdersResponse = self
+                .query(&QueryMsg::OrdersByTick {
+                    tick_id: tick.tick_id,
+                    start_from: None,
+                    end_at: None,
+                    limit: None,
+                })
+                .unwrap();
+            all_orders.extend(orders.orders.clone());
+        }
+
+        all_orders
+    }
+
     pub fn get_directional_liquidity(&self, order_direction: OrderDirection) -> u128 {
         let GetTotalPoolLiquidityResponse {
             total_pool_liquidity,
@@ -354,12 +373,13 @@ impl<'a> OrderbookContract<'a> {
         let OrdersResponse { orders, .. } = self
             .query(&QueryMsg::OrdersByOwner {
                 owner: Addr::unchecked(sender),
-                start_from: Some((tick_id, order_id)),
+                start_from: None,
                 end_at: None,
-                limit: Some(1),
+                limit: None,
             })
             .unwrap();
-        orders.first().cloned()
+        let order = orders.iter().find(|o| o.order_id == order_id).cloned();
+        order
     }
 }
 

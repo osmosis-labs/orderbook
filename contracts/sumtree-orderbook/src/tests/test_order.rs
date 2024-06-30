@@ -2,7 +2,7 @@ use std::str::FromStr;
 
 use crate::{
     constants::{MAX_TICK, MIN_TICK}, error::ContractError, order::*, orderbook::*, state::*, sumtree::{
-        node::{NodeType, TreeNode}, tree::get_root_node
+        node::{NodeType, TreeNode}, test::test_node::print_tree, tree::{get_or_init_root_node, get_root_node}
     },
     tests::{mock_querier::mock_dependencies_custom, test_utils::{decimal256_from_u128, place_multiple_limit_orders}},
     types::{
@@ -4222,7 +4222,6 @@ fn test_maker_fee() {
             assert_eq!(maker_fee_msg, None, "{}", format_test_name(test.name));
         }
     }
-
 }
 
 #[test]

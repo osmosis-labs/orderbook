@@ -117,22 +117,16 @@ fn prefix_sum_walk(
         // Sanity check: for the root node, this will be 0, since the "current node" is the root and includes the whole
         // tree (so when it is removed, there is nothing left)
         let sum_at_node = current_sum.checked_sub(node.get_value())?;
+
         // Calculate the amount of cumulative realized cancellations *below the current node*  at the end of the
-        // previous sync.
+        // previous sync. Recall that `prev_sum` is the cumulative *global* amount that was realized at the end of the previous sync.
         //
-        // Recall that `prev_sum` is the cumulative *global* amount that was realized at the end of the previous sync.
-        //
-        // Concretely, if this value is ever nonzero for a node, the amount corresponds exactly to the amount realized
+        // If `diff_at_node` is ever nonzero for a node, the amount corresponds exactly to the amount realized
         // below the node at the end of the previous sync. In all other cases, it will snap to zero due to the saturating sub.
         let diff_at_node = prev_sum.saturating_sub(sum_at_node);
+
         // `unrealized_from_left` is the amount in the left child that remained unrealized at the end of the previous
-        // sync.
-        //
-        // If the left child is fully realized then the subtraction here will either be zero (if none of the right child is
-        // realized) or negative (if some of the right child is realized), since `diff_at_node` = amount realized below left
-        // and below right children. Saturating sub will ensure both of these cases snap to zero.
-        //
-        // Thus, if this value is ever nonzero, it means that the left child had some unrealized cancels in it, and the
+        // sync. If this value is ever nonzero, it means that the left child had some unrealized cancels in it, and the
         // amount corresponds exactly to `unrealized_from_left`.
         let unrealized_from_left = left_child.get_value().saturating_sub(diff_at_node);
         // Calculate the new ETAS after realizing what is unrealized from the left node
@@ -145,10 +139,6 @@ fn prefix_sum_walk(
 
         // If the new ETAS is greater than or equal to the right child's min range, we can walk right
         // as the left node MUST be realizable given the invariants of the sumtree mechanism
-        //
-        // Intuition: If all swaps and cancels from the left child put us in the cancel territory of the right side, then we
-        // don't care about the ordering of the swaps and cancels on the left. We know that all the cancels need to be
-        // realized, so we batch realize them by adding *their unrealized portion* to our target ETAS and walking right.
         if new_etas >= right_child.get_min_range() {
             return prefix_sum_walk(storage, &right_child, current_sum, new_etas, prev_sum);
         }

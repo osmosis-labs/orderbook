@@ -3940,15 +3940,15 @@ fn test_directional_liquidity() {
                     Decimal256::zero(),
                     None,
                 )),
-                // Filling Ask at 0.5 price = 100 units of opposite denom
+                // Partial filling Bid at 2 price = 50 units of opposite denom
                 OrderOperation::RunMarket(MarketOrder::new(
-                    Uint128::from(200u128),
+                    Uint128::from(50u128),
                     OrderDirection::Ask,
                     sender.clone(),
                 )),
-                // Filling Bid at 0.5 price = 100 units of opposite denom
+                // Filling Ask at 2 price = 200 units of opposite denom
                 OrderOperation::RunMarket(MarketOrder::new(
-                    Uint128::from(50u128),
+                    Uint128::from(200u128),
                     OrderDirection::Bid,
                     sender.clone(),
                 )),
@@ -3979,21 +3979,21 @@ fn test_directional_liquidity() {
                     Decimal256::zero(),
                     None,
                 )),
-                // Filling Ask at 0.5 price = 200 units of opposite denom
+                // Filling Bid at 0.5 price = 400 units of opposite denom
                 OrderOperation::RunMarket(MarketOrder::new(
-                    Uint128::from(100u128),
+                    Uint128::from(400u128),
                     OrderDirection::Ask,
                     sender.clone(),
                 )),
-                // Filling Bid at 0.5 price = 25 units of opposite denom
+                // Partial flling Ask at 0.5 price = 25 units of opposite denom
                 OrderOperation::RunMarket(MarketOrder::new(
-                    Uint128::from(50u128),
+                    Uint128::from(25u128),
                     OrderDirection::Bid,
                     sender,
                 )),
             ],
             expected_liquidity: (
-                (OrderDirection::Ask, decimal256_from_u128(75u128)),
+                (OrderDirection::Ask, decimal256_from_u128(50u128)),
                 (OrderDirection::Bid, decimal256_from_u128(0u128)),
             ),
         },

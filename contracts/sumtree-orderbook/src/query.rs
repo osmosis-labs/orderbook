@@ -60,8 +60,8 @@ pub(crate) fn spot_price(
     let price = tick_to_price(next_tick)?;
 
     let spot_price = match direction {
-        OrderDirection::Ask => price.inv().unwrap(),
-        OrderDirection::Bid => price,
+        OrderDirection::Ask => price,
+        OrderDirection::Bid => price.inv().unwrap(),
     };
 
     Ok(SpotPriceResponse {

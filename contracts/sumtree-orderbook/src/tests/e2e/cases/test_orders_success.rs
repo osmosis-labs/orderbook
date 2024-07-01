@@ -1,7 +1,10 @@
-use cosmwasm_std::{Decimal256, Uint128};
+use cosmwasm_std::{coin, Decimal256, Uint128};
 use osmosis_test_tube::{Module, OsmosisTestApp};
 
-use super::utils::{assert, orders};
+use super::{
+    test_fuzz::LARGE_NEGATIVE_TICK,
+    utils::{assert, orders},
+};
 use crate::{
     constants::{MAX_TICK, MIN_TICK},
     setup,
@@ -208,4 +211,48 @@ fn test_cancelled_orders() {
 
     orders::claim(&t, "user1", 0, amount_orders).unwrap();
     assert::tick_invariants(&t);
+}
+
+#[test]
+fn test_tick_extremes() {
+    let app = OsmosisTestApp::new();
+    let cp = CosmwasmPool::new(&app);
+    let mut t = setup!(&app, "quote", "base", 0);
+
+    t.add_account(
+        "newuser",
+        vec![
+            coin(u128::MAX, "base"),
+            coin(u128::MAX, "quote"),
+            coin(u128::MAX, "uosmo"),
+        ],
+    );
+
+    orders::place_limit(
+        &t,
+        MIN_TICK,
+        OrderDirection::Ask,
+        Uint128::MAX.checked_div(Uint128::from(2u128)).unwrap(),
+        None,
+        "newuser",
+    )
+    .unwrap();
+    orders::place_limit(
+        &t,
+        LARGE_NEGATIVE_TICK,
+        OrderDirection::Ask,
+        Uint128::MAX.checked_div(Uint128::from(2u128)).unwrap(),
+        None,
+        "newuser",
+    )
+    .unwrap();
+
+    orders::place_market_and_assert_balance(
+        &cp,
+        &t,
+        OrderDirection::Bid,
+        Uint128::from(2u128),
+        "newuser",
+    )
+    .unwrap();
 }

@@ -384,7 +384,7 @@ impl<'a> OrderbookContract<'a> {
     }
 
     pub fn get_max_market_amount(&self, direction: OrderDirection) -> u128 {
-        let mut max_amount: u128 = 0;
+        let mut max_amount: Uint128 = Uint128::zero();
         let ticks = self.collect_all_ticks();
         for tick in ticks {
             let value = tick.tick_state.get_values(direction.opposite());
@@ -404,16 +404,16 @@ impl<'a> OrderbookContract<'a> {
                 direction.opposite(),
                 amount_of_liquidity,
                 price,
-                RoundingDirection::Up,
+                RoundingDirection::Down,
             )
             .unwrap();
             let amount =
                 Uint128::from_str(&(amount_u256.min(Uint256::from_u128(u128::MAX))).to_string())
                     .unwrap();
 
-            max_amount += amount.u128();
+            max_amount = max_amount.saturating_add(amount);
         }
-        max_amount
+        max_amount.u128()
     }
 }
 

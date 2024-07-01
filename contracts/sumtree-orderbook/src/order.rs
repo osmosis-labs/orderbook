@@ -516,6 +516,11 @@ pub(crate) fn run_market_order_internal(
         let current_tick_id = maybe_current_tick?;
         let mut current_tick = TICK_STATE.load(storage, current_tick_id)?;
         let mut current_tick_values = current_tick.get_values(order.order_direction.opposite());
+
+        if current_tick_values.total_amount_of_liquidity.is_zero() {
+            continue;
+        }
+
         let tick_price = tick_to_price(current_tick_id)?;
         last_tick_price = tick_price;
 
@@ -532,10 +537,6 @@ pub(crate) fn run_market_order_internal(
         if output_quantity.is_zero() {
             order.quantity = Uint128::zero();
             break;
-        }
-
-        if current_tick_values.total_amount_of_liquidity.is_zero() {
-            continue;
         }
 
         // Update current tick pointer as we visit ticks that contribute to filling the order

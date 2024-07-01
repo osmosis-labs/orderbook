@@ -9,11 +9,10 @@ use rand::Rng;
 use rand::{rngs::StdRng, SeedableRng};
 
 use super::utils::{assert, orders};
-use crate::constants::MIN_TICK;
+use crate::constants::{MAX_TICK, MIN_TICK};
 use crate::msg::{CalcOutAmtGivenInResponse, QueryMsg};
 use crate::tests::e2e::modules::cosmwasm_pool::CosmwasmPool;
 use crate::tick_math::{amount_to_value, tick_to_price, RoundingDirection};
-use crate::types::Orderbook;
 use crate::{
     msg::{DenomsResponse, GetTotalPoolLiquidityResponse},
     setup,
@@ -52,15 +51,18 @@ fn run_for_duration(
 
 #[test]
 fn test_order_fuzz_linear_large_orders_small_range() {
-    let oper_per_iteration = 10000;
-    run_for_duration(60 * 60 * 2, oper_per_iteration, |count| {
+    let oper_per_iteration = 1000;
+    run_for_duration(60, oper_per_iteration, |count| {
         run_fuzz_linear(count, (-10, 10), 0.2);
     });
 }
 
 #[test]
 fn test_order_fuzz_linear_small_orders_large_range() {
-    run_fuzz_linear(100, (LARGE_NEGATIVE_TICK, LARGE_POSITIVE_TICK), 0.2);
+    let oper_per_iteration = 100;
+    run_for_duration(60, oper_per_iteration, |count| {
+        run_fuzz_linear(count, (LARGE_NEGATIVE_TICK, LARGE_POSITIVE_TICK), 0.2);
+    });
 }
 
 // This test takes a VERY long time to run
@@ -69,25 +71,37 @@ fn test_order_fuzz_linear_small_orders_large_range() {
 //     run_fuzz_linear(5000, (LARGE_NEGATIVE_TICK, LARGE_POSITIVE_TICK), 0.2);
 // }
 
-// #[test]
-// fn test_order_fuzz_linear_small_orders_small_range() {
-//     run_fuzz_linear(100, (-10, 0), 0.1);
-// }
+#[test]
+fn test_order_fuzz_linear_small_orders_small_range() {
+    let oper_per_iteration = 100;
+    run_for_duration(60, oper_per_iteration, |count| {
+        run_fuzz_linear(count, (-10, 0), 0.1);
+    });
+}
 
 #[test]
 fn test_order_fuzz_linear_large_cancelled_orders_small_range() {
-    run_fuzz_linear(1000, (MIN_TICK, MIN_TICK + 20), 0.8);
+    let oper_per_iteration = 1000;
+    run_for_duration(60, oper_per_iteration, |count| {
+        run_fuzz_linear(count, (MIN_TICK, MIN_TICK + 20), 0.8);
+    });
 }
 
-// #[test]
-// fn test_order_fuzz_linear_small_cancelled_orders_large_range() {
-//     run_fuzz_linear(100, (LARGE_NEGATIVE_TICK, LARGE_POSITIVE_TICK), 0.8);
-// }
+#[test]
+fn test_order_fuzz_linear_small_cancelled_orders_large_range() {
+    let oper_per_iteration = 100;
+    run_for_duration(60, oper_per_iteration, |count| {
+        run_fuzz_linear(count, (LARGE_NEGATIVE_TICK, LARGE_POSITIVE_TICK), 0.8);
+    });
+}
 
-// #[test]
-// fn test_order_fuzz_linear_large_all_cancelled_orders_small_range() {
-//     run_fuzz_linear(1000, (-10, 10), 1.0);
-// }
+#[test]
+fn test_order_fuzz_linear_large_all_cancelled_orders_small_range() {
+    let oper_per_iteration = 1000;
+    run_for_duration(60, oper_per_iteration, |count| {
+        run_fuzz_linear(count, (-10, 10), 1.0);
+    });
+}
 
 #[test]
 fn test_order_fuzz_linear_single_tick() {
@@ -100,8 +114,7 @@ fn test_order_fuzz_linear_single_tick() {
 #[test]
 fn test_order_fuzz_mixed() {
     let oper_per_iteration = 1000;
-
-    run_for_duration(10, oper_per_iteration, |count| {
+    run_for_duration(60, oper_per_iteration, |count| {
         run_fuzz_mixed(count, (-20, 20));
     });
 }
@@ -110,8 +123,44 @@ fn test_order_fuzz_mixed() {
 fn test_order_fuzz_mixed_single_tick() {
     let oper_per_iteration = 1000;
 
-    run_for_duration(10, oper_per_iteration, |count| {
+    run_for_duration(60, oper_per_iteration, |count| {
         run_fuzz_mixed(count, (0, 0));
+    });
+}
+
+#[test]
+fn test_order_fuzz_mixed_large_negative_tick_range() {
+    let oper_per_iteration = 1000;
+
+    run_for_duration(30, oper_per_iteration, |count| {
+        run_fuzz_mixed(count, (LARGE_NEGATIVE_TICK, LARGE_NEGATIVE_TICK + 10));
+    });
+}
+
+#[test]
+fn test_order_fuzz_mixed_large_positive_tick_range() {
+    let oper_per_iteration = 1000;
+
+    run_for_duration(30, oper_per_iteration, |count| {
+        run_fuzz_mixed(count, (LARGE_POSITIVE_TICK - 10, LARGE_POSITIVE_TICK));
+    });
+}
+
+#[test]
+fn test_order_fuzz_mixed_min_tick() {
+    let oper_per_iteration = 1000;
+
+    run_for_duration(30, oper_per_iteration, |count| {
+        run_fuzz_mixed(count, (MIN_TICK, MIN_TICK + 10));
+    });
+}
+
+#[test]
+fn test_order_fuzz_large_tick_range() {
+    let oper_per_iteration = 1000;
+
+    run_for_duration(30, oper_per_iteration, |count| {
+        run_fuzz_mixed(count, (MIN_TICK, MAX_TICK));
     });
 }
 
@@ -294,27 +343,8 @@ impl MixedFuzzOperation {
         let username = format!("user{}", iteration);
         match self {
             MixedFuzzOperation::PlaceLimit => {
-                // Determine tick range by finding the minimum and maximum tick ids of the orderbook
-                // Ticks are bounded by the provided tick range
-                // The concept is that ticks may randomly shift up and down until they reach the desired bounds
-                let all_ticks = t.contract.collect_all_ticks();
-                let tick_range = (
-                    all_ticks
-                        .iter()
-                        .min_by_key(|f| f.tick_id)
-                        .map(|f| f.tick_id)
-                        .unwrap_or(0)
-                        - 1.min(tick_bounds.1).max(tick_bounds.0),
-                    all_ticks
-                        .iter()
-                        .max_by_key(|f| f.tick_id)
-                        .map(|f| f.tick_id)
-                        .unwrap_or(0)
-                        + 1.min(tick_bounds.1).max(tick_bounds.0),
-                );
-
                 // Place the limit order
-                let tick_id = place_random_limit(t, rng, &username, tick_range);
+                let tick_id = place_random_limit(t, rng, &username, tick_bounds);
                 // Record the order for claims/cancels
                 orders.insert(*order_count, (username, tick_id));
                 *order_count += 1;
@@ -619,6 +649,10 @@ fn place_random_market(
     let max_amount = t.contract.get_max_market_amount(order_direction);
     let amount = rng.gen_range(0..=max_amount);
 
+    if amount == 0 {
+        return 0;
+    }
+
     // Calculate the expected amount of token out
     let expected_out =
         t.contract
@@ -632,7 +666,8 @@ fn place_random_market(
         if expected_out.token_out.amount == "0" {
             return 0;
         }
-    } else if expected_out.is_err() || amount == 0 {
+    } else if expected_out.is_err() {
+        println!("expected_out: {:?}", expected_out);
         return 0;
     }
 

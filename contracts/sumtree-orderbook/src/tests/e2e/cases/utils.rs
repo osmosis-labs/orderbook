@@ -78,16 +78,18 @@ macro_rules! setup {
 // -- Assertions --
 // Assertions about current state
 pub mod assert {
+    use std::str::FromStr;
+
     use crate::{
         msg::{
             DenomsResponse, GetTotalPoolLiquidityResponse, GetUnrealizedCancelsResponse, QueryMsg,
             SpotPriceResponse,
         },
         tests::e2e::test_env::TestEnv,
-        tick_math::tick_to_price,
+        tick_math::{amount_to_value, tick_to_price, RoundingDirection},
         types::{OrderDirection, Orderbook},
     };
-    use cosmwasm_std::{Coin, Coins};
+    use cosmwasm_std::{Coin, Coins, Fraction, Uint128};
     use osmosis_test_tube::{cosmrs::proto::prost::Message, RunnerExecuteResult};
 
     // -- Contract State Assertions
@@ -155,8 +157,8 @@ pub mod assert {
         } = t.contract.get_denoms();
 
         for (base_denom, quote_denom, price, direction) in [
-            (base_denom.clone(), quote_denom.clone(), ask_price, "ask"),
-            (quote_denom, base_denom, bid_price, "bid"),
+            (base_denom.clone(), quote_denom.clone(), bid_price, "ask"),
+            (quote_denom, base_denom, ask_price.inv().unwrap(), "bid"),
         ] {
             let SpotPriceResponse { spot_price } = t
                 .contract
@@ -219,18 +221,60 @@ pub mod assert {
                 <= t.tick_state.bid_values.cumulative_total_value));
 
         let ticks_with_bid_amount = ticks.iter().filter(|tick| {
-            !tick
+            if tick
                 .tick_state
                 .get_values(OrderDirection::Bid)
                 .total_amount_of_liquidity
                 .is_zero()
+            {
+                return false;
+            }
+
+            let price = tick_to_price(tick.tick_id).unwrap();
+            let amount_of_liquidity = Uint128::from_str(
+                &tick
+                    .tick_state
+                    .get_values(OrderDirection::Bid)
+                    .total_amount_of_liquidity
+                    .to_string(),
+            )
+            .unwrap();
+            let fillable_amount = amount_to_value(
+                OrderDirection::Bid,
+                amount_of_liquidity,
+                price,
+                RoundingDirection::Down,
+            )
+            .unwrap();
+            !fillable_amount.is_zero()
         });
         let ticks_with_ask_amount = ticks.iter().filter(|tick| {
-            !tick
+            if tick
                 .tick_state
                 .get_values(OrderDirection::Ask)
                 .total_amount_of_liquidity
                 .is_zero()
+            {
+                return false;
+            }
+
+            let price = tick_to_price(tick.tick_id).unwrap();
+            let amount_of_liquidity = Uint128::from_str(
+                &tick
+                    .tick_state
+                    .get_values(OrderDirection::Ask)
+                    .total_amount_of_liquidity
+                    .to_string(),
+            )
+            .unwrap();
+            let fillable_amount = amount_to_value(
+                OrderDirection::Ask,
+                amount_of_liquidity,
+                price,
+                RoundingDirection::Down,
+            )
+            .unwrap();
+            !fillable_amount.is_zero()
         });
         let max_tick_with_bid = ticks_with_bid_amount.max_by_key(|tick| tick.tick_id);
         let min_tick_with_ask = ticks_with_ask_amount.min_by_key(|tick| tick.tick_id);
@@ -241,10 +285,20 @@ pub mod assert {
             ..
         } = t.contract.query(&QueryMsg::OrderbookState {}).unwrap();
         if let Some(min_tick_with_ask) = min_tick_with_ask {
-            assert!(next_ask_tick <= min_tick_with_ask.tick_id);
+            assert!(
+                next_ask_tick <= min_tick_with_ask.tick_id,
+                "ASK TICK: got: {}, expected: {}",
+                next_ask_tick,
+                min_tick_with_ask.tick_id
+            );
         }
         if let Some(max_tick_with_bid) = max_tick_with_bid {
-            assert!(next_bid_tick >= max_tick_with_bid.tick_id);
+            assert!(
+                next_bid_tick >= max_tick_with_bid.tick_id,
+                "BID TICK: got: {}, expected: {}",
+                next_bid_tick,
+                max_tick_with_bid.tick_id
+            );
         }
     }
 

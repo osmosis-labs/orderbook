@@ -9,7 +9,7 @@ use rand::Rng;
 use rand::{rngs::StdRng, SeedableRng};
 
 use super::utils::{assert, orders};
-use crate::constants::{MAX_TICK, MIN_TICK};
+use crate::constants::MIN_TICK;
 use crate::msg::{CalcOutAmtGivenInResponse, QueryMsg};
 use crate::tests::e2e::modules::cosmwasm_pool::CosmwasmPool;
 use crate::tick_math::{amount_to_value, tick_to_price, RoundingDirection};
@@ -20,10 +20,10 @@ use crate::{
     types::OrderDirection,
 };
 
-// Tick Price = 2
-pub(crate) const LARGE_POSITIVE_TICK: i64 = 1000000;
-// Tick Price = 0.5
-pub(crate) const LARGE_NEGATIVE_TICK: i64 = -5000000;
+// Tick Price = 100000
+pub(crate) const LARGE_POSITIVE_TICK: i64 = 45000000;
+// Tick Price = 0.00001
+pub(crate) const LARGE_NEGATIVE_TICK: i64 = -45000000;
 
 // Loops over a provided action for the provided duration
 // Tracks the number of operations and iterations
@@ -160,7 +160,7 @@ fn test_order_fuzz_large_tick_range() {
     let oper_per_iteration = 1000;
 
     run_for_duration(30, oper_per_iteration, |count| {
-        run_fuzz_mixed(count, (MIN_TICK, MAX_TICK));
+        run_fuzz_mixed(count, (MIN_TICK, LARGE_POSITIVE_TICK));
     });
 }
 

@@ -1887,6 +1887,7 @@ fn test_claim_order() {
                     None,
                 )),
                 OrderOperation::RunMarket(MarketOrder::new(
+                    // Filling 4/10 of the Ask order
                     // Tick price is 2, 2*4 = 8
                     Uint128::from(8u128),
                     OrderDirection::Bid,
@@ -1930,6 +1931,7 @@ fn test_claim_order() {
                     None,
                 )),
                 OrderOperation::RunMarket(MarketOrder::new(
+                    // Filling 6/10 of the Ask order
                     // Tick price is 2, 2*6 = 12
                     Uint128::from(12u128),
                     OrderDirection::Bid,
@@ -1938,6 +1940,7 @@ fn test_claim_order() {
                 // Claim the first partial fill
                 OrderOperation::Claim((LARGE_POSITIVE_TICK, 0)),
                 OrderOperation::RunMarket(MarketOrder::new(
+                    // Filling 4/10 of the Ask order (full fill)
                     // Tick price is 2, 2*4 = 8
                     Uint128::from(8u128),
                     OrderDirection::Bid,
@@ -1974,6 +1977,8 @@ fn test_claim_order() {
                     None,
                 )),
                 OrderOperation::RunMarket(MarketOrder::new(
+                    // Full filling ask order
+                    // Tick price is 0.5, 0.5*100 = 50
                     Uint128::from(50u128),
                     OrderDirection::Bid,
                     Addr::unchecked("buyer"),
@@ -2008,6 +2013,8 @@ fn test_claim_order() {
                     None,
                 )),
                 OrderOperation::RunMarket(MarketOrder::new(
+                    // Filling 50/100 of the Ask order
+                    // Tick price is 0.5, 0.5*50 = 25
                     Uint128::from(25u128),
                     OrderDirection::Bid,
                     Addr::unchecked("buyer"),
@@ -2050,6 +2057,8 @@ fn test_claim_order() {
                     None,
                 )),
                 OrderOperation::RunMarket(MarketOrder::new(
+                    // Filling 50/100 of the Ask order
+                    // Tick price is 0.5, 0.5*50 = 25
                     Uint128::from(25u128),
                     OrderDirection::Bid,
                     Addr::unchecked("buyer"),
@@ -2057,6 +2066,8 @@ fn test_claim_order() {
                 // Claim the first partial fill
                 OrderOperation::Claim((LARGE_NEGATIVE_TICK, 0)),
                 OrderOperation::RunMarket(MarketOrder::new(
+                    // Filling 50/100 of the Ask order (full fill)
+                    // Tick price is 0.5, 0.5*50 = 25
                     Uint128::from(25u128),
                     OrderDirection::Bid,
                     Addr::unchecked("buyer"),
@@ -2101,7 +2112,9 @@ fn test_claim_order() {
                 )),
                 OrderOperation::Cancel((valid_tick_id, 0)),
                 OrderOperation::RunMarket(MarketOrder::new(
-                    Uint128::from(100u128),
+                    // Filling 100/100 of the Ask order
+                    // Tick price is 0.5, 0.5*100 = 50
+                    Uint128::from(50u128),
                     OrderDirection::Bid,
                     Addr::unchecked("buyer"),
                 )),
@@ -2144,7 +2157,6 @@ fn test_claim_order() {
                 )),
             ],
             order_id: 0,
-
             tick_id: MIN_TICK,
             expected_bank_msg: Some(SubMsg::reply_on_error(
                 MsgSend256 {
@@ -2179,7 +2191,6 @@ fn test_claim_order() {
                 )),
             ],
             order_id: 0,
-
             tick_id: valid_tick_id,
             expected_bank_msg: Some(SubMsg::reply_on_error(
                 MsgSend256 {
@@ -2290,7 +2301,8 @@ fn test_claim_order() {
                     None,
                 )),
                 OrderOperation::RunMarket(MarketOrder::new(
-                    // Tick price is 2, 2*5 = 10
+                    // Filling 10/10 of the Bid order
+                    // Tick price is 2, 10/2 = 5
                     Uint128::from(5u128),
                     OrderDirection::Ask,
                     Addr::unchecked("buyer"),
@@ -2325,13 +2337,14 @@ fn test_claim_order() {
                     None,
                 )),
                 OrderOperation::RunMarket(MarketOrder::new(
+                    // Filling 4/10 of the Bid order
+                    // Tick price is 2, 4/2 = 2
                     Uint128::from(2u128),
                     OrderDirection::Ask,
                     Addr::unchecked("buyer"),
                 )),
             ],
             order_id: 0,
-
             tick_id: LARGE_POSITIVE_TICK,
             expected_bank_msg: Some(SubMsg::reply_on_error(
                 MsgSend256 {
@@ -2367,6 +2380,8 @@ fn test_claim_order() {
                     None,
                 )),
                 OrderOperation::RunMarket(MarketOrder::new(
+                    // Filling 4/10 of the Bid Order
+                    // Tick price is 2, 4/2 = 2
                     Uint128::from(2u128),
                     OrderDirection::Ask,
                     Addr::unchecked("buyer"),
@@ -2374,13 +2389,14 @@ fn test_claim_order() {
                 // Claim the first partial fill
                 OrderOperation::Claim((LARGE_POSITIVE_TICK, 0)),
                 OrderOperation::RunMarket(MarketOrder::new(
+                    // Filling 6/10 of the Bid order (full fill)
+                    // Tick price is 2, 6/2 = 3
                     Uint128::from(3u128),
                     OrderDirection::Ask,
                     Addr::unchecked("buyer"),
                 )),
             ],
             order_id: 0,
-
             tick_id: LARGE_POSITIVE_TICK,
             expected_bank_msg: Some(SubMsg::reply_on_error(
                 MsgSend256 {
@@ -2409,13 +2425,14 @@ fn test_claim_order() {
                     None,
                 )),
                 OrderOperation::RunMarket(MarketOrder::new(
+                    // Full filling the bid order
+                    // Tick price is 0.5 so 100/0.5 = 200
                     Uint128::from(200u128),
                     OrderDirection::Ask,
                     Addr::unchecked("buyer"),
                 )),
             ],
             order_id: 0,
-
             tick_id: LARGE_NEGATIVE_TICK,
             expected_bank_msg: Some(SubMsg::reply_on_error(
                 MsgSend256 {
@@ -2443,13 +2460,14 @@ fn test_claim_order() {
                     None,
                 )),
                 OrderOperation::RunMarket(MarketOrder::new(
+                    // Filling 25/100 of the Bid order
+                    // Tick price is 0.5 so 25/0.5 = 50
                     Uint128::from(50u128),
                     OrderDirection::Ask,
                     Addr::unchecked("buyer"),
                 )),
             ],
             order_id: 0,
-
             tick_id: LARGE_NEGATIVE_TICK,
             expected_bank_msg: Some(SubMsg::reply_on_error(
                 MsgSend256 {
@@ -2485,6 +2503,8 @@ fn test_claim_order() {
                     None,
                 )),
                 OrderOperation::RunMarket(MarketOrder::new(
+                    // Filling 50/100 of the Bid order
+                    // Tick price is 0.5 so 50/0.5 = 100
                     Uint128::from(100u128),
                     OrderDirection::Ask,
                     Addr::unchecked("buyer"),
@@ -2492,13 +2512,14 @@ fn test_claim_order() {
                 // Claim the first partial fill
                 OrderOperation::Claim((LARGE_NEGATIVE_TICK, 0)),
                 OrderOperation::RunMarket(MarketOrder::new(
+                    // Filling 50/100 of the Bid order (full fill)
+                    // Tick price is 0.5 so 50/0.5 = 100
                     Uint128::from(100u128),
                     OrderDirection::Ask,
                     Addr::unchecked("buyer"),
                 )),
             ],
             order_id: 0,
-
             tick_id: LARGE_NEGATIVE_TICK,
             expected_bank_msg: Some(SubMsg::reply_on_error(
                 MsgSend256 {
@@ -2542,7 +2563,6 @@ fn test_claim_order() {
                 )),
             ],
             order_id: 1,
-
             tick_id: valid_tick_id,
             expected_bank_msg: Some(SubMsg::reply_on_error(
                 MsgSend256 {

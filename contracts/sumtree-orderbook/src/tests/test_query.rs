@@ -517,8 +517,8 @@ fn test_calc_out_amount_given_in() {
             token_in: coin(150, QUOTE_DENOM),
             token_out_denom: BASE_DENOM,
             swap_fee: EXPECTED_SWAP_FEE,
-            // Output: 100*1 (tick: 0) + 50*2 (tick: LARGE_POSITIVE_TICK) = 200
-            expected_output: coin_u256(200u128, BASE_DENOM),
+            // Output: 100*1 (tick: 0) + 50/2 (tick: LARGE_POSITIVE_TICK) = 125
+            expected_output: coin_u256(125u128, BASE_DENOM),
             expected_error: None,
         },
         CalcOutAmountGivenInTestCase {
@@ -572,7 +572,7 @@ fn test_calc_out_amount_given_in() {
                     0,
                     OrderDirection::Bid,
                     sender.clone(),
-                    Uint128::from(25u128),
+                    Uint128::from(100u128),
                     Decimal256::percent(0),
                     None,
                 )),
@@ -598,8 +598,8 @@ fn test_calc_out_amount_given_in() {
             token_in: coin(150, BASE_DENOM),
             token_out_denom: QUOTE_DENOM,
             swap_fee: EXPECTED_SWAP_FEE,
-            // Output: 25 at 0.5 tick price + 100 at 1 tick price = 125
-            expected_output: coin_u256(125u128, QUOTE_DENOM),
+            // Output: 50/0.5 at LARGE_POSITIVE_TICK tick price + 100 at 1 tick price = 200
+            expected_output: coin_u256(200u128, QUOTE_DENOM),
             expected_error: None,
         },
         CalcOutAmountGivenInTestCase {

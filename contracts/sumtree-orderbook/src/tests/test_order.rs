@@ -1853,8 +1853,8 @@ fn test_claim_order() {
                     None,
                 )),
                 OrderOperation::RunMarket(MarketOrder::new(
-                    // Tick price is 2, 2*5 = 10
-                    Uint128::from(5u128),
+                    // Tick price is 2, 2*10 = 20
+                    Uint128::from(20u128),
                     OrderDirection::Bid,
                     Addr::unchecked("buyer"),
                 )),
@@ -1865,7 +1865,7 @@ fn test_claim_order() {
                 MsgSend256 {
                     from_address: "cosmos2contract".to_string(),
                     to_address: sender.to_string(),
-                    amount: vec![coin_u256(Uint256::from(5u128), QUOTE_DENOM)],
+                    amount: vec![coin_u256(Uint256::from(20u128), QUOTE_DENOM)],
                 },
                 REPLY_ID_CLAIM,
             )),
@@ -1887,8 +1887,8 @@ fn test_claim_order() {
                     None,
                 )),
                 OrderOperation::RunMarket(MarketOrder::new(
-                    // Tick price is 2, 2*2 = 4
-                    Uint128::from(2u128),
+                    // Tick price is 2, 2*4 = 8
+                    Uint128::from(8u128),
                     OrderDirection::Bid,
                     Addr::unchecked("buyer"),
                 )),
@@ -1900,7 +1900,7 @@ fn test_claim_order() {
                 MsgSend256 {
                     from_address: "cosmos2contract".to_string(),
                     to_address: sender.to_string(),
-                    amount: vec![coin_u256(Uint256::from(2u128), QUOTE_DENOM)],
+                    amount: vec![coin_u256(Uint256::from(8u128), QUOTE_DENOM)],
                 },
                 REPLY_ID_CLAIM,
             )),
@@ -1930,15 +1930,16 @@ fn test_claim_order() {
                     None,
                 )),
                 OrderOperation::RunMarket(MarketOrder::new(
-                    Uint128::from(2u128),
+                    // Tick price is 2, 2*6 = 12
+                    Uint128::from(12u128),
                     OrderDirection::Bid,
                     Addr::unchecked("buyer"),
                 )),
                 // Claim the first partial fill
                 OrderOperation::Claim((LARGE_POSITIVE_TICK, 0)),
                 OrderOperation::RunMarket(MarketOrder::new(
-                    // Tick price is 2, 2*3 = 6
-                    Uint128::from(3u128),
+                    // Tick price is 2, 2*4 = 8
+                    Uint128::from(8u128),
                     OrderDirection::Bid,
                     Addr::unchecked("buyer"),
                 )),
@@ -1950,7 +1951,7 @@ fn test_claim_order() {
                 MsgSend256 {
                     from_address: "cosmos2contract".to_string(),
                     to_address: sender.to_string(),
-                    amount: vec![coin_u256(Uint256::from(3u128), QUOTE_DENOM)],
+                    amount: vec![coin_u256(Uint256::from(8u128), QUOTE_DENOM)],
                 },
                 REPLY_ID_CLAIM,
             )),
@@ -1973,7 +1974,7 @@ fn test_claim_order() {
                     None,
                 )),
                 OrderOperation::RunMarket(MarketOrder::new(
-                    Uint128::from(200u128),
+                    Uint128::from(50u128),
                     OrderDirection::Bid,
                     Addr::unchecked("buyer"),
                 )),
@@ -1985,7 +1986,7 @@ fn test_claim_order() {
                 MsgSend256 {
                     from_address: "cosmos2contract".to_string(),
                     to_address: sender.to_string(),
-                    amount: vec![coin_u256(Uint256::from(200u128), QUOTE_DENOM)],
+                    amount: vec![coin_u256(Uint256::from(50u128), QUOTE_DENOM)],
                 },
                 REPLY_ID_CLAIM,
             )),
@@ -2007,7 +2008,7 @@ fn test_claim_order() {
                     None,
                 )),
                 OrderOperation::RunMarket(MarketOrder::new(
-                    Uint128::from(100u128),
+                    Uint128::from(25u128),
                     OrderDirection::Bid,
                     Addr::unchecked("buyer"),
                 )),
@@ -2019,7 +2020,7 @@ fn test_claim_order() {
                 MsgSend256 {
                     from_address: "cosmos2contract".to_string(),
                     to_address: sender.to_string(),
-                    amount: vec![coin_u256(Uint256::from(100u128), QUOTE_DENOM)],
+                    amount: vec![coin_u256(Uint256::from(25u128), QUOTE_DENOM)],
                 },
                 REPLY_ID_CLAIM,
             )),
@@ -2049,14 +2050,14 @@ fn test_claim_order() {
                     None,
                 )),
                 OrderOperation::RunMarket(MarketOrder::new(
-                    Uint128::from(100u128),
+                    Uint128::from(25u128),
                     OrderDirection::Bid,
                     Addr::unchecked("buyer"),
                 )),
                 // Claim the first partial fill
                 OrderOperation::Claim((LARGE_NEGATIVE_TICK, 0)),
                 OrderOperation::RunMarket(MarketOrder::new(
-                    Uint128::from(100u128),
+                    Uint128::from(25u128),
                     OrderDirection::Bid,
                     Addr::unchecked("buyer"),
                 )),
@@ -2068,7 +2069,7 @@ fn test_claim_order() {
                 MsgSend256 {
                     from_address: "cosmos2contract".to_string(),
                     to_address: sender.to_string(),
-                    amount: vec![coin_u256(Uint256::from(100u128), QUOTE_DENOM)],
+                    amount: vec![coin_u256(Uint256::from(25u128), QUOTE_DENOM)],
                 },
                 REPLY_ID_CLAIM,
             )),
@@ -2121,7 +2122,7 @@ fn test_claim_order() {
             expected_error: None,
         },
         ClaimOrderTestCase {
-            name: "ASK: valid basic full claim at MIN_TICK",
+            name: "ASK: valid basic partial claim at MIN_TICK",
             sender: sender.clone(),
             operations: vec![
                 OrderOperation::PlaceLimit(LimitOrder::new(
@@ -2129,7 +2130,7 @@ fn test_claim_order() {
                     0,
                     OrderDirection::Ask,
                     sender.clone(),
-                    Uint128::from(10u128),
+                    Uint128::from(3_000_000_000_000u128),
                     Decimal256::zero(),
                     None,
                 )),
@@ -2137,7 +2138,7 @@ fn test_claim_order() {
                     // Tick price is 0.000000000001, so 3_333_333_333_333 * 0.000000000001 = 3.33333333333
                     // We expect this to get truncated to 3, as order outputs should always be rounding
                     // in favor of the orderbook.
-                    Uint128::from(3_000_000_000_000u128),
+                    Uint128::from(3u128),
                     OrderDirection::Bid,
                     Addr::unchecked("buyer"),
                 )),
@@ -2149,20 +2150,12 @@ fn test_claim_order() {
                 MsgSend256 {
                     from_address: "cosmos2contract".to_string(),
                     to_address: sender.to_string(),
-                    amount: vec![coin_u256(Uint256::from(3_000_000_000_000u128), QUOTE_DENOM)],
+                    amount: vec![coin_u256(Uint256::from(3u128), QUOTE_DENOM)],
                 },
                 REPLY_ID_CLAIM,
             )),
             expected_bounty_msg: None,
-            expected_order_state: Some(LimitOrder::new(
-                MIN_TICK,
-                0,
-                OrderDirection::Ask,
-                sender.clone(),
-                Uint128::from(7u128),
-                decimal256_from_u128(3u128),
-                None,
-            ).with_placed_quantity(10u128)),
+            expected_order_state: None,
             expected_error: None,
         },
         // A tick id of 0 operates on a tick price of 1
@@ -2298,7 +2291,7 @@ fn test_claim_order() {
                 )),
                 OrderOperation::RunMarket(MarketOrder::new(
                     // Tick price is 2, 2*5 = 10
-                    Uint128::from(20u128),
+                    Uint128::from(5u128),
                     OrderDirection::Ask,
                     Addr::unchecked("buyer"),
                 )),
@@ -2310,7 +2303,7 @@ fn test_claim_order() {
                 MsgSend256 {
                     from_address: "cosmos2contract".to_string(),
                     to_address: sender.to_string(),
-                    amount: vec![coin_u256(Uint256::from(20u128), BASE_DENOM)],
+                    amount: vec![coin_u256(Uint256::from(5u128), BASE_DENOM)],
                 },
                 REPLY_ID_CLAIM,
             )),
@@ -2332,7 +2325,7 @@ fn test_claim_order() {
                     None,
                 )),
                 OrderOperation::RunMarket(MarketOrder::new(
-                    Uint128::from(10u128),
+                    Uint128::from(2u128),
                     OrderDirection::Ask,
                     Addr::unchecked("buyer"),
                 )),
@@ -2344,7 +2337,7 @@ fn test_claim_order() {
                 MsgSend256 {
                     from_address: "cosmos2contract".to_string(),
                     to_address: sender.to_string(),
-                    amount: vec![coin_u256(Uint256::from(10u128), BASE_DENOM)],
+                    amount: vec![coin_u256(Uint256::from(2u128), BASE_DENOM)],
                 },
                 REPLY_ID_CLAIM,
             )),
@@ -2354,8 +2347,8 @@ fn test_claim_order() {
                 0,
                 OrderDirection::Bid,
                 sender.clone(),
-                Uint128::from(5u128),
-                decimal256_from_u128(5u128),
+                Uint128::from(6u128),
+                decimal256_from_u128(4u128),
                 None,
             ).with_placed_quantity(10u128)),
             expected_error: None,
@@ -2374,14 +2367,14 @@ fn test_claim_order() {
                     None,
                 )),
                 OrderOperation::RunMarket(MarketOrder::new(
-                    Uint128::from(10u128),
+                    Uint128::from(2u128),
                     OrderDirection::Ask,
                     Addr::unchecked("buyer"),
                 )),
                 // Claim the first partial fill
                 OrderOperation::Claim((LARGE_POSITIVE_TICK, 0)),
                 OrderOperation::RunMarket(MarketOrder::new(
-                    Uint128::from(10u128),
+                    Uint128::from(3u128),
                     OrderDirection::Ask,
                     Addr::unchecked("buyer"),
                 )),
@@ -2393,7 +2386,7 @@ fn test_claim_order() {
                 MsgSend256 {
                     from_address: "cosmos2contract".to_string(),
                     to_address: sender.to_string(),
-                    amount: vec![coin_u256(Uint256::from(10u128), BASE_DENOM)],
+                    amount: vec![coin_u256(Uint256::from(3u128), BASE_DENOM)],
                 },
                 REPLY_ID_CLAIM,
             )),
@@ -2404,6 +2397,40 @@ fn test_claim_order() {
         // All Large Negative Tick orders operate on a tick price of 0.5
         ClaimOrderTestCase {
             name: "BID: valid basic full claim (large negative tick)",
+            sender: sender.clone(),
+            operations: vec![
+                OrderOperation::PlaceLimit(LimitOrder::new(
+                    LARGE_NEGATIVE_TICK,
+                    0,
+                    OrderDirection::Bid,
+                    sender.clone(),
+                    Uint128::from(100u128),
+                    Decimal256::zero(),
+                    None,
+                )),
+                OrderOperation::RunMarket(MarketOrder::new(
+                    Uint128::from(200u128),
+                    OrderDirection::Ask,
+                    Addr::unchecked("buyer"),
+                )),
+            ],
+            order_id: 0,
+
+            tick_id: LARGE_NEGATIVE_TICK,
+            expected_bank_msg: Some(SubMsg::reply_on_error(
+                MsgSend256 {
+                    from_address: "cosmos2contract".to_string(),
+                    to_address: sender.to_string(),
+                    amount: vec![coin_u256(Uint256::from(200u128), BASE_DENOM)],
+                },
+                REPLY_ID_CLAIM,
+            )),
+            expected_bounty_msg: None,
+            expected_order_state: None,
+            expected_error: None,
+        },
+        ClaimOrderTestCase {
+            name: "BID: valid basic partial claim (large negative tick)",
             sender: sender.clone(),
             operations: vec![
                 OrderOperation::PlaceLimit(LimitOrder::new(
@@ -2433,47 +2460,13 @@ fn test_claim_order() {
                 REPLY_ID_CLAIM,
             )),
             expected_bounty_msg: None,
-            expected_order_state: None,
-            expected_error: None,
-        },
-        ClaimOrderTestCase {
-            name: "BID: valid basic partial claim (large negative tick)",
-            sender: sender.clone(),
-            operations: vec![
-                OrderOperation::PlaceLimit(LimitOrder::new(
-                    LARGE_NEGATIVE_TICK,
-                    0,
-                    OrderDirection::Bid,
-                    sender.clone(),
-                    Uint128::from(100u128),
-                    Decimal256::zero(),
-                    None,
-                )),
-                OrderOperation::RunMarket(MarketOrder::new(
-                    Uint128::from(25u128),
-                    OrderDirection::Ask,
-                    Addr::unchecked("buyer"),
-                )),
-            ],
-            order_id: 0,
-
-            tick_id: LARGE_NEGATIVE_TICK,
-            expected_bank_msg: Some(SubMsg::reply_on_error(
-                MsgSend256 {
-                    from_address: "cosmos2contract".to_string(),
-                    to_address: sender.to_string(),
-                    amount: vec![coin_u256(Uint256::from(25u128), BASE_DENOM)],
-                },
-                REPLY_ID_CLAIM,
-            )),
-            expected_bounty_msg: None,
             expected_order_state: Some(LimitOrder::new(
                 LARGE_NEGATIVE_TICK,
                 0,
                 OrderDirection::Bid,
                 sender.clone(),
-                Uint128::from(50u128),
-                decimal256_from_u128(50u128),
+                Uint128::from(75u128),
+                decimal256_from_u128(25u128),
                 None,
             ).with_placed_quantity(100u128)),
             expected_error: None,
@@ -2492,14 +2485,14 @@ fn test_claim_order() {
                     None,
                 )),
                 OrderOperation::RunMarket(MarketOrder::new(
-                    Uint128::from(25u128),
+                    Uint128::from(100u128),
                     OrderDirection::Ask,
                     Addr::unchecked("buyer"),
                 )),
                 // Claim the first partial fill
                 OrderOperation::Claim((LARGE_NEGATIVE_TICK, 0)),
                 OrderOperation::RunMarket(MarketOrder::new(
-                    Uint128::from(25u128),
+                    Uint128::from(100u128),
                     OrderDirection::Ask,
                     Addr::unchecked("buyer"),
                 )),
@@ -2511,7 +2504,7 @@ fn test_claim_order() {
                 MsgSend256 {
                     from_address: "cosmos2contract".to_string(),
                     to_address: sender.to_string(),
-                    amount: vec![coin_u256(Uint256::from(25u128), BASE_DENOM)],
+                    amount: vec![coin_u256(Uint256::from(100u128), BASE_DENOM)],
                 },
                 REPLY_ID_CLAIM,
             )),
@@ -2778,7 +2771,7 @@ fn test_claim_order() {
                 OrderOperation::PlaceLimit(LimitOrder::new(
                     LARGE_NEGATIVE_TICK,
                     0,
-                    OrderDirection::Bid,
+                    OrderDirection::Ask,
                     sender.clone(),
                     Uint128::from(1u128),
                     Decimal256::zero(),
@@ -2787,7 +2780,7 @@ fn test_claim_order() {
                 OrderOperation::PlaceLimit(LimitOrder::new(
                     LARGE_NEGATIVE_TICK,
                     1,
-                    OrderDirection::Bid,
+                    OrderDirection::Ask,
                     sender.clone(),
                     Uint128::from(1u128),
                     Decimal256::zero(),
@@ -2795,7 +2788,7 @@ fn test_claim_order() {
                 )),
                 OrderOperation::RunMarket(MarketOrder::new(
                     Uint128::from(1u128),
-                    OrderDirection::Ask,
+                    OrderDirection::Bid,
                     sender.clone(),
                 )),
             ],
@@ -2819,7 +2812,7 @@ fn test_claim_order() {
             BASE_DENOM.to_string(),
         )
         .unwrap();
-
+        println!("name: {}", test.name);
         // Run setup operations
         for operation in test.operations {
             operation

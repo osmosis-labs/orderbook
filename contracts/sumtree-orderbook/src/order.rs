@@ -106,13 +106,13 @@ pub fn place_limit(
     .with_placed_at(env.block.time);
 
     let quant_dec256 = Decimal256::from_ratio(limit_order.quantity.u128(), Uint256::one());
-
     // Save the order to the orderbook
     orders().save(deps.storage, &(tick_id, order_id), &limit_order)?;
 
     tick_values.total_amount_of_liquidity = tick_values
         .total_amount_of_liquidity
-        .checked_add(quant_dec256)?;
+        .checked_add(quant_dec256)
+        .unwrap();
 
     tick_values.cumulative_total_value = tick_values
         .cumulative_total_value
@@ -168,6 +168,19 @@ pub fn cancel_limit(
 
     // Ensure the order has not been filled.
     let tick_state = TICK_STATE.load(deps.storage, tick_id).unwrap_or_default();
+
+    sync_tick(
+        deps.storage,
+        tick_id,
+        tick_state
+            .get_values(OrderDirection::Bid)
+            .effective_total_amount_swapped,
+        tick_state
+            .get_values(OrderDirection::Ask)
+            .effective_total_amount_swapped,
+    )?;
+
+    let tick_state = TICK_STATE.load(deps.storage, tick_id).unwrap_or_default();
     let tick_values = tick_state.get_values(order.order_direction);
     ensure!(
         tick_values.effective_total_amount_swapped <= order.etas,
@@ -213,10 +226,10 @@ pub fn cancel_limit(
     );
 
     orders().remove(deps.storage, &(order.tick_id, order.order_id))?;
-
     curr_tick_values.total_amount_of_liquidity = curr_tick_values
         .total_amount_of_liquidity
         .checked_sub(Decimal256::from_ratio(order.quantity, Uint256::one()))?;
+
     curr_tick_state.set_values(order.order_direction, curr_tick_values);
     TICK_STATE.save(deps.storage, order.tick_id, &curr_tick_state)?;
     subtract_directional_liquidity(deps.storage, order.order_direction, quant_dec256)?;
@@ -503,6 +516,11 @@ pub(crate) fn run_market_order_internal(
         let current_tick_id = maybe_current_tick?;
         let mut current_tick = TICK_STATE.load(storage, current_tick_id)?;
         let mut current_tick_values = current_tick.get_values(order.order_direction.opposite());
+
+        if current_tick_values.total_amount_of_liquidity.is_zero() {
+            continue;
+        }
+
         let tick_price = tick_to_price(current_tick_id)?;
         last_tick_price = tick_price;
 
@@ -557,6 +575,14 @@ pub(crate) fn run_market_order_internal(
             tick_price,
             RoundingDirection::Up,
         )?;
+
+        ensure!(
+            !input_filled.is_zero(),
+            ContractError::InvalidSwap {
+                error: "Input amount for a given swap step cannot be zero".to_string()
+            }
+        );
+
         order.quantity = order
             .quantity
             // Safe conversions as amount filled should never be larger than order quantity which is upper bounded by Uint128::MAX
@@ -626,6 +652,7 @@ pub(crate) fn claim_order(
     // Sync the tick the order is on to ensure correct ETAS
     let bid_tick_values = tick_state.get_values(OrderDirection::Bid);
     let ask_tick_values = tick_state.get_values(OrderDirection::Ask);
+
     sync_tick(
         storage,
         tick_id,

@@ -3,7 +3,7 @@ use std::str::FromStr;
 use cosmwasm_std::{
     coin,
     testing::{mock_env, mock_info},
-    Addr, Coin, Decimal, Decimal256, Uint128,
+    Addr, Coin, Decimal, Decimal256, Fraction, Uint128,
 };
 
 use crate::{
@@ -137,14 +137,14 @@ fn test_query_spot_price() {
                     None,
                 )),
                 OrderOperation::RunMarket(MarketOrder::new(
-                    Uint128::from(2u128),
+                    Uint128::from(3u128),
                     OrderDirection::Bid,
                     sender.clone(),
                 )),
             ],
             base_denom: QUOTE_DENOM.to_string(),
             quote_denom: BASE_DENOM.to_string(),
-            expected_price: Decimal::percent(200),
+            expected_price: Decimal::percent(200).inv().unwrap(),
             expected_error: None,
         },
         SpotPriceTestCase {
@@ -160,7 +160,7 @@ fn test_query_spot_price() {
             ))],
             base_denom: QUOTE_DENOM.to_string(),
             quote_denom: BASE_DENOM.to_string(),
-            expected_price: Decimal::from_ratio(340282300000000000000u128, 1u128),
+            expected_price: Decimal::from_ratio(1u128, 340282300000000000000u128),
             expected_error: None,
         },
         SpotPriceTestCase {
@@ -176,7 +176,7 @@ fn test_query_spot_price() {
             ))],
             base_denom: QUOTE_DENOM.to_string(),
             quote_denom: BASE_DENOM.to_string(),
-            expected_price: Decimal::from_str("0.000000000001").unwrap(),
+            expected_price: Decimal::from_str("1000000000000").unwrap(),
             expected_error: None,
         },
         SpotPriceTestCase {
@@ -280,14 +280,14 @@ fn test_query_spot_price() {
                     None,
                 )),
                 OrderOperation::RunMarket(MarketOrder::new(
-                    Uint128::from(2u128),
+                    Uint128::from(3u128),
                     OrderDirection::Ask,
                     sender.clone(),
                 )),
             ],
             base_denom: BASE_DENOM.to_string(),
             quote_denom: QUOTE_DENOM.to_string(),
-            expected_price: Decimal::percent(200),
+            expected_price: Decimal::percent(50),
             expected_error: None,
         },
         SpotPriceTestCase {
@@ -310,7 +310,7 @@ fn test_query_spot_price() {
             ],
             base_denom: BASE_DENOM.to_string(),
             quote_denom: QUOTE_DENOM.to_string(),
-            expected_price: Decimal::percent(50),
+            expected_price: Decimal::percent(200),
             expected_error: None,
         },
         SpotPriceTestCase {
@@ -328,7 +328,7 @@ fn test_query_spot_price() {
             quote_denom: QUOTE_DENOM.to_string(),
             // At max tick the price is 2.9387365e-21 which is outside the range of the `Decimal` type
             // As such the returned price is zero
-            expected_price: Decimal::zero(),
+            expected_price: Decimal::from_str("340282300000000000000").unwrap(),
             expected_error: None,
         },
         SpotPriceTestCase {
@@ -344,7 +344,7 @@ fn test_query_spot_price() {
             ))],
             base_denom: BASE_DENOM.to_string(),
             quote_denom: QUOTE_DENOM.to_string(),
-            expected_price: Decimal::from_ratio(1000000000000u128, 1u128),
+            expected_price: Decimal::from_ratio(1u128, 1000000000000u128),
             expected_error: None,
         },
         SpotPriceTestCase {
@@ -387,7 +387,6 @@ fn test_query_spot_price() {
         let mut deps = mock_dependencies_custom();
         let env = mock_env();
         let info = mock_info(sender.as_str(), &[]);
-
         create_orderbook(
             deps.as_mut(),
             QUOTE_DENOM.to_string(),
@@ -517,8 +516,8 @@ fn test_calc_out_amount_given_in() {
             token_in: coin(150, QUOTE_DENOM),
             token_out_denom: BASE_DENOM,
             swap_fee: EXPECTED_SWAP_FEE,
-            // Output: 100*1 (tick: 0) + 50*2 (tick: LARGE_POSITIVE_TICK) = 200
-            expected_output: coin_u256(200u128, BASE_DENOM),
+            // Output: 100*1 (tick: 0) + 50/2 (tick: LARGE_POSITIVE_TICK) = 125
+            expected_output: coin_u256(125u128, BASE_DENOM),
             expected_error: None,
         },
         CalcOutAmountGivenInTestCase {
@@ -572,7 +571,7 @@ fn test_calc_out_amount_given_in() {
                     0,
                     OrderDirection::Bid,
                     sender.clone(),
-                    Uint128::from(25u128),
+                    Uint128::from(100u128),
                     Decimal256::percent(0),
                     None,
                 )),
@@ -598,8 +597,8 @@ fn test_calc_out_amount_given_in() {
             token_in: coin(150, BASE_DENOM),
             token_out_denom: QUOTE_DENOM,
             swap_fee: EXPECTED_SWAP_FEE,
-            // Output: 25 at 0.5 tick price + 100 at 1 tick price = 125
-            expected_output: coin_u256(125u128, QUOTE_DENOM),
+            // Output: 50/0.5 at LARGE_POSITIVE_TICK tick price + 100 at 1 tick price = 200
+            expected_output: coin_u256(200u128, QUOTE_DENOM),
             expected_error: None,
         },
         CalcOutAmountGivenInTestCase {
@@ -1247,6 +1246,7 @@ struct OrdersByOwnerTestCase {
     name: &'static str,
     pre_operations: Vec<OrderOperation>,
     expected_output: Vec<LimitOrder>,
+    expected_count: u64,
     owner: Addr,
     start_from: Option<(i64, u64)>,
     end_at: Option<(i64, u64)>,
@@ -1264,6 +1264,7 @@ fn test_orders_by_owner() {
             name: "no orders",
             pre_operations: vec![],
             expected_output: vec![],
+            expected_count: 0,
             owner: Addr::unchecked("sender"),
             start_from: None,
             end_at: None,
@@ -1290,6 +1291,7 @@ fn test_orders_by_owner() {
                 Decimal256::zero(),
                 None,
             )],
+            expected_count: 1,
             owner: Addr::unchecked("sender"),
             start_from: None,
             end_at: None,
@@ -1327,6 +1329,7 @@ fn test_orders_by_owner() {
                 Decimal256::zero(),
                 None,
             )],
+            expected_count: 2,
             owner: Addr::unchecked("sender"),
             start_from: None,
             end_at: None,
@@ -1364,8 +1367,9 @@ fn test_orders_by_owner() {
                 Decimal256::zero(),
                 None,
             )],
+            expected_count: 2,
             owner: Addr::unchecked("sender"),
-            start_from: Some((0, 0)),
+            start_from: Some((0, 1)),
             end_at: None,
             limit: None,
             expected_error: None,
@@ -1401,6 +1405,7 @@ fn test_orders_by_owner() {
                 Decimal256::zero(),
                 None,
             )],
+            expected_count: 2,
             owner: Addr::unchecked("sender"),
             start_from: None,
             end_at: Some((0, 0)),
@@ -1477,6 +1482,7 @@ fn test_orders_by_owner() {
                     None,
                 ),
             ],
+            expected_count: 3,
             owner: Addr::unchecked("sender"),
             start_from: None,
             end_at: None,
@@ -1531,12 +1537,17 @@ fn test_orders_by_owner() {
             );
         });
         assert_eq!(
-            res,
+            res.orders,
             test.expected_output
                 .iter()
                 .map(|o| o.clone().with_placed_at(env.block.time))
                 .collect::<Vec<LimitOrder>>(),
             "{}: output did not match",
+            test.name
+        );
+        assert_eq!(
+            res.count, test.expected_count,
+            "{}: count did not match",
             test.name
         );
     }

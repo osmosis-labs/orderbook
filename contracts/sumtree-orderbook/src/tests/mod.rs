@@ -10,3 +10,5 @@ pub mod test_sudo;
 pub mod test_tick;
 pub mod test_tick_math;
 mod test_utils;
+
+pub mod e2e;

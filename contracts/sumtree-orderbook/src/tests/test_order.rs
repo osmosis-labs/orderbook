@@ -654,21 +654,23 @@ fn test_run_market_order() {
             orders: generate_limit_orders(
                 &[-1500000],
                 // 1000 units of liquidity total
-                10,
+                12,
                 default_quantity,
                 OrderDirection::Ask,
             ),
             // Bidding 1000 units of input into tick -1500000, which corresponds to $0.85,
-            // implies 1000*0.85 = 850 units of output.
-            expected_output: Uint256::from_u128(850),
-            expected_tick_etas: vec![(-1500000, decimal256_from_u128(Uint128::new(850)))],
+            // implies 1000 / 0.85 = 1176 units of output. As a sanity check, a bid is a
+            // buy on the other asset, so we should expect >1000 output due to the price
+            // being below $1.
+            expected_output: Uint256::from_u128(1176),
+            expected_tick_etas: vec![(-1500000, decimal256_from_u128(Uint128::new(1176)))],
             expected_tick_pointers: vec![(OrderDirection::Ask, -1500000)],
             expected_error: None,
         },
         RunMarketOrderTestCase {
             name: "happy path bid at positive tick",
             placed_order: MarketOrder::new(
-                Uint128::new(1000),
+                Uint128::new(100_000),
                 OrderDirection::Bid,
                 Addr::unchecked(DEFAULT_SENDER),
             ),
@@ -679,15 +681,15 @@ fn test_run_market_order() {
                 // Two orders with sufficient total liquidity to process the
                 // full market order
                 2,
-                Uint128::new(25_000_000),
+                Uint128::new(1),
                 OrderDirection::Ask,
             ),
-            // Bidding 1000 units of input into tick 40,000,000, which corresponds to a
+            // Bidding 100,000 units of input into tick 40,000,000, which corresponds to a
             // price of $50000 (from tick math test cases).
             //
-            // This implies 1000*50000 = 50,000,000 units of output.
-            expected_output: Uint256::from_u128(50_000_000),
-            expected_tick_etas: vec![(40000000, decimal256_from_u128(Uint128::new(50_000_000)))],
+            // This implies 100,000 / 50,000 = 2 units of output.
+            expected_output: Uint256::from_u128(2),
+            expected_tick_etas: vec![(40000000, decimal256_from_u128(Uint128::new(2)))],
             expected_tick_pointers: vec![(OrderDirection::Ask, 40000000)],
             expected_error: None,
         },
@@ -705,23 +707,23 @@ fn test_run_market_order() {
                 // Four limit orders with sufficient total liquidity to process the
                 // full market order
                 4,
-                Uint128::new(3),
+                Uint128::new(20_250),
                 OrderDirection::Ask,
             ),
             // Bidding 1000 units of input into tick -17765433, which corresponds to a
             // price of $0.012345670000000000 (from tick math test cases).
             //
-            // This implies 1000*0.012345670000000000 = 12.34567 units of output,
+            // This implies 1000 / 0.012345670000000000 = 81,000 units of output,
             // truncated to 12 units.
-            expected_output: Uint256::from_u128(12),
-            expected_tick_etas: vec![(-17765433, decimal256_from_u128(Uint128::new(12)))],
+            expected_output: Uint256::from_u128(81_000),
+            expected_tick_etas: vec![(-17765433, decimal256_from_u128(Uint128::new(81_000)))],
             expected_tick_pointers: vec![(OrderDirection::Ask, -17765433)],
             expected_error: None,
         },
         RunMarketOrderTestCase {
             name: "bid across multiple ticks",
             placed_order: MarketOrder::new(
-                Uint128::new(589 + 1),
+                Uint128::new(510 + 3),
                 OrderDirection::Bid,
                 Addr::unchecked(DEFAULT_SENDER),
             ),
@@ -729,26 +731,26 @@ fn test_run_market_order() {
             // Orders to fill against
             orders: generate_limit_orders(
                 &[-1500000, 1500000],
-                // 500 units of liquidity on each tick
-                5,
+                // 600 units of liquidity on each tick
+                6,
                 default_quantity,
                 OrderDirection::Ask,
             ),
             // Bidding 1000 units of input into tick -1500000, which corresponds to $0.85,
-            // implies 1000*0.85 = 850 units of output, but there is only 500 on the tick.
+            // implies 1000 / 0.85 = 1176 units of output, but there is only 600 on the tick.
             //
-            // So 500 gets filled at -1500000, corresponding to ~589 of the input (500/0.85).
-            // The remaining 1 unit is filled at tick 1500000 (price $2.5), which
-            // corresponds to the remaining liquidity.
+            // So 600 gets filled at -1500000, corresponding to ~510 of the input (600 * 0.85).
+            // The remaining 3 units of input is filled at tick 1500000 (price $2.5), which
+            // corresponds to the remaining liquidity (3 / 2.5 = 1.2 -> truncated to 1).
             //
-            // Thus, the total expected output is 502.
+            // Thus, the total expected output is 600 + 1.
             //
             // Note: this case does not cover rounding for input consumption since it overfills
             // the tick.
-            expected_output: Uint256::from_u128(502),
+            expected_output: Uint256::from_u128(601),
             expected_tick_etas: vec![
-                (-1500000, decimal256_from_u128(Uint128::new(500))),
-                (1500000, decimal256_from_u128(Uint128::new(2))),
+                (-1500000, decimal256_from_u128(Uint128::new(600))),
+                (1500000, decimal256_from_u128(Uint128::new(1))),
             ],
             expected_tick_pointers: vec![(OrderDirection::Ask, 1500000)],
             expected_error: None,
@@ -756,7 +758,7 @@ fn test_run_market_order() {
         RunMarketOrderTestCase {
             name: "happy path ask at positive tick",
             placed_order: MarketOrder::new(
-                Uint128::new(100000),
+                Uint128::new(100),
                 OrderDirection::Ask,
                 Addr::unchecked(DEFAULT_SENDER),
             ),
@@ -766,16 +768,16 @@ fn test_run_market_order() {
                 &[40000000],
                 // Two orders with sufficient total liquidity to process the
                 // full market order
-                2,
-                Uint128::new(1),
+                5,
+                Uint128::new(1_000_000),
                 OrderDirection::Bid,
             ),
-            // Asking 100,000 units of input into tick 40,000,000, which corresponds to a
-            // price of $1/50000 (from tick math test cases).
+            // Asking 100 units of input into tick 40,000,000, which corresponds to a
+            // price of $50,000 (from tick math test cases).
             //
-            // This implies 100,000/50000 = 2 units of output.
-            expected_output: Uint256::from_u128(2),
-            expected_tick_etas: vec![(40000000, decimal256_from_u128(Uint128::new(2)))],
+            // This implies 100 * 50,000 = 5,000,000 units of output.
+            expected_output: Uint256::from_u128(5_000_000),
+            expected_tick_etas: vec![(40000000, decimal256_from_u128(Uint128::new(5_000_000)))],
             expected_tick_pointers: vec![(OrderDirection::Bid, 40000000)],
             expected_error: None,
         },
@@ -793,16 +795,16 @@ fn test_run_market_order() {
                 // Two orders with sufficient total liquidity to process the
                 // full market order
                 2,
-                Uint128::new(50_000),
+                Uint128::new(10),
                 OrderDirection::Bid,
             ),
             // The order asks with 1000 units of input into tick -17765433, which corresponds
             // to a price of $0.012345670000000000 (from tick math test cases).
             //
-            // This implies 1000 / 0.012345670000000000 = 81,000.059 units of output,
-            // which gets truncated to 81,000 units.
-            expected_output: Uint256::from_u128(81_000),
-            expected_tick_etas: vec![(-17765433, decimal256_from_u128(Uint128::new(81_000)))],
+            // This implies 1000 * 0.012345670000000000 = 12.34567 units of output,
+            // which gets truncated to 12 units.
+            expected_output: Uint256::from_u128(12),
+            expected_tick_etas: vec![(-17765433, decimal256_from_u128(Uint128::new(12)))],
             expected_tick_pointers: vec![(OrderDirection::Bid, -17765433)],
             expected_error: None,
         },
@@ -1051,7 +1053,8 @@ fn test_run_market_order_moving_tick() {
                 )),
                 // Fill all limits on tick 0 and 50% of tick 1, leaving tick 0 empty and forcing positive movement
                 OrderOperation::RunMarket(MarketOrder::new(
-                    Uint128::from(15u128),
+                    // We provide 16 here as rounding on the second tick causes this to fill 5 on the second tick
+                    Uint128::from(16u128),
                     OrderDirection::Bid,
                     Addr::unchecked("buyer"),
                 )),
@@ -1292,7 +1295,8 @@ fn test_run_market_order_moving_tick() {
                 )),
                 // Fill entire first tick and 50% of next tick to force negative movement
                 OrderOperation::RunMarket(MarketOrder::new(
-                    Uint128::from(15u128),
+                    // We provide 16 here as rounding on the second tick causes this to fill 5 on the second tick
+                    Uint128::from(16u128),
                     OrderDirection::Ask,
                     Addr::unchecked("buyer"),
                 )),
@@ -1369,7 +1373,8 @@ fn test_run_market_order_moving_tick() {
                 )),
                 // Fill entire first tick and 50% of next tick to force negative movement
                 OrderOperation::RunMarket(MarketOrder::new(
-                    Uint128::from(15u128),
+                    // We provide 16 here as rounding on the second tick causes this to fill 5 on the second tick
+                    Uint128::from(16u128),
                     OrderDirection::Ask,
                     Addr::unchecked("buyer"),
                 )),
@@ -1466,7 +1471,8 @@ fn test_run_market_order_moving_tick() {
                 )),
                 // Fill entire first tick and 50% of second tick to force positive movement
                 OrderOperation::RunMarket(MarketOrder::new(
-                    Uint128::from(15u128),
+                    // We provide 16 here as rounding on the second tick causes this to fill 5 on the second tick
+                    Uint128::from(16u128),
                     OrderDirection::Bid,
                     Addr::unchecked("buyer"),
                 )),
@@ -1846,8 +1852,8 @@ fn test_claim_order() {
                     None,
                 )),
                 OrderOperation::RunMarket(MarketOrder::new(
-                    // Tick price is 2, 2*5 = 10
-                    Uint128::from(5u128),
+                    // Tick price is 2, 2*10 = 20
+                    Uint128::from(20u128),
                     OrderDirection::Bid,
                     Addr::unchecked("buyer"),
                 )),
@@ -1858,7 +1864,7 @@ fn test_claim_order() {
                 MsgSend256 {
                     from_address: "cosmos2contract".to_string(),
                     to_address: sender.to_string(),
-                    amount: vec![coin_u256(Uint256::from(5u128), QUOTE_DENOM)],
+                    amount: vec![coin_u256(Uint256::from(20u128), QUOTE_DENOM)],
                 },
                 REPLY_ID_CLAIM,
             )),
@@ -1880,8 +1886,9 @@ fn test_claim_order() {
                     None,
                 )),
                 OrderOperation::RunMarket(MarketOrder::new(
-                    // Tick price is 2, 2*2 = 4
-                    Uint128::from(2u128),
+                    // Filling 4/10 of the Ask order
+                    // Tick price is 2, 2*4 = 8
+                    Uint128::from(8u128),
                     OrderDirection::Bid,
                     Addr::unchecked("buyer"),
                 )),
@@ -1893,7 +1900,7 @@ fn test_claim_order() {
                 MsgSend256 {
                     from_address: "cosmos2contract".to_string(),
                     to_address: sender.to_string(),
-                    amount: vec![coin_u256(Uint256::from(2u128), QUOTE_DENOM)],
+                    amount: vec![coin_u256(Uint256::from(8u128), QUOTE_DENOM)],
                 },
                 REPLY_ID_CLAIM,
             )),
@@ -1923,15 +1930,18 @@ fn test_claim_order() {
                     None,
                 )),
                 OrderOperation::RunMarket(MarketOrder::new(
-                    Uint128::from(2u128),
+                    // Filling 6/10 of the Ask order
+                    // Tick price is 2, 2*6 = 12
+                    Uint128::from(12u128),
                     OrderDirection::Bid,
                     Addr::unchecked("buyer"),
                 )),
                 // Claim the first partial fill
                 OrderOperation::Claim((LARGE_POSITIVE_TICK, 0)),
                 OrderOperation::RunMarket(MarketOrder::new(
-                    // Tick price is 2, 2*3 = 6
-                    Uint128::from(3u128),
+                    // Filling 4/10 of the Ask order (full fill)
+                    // Tick price is 2, 2*4 = 8
+                    Uint128::from(8u128),
                     OrderDirection::Bid,
                     Addr::unchecked("buyer"),
                 )),
@@ -1943,7 +1953,7 @@ fn test_claim_order() {
                 MsgSend256 {
                     from_address: "cosmos2contract".to_string(),
                     to_address: sender.to_string(),
-                    amount: vec![coin_u256(Uint256::from(3u128), QUOTE_DENOM)],
+                    amount: vec![coin_u256(Uint256::from(8u128), QUOTE_DENOM)],
                 },
                 REPLY_ID_CLAIM,
             )),
@@ -1966,7 +1976,9 @@ fn test_claim_order() {
                     None,
                 )),
                 OrderOperation::RunMarket(MarketOrder::new(
-                    Uint128::from(200u128),
+                    // Full filling ask order
+                    // Tick price is 0.5, 0.5*100 = 50
+                    Uint128::from(50u128),
                     OrderDirection::Bid,
                     Addr::unchecked("buyer"),
                 )),
@@ -1978,7 +1990,7 @@ fn test_claim_order() {
                 MsgSend256 {
                     from_address: "cosmos2contract".to_string(),
                     to_address: sender.to_string(),
-                    amount: vec![coin_u256(Uint256::from(200u128), QUOTE_DENOM)],
+                    amount: vec![coin_u256(Uint256::from(50u128), QUOTE_DENOM)],
                 },
                 REPLY_ID_CLAIM,
             )),
@@ -2000,7 +2012,9 @@ fn test_claim_order() {
                     None,
                 )),
                 OrderOperation::RunMarket(MarketOrder::new(
-                    Uint128::from(100u128),
+                    // Filling 50/100 of the Ask order
+                    // Tick price is 0.5, 0.5*50 = 25
+                    Uint128::from(25u128),
                     OrderDirection::Bid,
                     Addr::unchecked("buyer"),
                 )),
@@ -2012,7 +2026,7 @@ fn test_claim_order() {
                 MsgSend256 {
                     from_address: "cosmos2contract".to_string(),
                     to_address: sender.to_string(),
-                    amount: vec![coin_u256(Uint256::from(100u128), QUOTE_DENOM)],
+                    amount: vec![coin_u256(Uint256::from(25u128), QUOTE_DENOM)],
                 },
                 REPLY_ID_CLAIM,
             )),
@@ -2042,14 +2056,18 @@ fn test_claim_order() {
                     None,
                 )),
                 OrderOperation::RunMarket(MarketOrder::new(
-                    Uint128::from(100u128),
+                    // Filling 50/100 of the Ask order
+                    // Tick price is 0.5, 0.5*50 = 25
+                    Uint128::from(25u128),
                     OrderDirection::Bid,
                     Addr::unchecked("buyer"),
                 )),
                 // Claim the first partial fill
                 OrderOperation::Claim((LARGE_NEGATIVE_TICK, 0)),
                 OrderOperation::RunMarket(MarketOrder::new(
-                    Uint128::from(100u128),
+                    // Filling 50/100 of the Ask order (full fill)
+                    // Tick price is 0.5, 0.5*50 = 25
+                    Uint128::from(25u128),
                     OrderDirection::Bid,
                     Addr::unchecked("buyer"),
                 )),
@@ -2061,7 +2079,7 @@ fn test_claim_order() {
                 MsgSend256 {
                     from_address: "cosmos2contract".to_string(),
                     to_address: sender.to_string(),
-                    amount: vec![coin_u256(Uint256::from(100u128), QUOTE_DENOM)],
+                    amount: vec![coin_u256(Uint256::from(25u128), QUOTE_DENOM)],
                 },
                 REPLY_ID_CLAIM,
             )),
@@ -2093,7 +2111,9 @@ fn test_claim_order() {
                 )),
                 OrderOperation::Cancel((valid_tick_id, 0)),
                 OrderOperation::RunMarket(MarketOrder::new(
-                    Uint128::from(100u128),
+                    // Filling 100/100 of the Ask order
+                    // Tick price is 0.5, 0.5*100 = 50
+                    Uint128::from(50u128),
                     OrderDirection::Bid,
                     Addr::unchecked("buyer"),
                 )),
@@ -2114,7 +2134,7 @@ fn test_claim_order() {
             expected_error: None,
         },
         ClaimOrderTestCase {
-            name: "ASK: valid basic full claim at MIN_TICK",
+            name: "ASK: valid basic partial claim at MIN_TICK",
             sender: sender.clone(),
             operations: vec![
                 OrderOperation::PlaceLimit(LimitOrder::new(
@@ -2122,7 +2142,7 @@ fn test_claim_order() {
                     0,
                     OrderDirection::Ask,
                     sender.clone(),
-                    Uint128::from(10u128),
+                    Uint128::from(3_000_000_000_000u128),
                     Decimal256::zero(),
                     None,
                 )),
@@ -2130,32 +2150,23 @@ fn test_claim_order() {
                     // Tick price is 0.000000000001, so 3_333_333_333_333 * 0.000000000001 = 3.33333333333
                     // We expect this to get truncated to 3, as order outputs should always be rounding
                     // in favor of the orderbook.
-                    Uint128::from(3_000_000_000_000u128),
+                    Uint128::from(3u128),
                     OrderDirection::Bid,
                     Addr::unchecked("buyer"),
                 )),
             ],
             order_id: 0,
-
             tick_id: MIN_TICK,
             expected_bank_msg: Some(SubMsg::reply_on_error(
                 MsgSend256 {
                     from_address: "cosmos2contract".to_string(),
                     to_address: sender.to_string(),
-                    amount: vec![coin_u256(Uint256::from(3_000_000_000_000u128), QUOTE_DENOM)],
+                    amount: vec![coin_u256(Uint256::from(3u128), QUOTE_DENOM)],
                 },
                 REPLY_ID_CLAIM,
             )),
             expected_bounty_msg: None,
-            expected_order_state: Some(LimitOrder::new(
-                MIN_TICK,
-                0,
-                OrderDirection::Ask,
-                sender.clone(),
-                Uint128::from(7u128),
-                decimal256_from_u128(3u128),
-                None,
-            ).with_placed_quantity(10u128)),
+            expected_order_state: None,
             expected_error: None,
         },
         // A tick id of 0 operates on a tick price of 1
@@ -2179,7 +2190,6 @@ fn test_claim_order() {
                 )),
             ],
             order_id: 0,
-
             tick_id: valid_tick_id,
             expected_bank_msg: Some(SubMsg::reply_on_error(
                 MsgSend256 {
@@ -2290,8 +2300,9 @@ fn test_claim_order() {
                     None,
                 )),
                 OrderOperation::RunMarket(MarketOrder::new(
-                    // Tick price is 2, 2*5 = 10
-                    Uint128::from(20u128),
+                    // Filling 10/10 of the Bid order
+                    // Tick price is 2, 10/2 = 5
+                    Uint128::from(5u128),
                     OrderDirection::Ask,
                     Addr::unchecked("buyer"),
                 )),
@@ -2303,7 +2314,7 @@ fn test_claim_order() {
                 MsgSend256 {
                     from_address: "cosmos2contract".to_string(),
                     to_address: sender.to_string(),
-                    amount: vec![coin_u256(Uint256::from(20u128), BASE_DENOM)],
+                    amount: vec![coin_u256(Uint256::from(5u128), BASE_DENOM)],
                 },
                 REPLY_ID_CLAIM,
             )),
@@ -2325,19 +2336,20 @@ fn test_claim_order() {
                     None,
                 )),
                 OrderOperation::RunMarket(MarketOrder::new(
-                    Uint128::from(10u128),
+                    // Filling 4/10 of the Bid order
+                    // Tick price is 2, 4/2 = 2
+                    Uint128::from(2u128),
                     OrderDirection::Ask,
                     Addr::unchecked("buyer"),
                 )),
             ],
             order_id: 0,
-
             tick_id: LARGE_POSITIVE_TICK,
             expected_bank_msg: Some(SubMsg::reply_on_error(
                 MsgSend256 {
                     from_address: "cosmos2contract".to_string(),
                     to_address: sender.to_string(),
-                    amount: vec![coin_u256(Uint256::from(10u128), BASE_DENOM)],
+                    amount: vec![coin_u256(Uint256::from(2u128), BASE_DENOM)],
                 },
                 REPLY_ID_CLAIM,
             )),
@@ -2347,8 +2359,8 @@ fn test_claim_order() {
                 0,
                 OrderDirection::Bid,
                 sender.clone(),
-                Uint128::from(5u128),
-                decimal256_from_u128(5u128),
+                Uint128::from(6u128),
+                decimal256_from_u128(4u128),
                 None,
             ).with_placed_quantity(10u128)),
             expected_error: None,
@@ -2367,26 +2379,29 @@ fn test_claim_order() {
                     None,
                 )),
                 OrderOperation::RunMarket(MarketOrder::new(
-                    Uint128::from(10u128),
+                    // Filling 4/10 of the Bid Order
+                    // Tick price is 2, 4/2 = 2
+                    Uint128::from(2u128),
                     OrderDirection::Ask,
                     Addr::unchecked("buyer"),
                 )),
                 // Claim the first partial fill
                 OrderOperation::Claim((LARGE_POSITIVE_TICK, 0)),
                 OrderOperation::RunMarket(MarketOrder::new(
-                    Uint128::from(10u128),
+                    // Filling 6/10 of the Bid order (full fill)
+                    // Tick price is 2, 6/2 = 3
+                    Uint128::from(3u128),
                     OrderDirection::Ask,
                     Addr::unchecked("buyer"),
                 )),
             ],
             order_id: 0,
-
             tick_id: LARGE_POSITIVE_TICK,
             expected_bank_msg: Some(SubMsg::reply_on_error(
                 MsgSend256 {
                     from_address: "cosmos2contract".to_string(),
                     to_address: sender.to_string(),
-                    amount: vec![coin_u256(Uint256::from(10u128), BASE_DENOM)],
+                    amount: vec![coin_u256(Uint256::from(3u128), BASE_DENOM)],
                 },
                 REPLY_ID_CLAIM,
             )),
@@ -2409,19 +2424,20 @@ fn test_claim_order() {
                     None,
                 )),
                 OrderOperation::RunMarket(MarketOrder::new(
-                    Uint128::from(50u128),
+                    // Full filling the bid order
+                    // Tick price is 0.5 so 100/0.5 = 200
+                    Uint128::from(200u128),
                     OrderDirection::Ask,
                     Addr::unchecked("buyer"),
                 )),
             ],
             order_id: 0,
-
             tick_id: LARGE_NEGATIVE_TICK,
             expected_bank_msg: Some(SubMsg::reply_on_error(
                 MsgSend256 {
                     from_address: "cosmos2contract".to_string(),
                     to_address: sender.to_string(),
-                    amount: vec![coin_u256(Uint256::from(50u128), BASE_DENOM)],
+                    amount: vec![coin_u256(Uint256::from(200u128), BASE_DENOM)],
                 },
                 REPLY_ID_CLAIM,
             )),
@@ -2443,19 +2459,20 @@ fn test_claim_order() {
                     None,
                 )),
                 OrderOperation::RunMarket(MarketOrder::new(
-                    Uint128::from(25u128),
+                    // Filling 25/100 of the Bid order
+                    // Tick price is 0.5 so 25/0.5 = 50
+                    Uint128::from(50u128),
                     OrderDirection::Ask,
                     Addr::unchecked("buyer"),
                 )),
             ],
             order_id: 0,
-
             tick_id: LARGE_NEGATIVE_TICK,
             expected_bank_msg: Some(SubMsg::reply_on_error(
                 MsgSend256 {
                     from_address: "cosmos2contract".to_string(),
                     to_address: sender.to_string(),
-                    amount: vec![coin_u256(Uint256::from(25u128), BASE_DENOM)],
+                    amount: vec![coin_u256(Uint256::from(50u128), BASE_DENOM)],
                 },
                 REPLY_ID_CLAIM,
             )),
@@ -2465,8 +2482,8 @@ fn test_claim_order() {
                 0,
                 OrderDirection::Bid,
                 sender.clone(),
-                Uint128::from(50u128),
-                decimal256_from_u128(50u128),
+                Uint128::from(75u128),
+                decimal256_from_u128(25u128),
                 None,
             ).with_placed_quantity(100u128)),
             expected_error: None,
@@ -2485,26 +2502,29 @@ fn test_claim_order() {
                     None,
                 )),
                 OrderOperation::RunMarket(MarketOrder::new(
-                    Uint128::from(25u128),
+                    // Filling 50/100 of the Bid order
+                    // Tick price is 0.5 so 50/0.5 = 100
+                    Uint128::from(100u128),
                     OrderDirection::Ask,
                     Addr::unchecked("buyer"),
                 )),
                 // Claim the first partial fill
                 OrderOperation::Claim((LARGE_NEGATIVE_TICK, 0)),
                 OrderOperation::RunMarket(MarketOrder::new(
-                    Uint128::from(25u128),
+                    // Filling 50/100 of the Bid order (full fill)
+                    // Tick price is 0.5 so 50/0.5 = 100
+                    Uint128::from(100u128),
                     OrderDirection::Ask,
                     Addr::unchecked("buyer"),
                 )),
             ],
             order_id: 0,
-
             tick_id: LARGE_NEGATIVE_TICK,
             expected_bank_msg: Some(SubMsg::reply_on_error(
                 MsgSend256 {
                     from_address: "cosmos2contract".to_string(),
                     to_address: sender.to_string(),
-                    amount: vec![coin_u256(Uint256::from(25u128), BASE_DENOM)],
+                    amount: vec![coin_u256(Uint256::from(100u128), BASE_DENOM)],
                 },
                 REPLY_ID_CLAIM,
             )),
@@ -2542,7 +2562,6 @@ fn test_claim_order() {
                 )),
             ],
             order_id: 1,
-
             tick_id: valid_tick_id,
             expected_bank_msg: Some(SubMsg::reply_on_error(
                 MsgSend256 {
@@ -2771,7 +2790,7 @@ fn test_claim_order() {
                 OrderOperation::PlaceLimit(LimitOrder::new(
                     LARGE_NEGATIVE_TICK,
                     0,
-                    OrderDirection::Bid,
+                    OrderDirection::Ask,
                     sender.clone(),
                     Uint128::from(1u128),
                     Decimal256::zero(),
@@ -2780,7 +2799,7 @@ fn test_claim_order() {
                 OrderOperation::PlaceLimit(LimitOrder::new(
                     LARGE_NEGATIVE_TICK,
                     1,
-                    OrderDirection::Bid,
+                    OrderDirection::Ask,
                     sender.clone(),
                     Uint128::from(1u128),
                     Decimal256::zero(),
@@ -2788,7 +2807,7 @@ fn test_claim_order() {
                 )),
                 OrderOperation::RunMarket(MarketOrder::new(
                     Uint128::from(1u128),
-                    OrderDirection::Ask,
+                    OrderDirection::Bid,
                     sender.clone(),
                 )),
             ],
@@ -2812,7 +2831,7 @@ fn test_claim_order() {
             BASE_DENOM.to_string(),
         )
         .unwrap();
-
+        println!("name: {}", test.name);
         // Run setup operations
         for operation in test.operations {
             operation
@@ -3620,7 +3639,7 @@ fn test_batch_claim_order() {
                     owner.clone(),
                 )),
                 OrderOperation::RunMarket(MarketOrder::new(
-                    Uint128::from(50u128),
+                    Uint128::from(51u128),
                     OrderDirection::Bid,
                     owner.clone(),
                 )),
@@ -3648,7 +3667,7 @@ fn test_batch_claim_order() {
                     MsgSend256 {
                         from_address: "cosmos2contract".to_string(),
                         to_address: owner.to_string(),
-                        amount: vec![coin_u256(49u128, QUOTE_DENOM)],
+                        amount: vec![coin_u256(50u128, QUOTE_DENOM)],
                     },
                     REPLY_ID_CLAIM,
                 ),
@@ -3696,7 +3715,7 @@ fn test_batch_claim_order() {
                     owner.clone(),
                 )),
                 OrderOperation::RunMarket(MarketOrder::new(
-                    Uint128::from(50u128),
+                    Uint128::from(51u128),
                     OrderDirection::Bid,
                     owner.clone(),
                 )),
@@ -3716,7 +3735,7 @@ fn test_batch_claim_order() {
                     MsgSend256 {
                         from_address: "cosmos2contract".to_string(),
                         to_address: owner.to_string(),
-                        amount: vec![coin_u256(49u128, QUOTE_DENOM)],
+                        amount: vec![coin_u256(50u128, QUOTE_DENOM)],
                     },
                     REPLY_ID_CLAIM,
                 ),
@@ -3940,15 +3959,15 @@ fn test_directional_liquidity() {
                     Decimal256::zero(),
                     None,
                 )),
-                // Filling Ask at 0.5 price = 100 units of opposite denom
+                // Partial filling Bid at 2 price = 50 units of opposite denom
                 OrderOperation::RunMarket(MarketOrder::new(
-                    Uint128::from(200u128),
+                    Uint128::from(50u128),
                     OrderDirection::Ask,
                     sender.clone(),
                 )),
-                // Filling Bid at 0.5 price = 100 units of opposite denom
+                // Filling Ask at 2 price = 200 units of opposite denom
                 OrderOperation::RunMarket(MarketOrder::new(
-                    Uint128::from(50u128),
+                    Uint128::from(200u128),
                     OrderDirection::Bid,
                     sender.clone(),
                 )),
@@ -3979,21 +3998,21 @@ fn test_directional_liquidity() {
                     Decimal256::zero(),
                     None,
                 )),
-                // Filling Ask at 0.5 price = 200 units of opposite denom
+                // Filling Bid at 0.5 price = 400 units of opposite denom
                 OrderOperation::RunMarket(MarketOrder::new(
-                    Uint128::from(100u128),
+                    Uint128::from(400u128),
                     OrderDirection::Ask,
                     sender.clone(),
                 )),
-                // Filling Bid at 0.5 price = 25 units of opposite denom
+                // Partial flling Ask at 0.5 price = 25 units of opposite denom
                 OrderOperation::RunMarket(MarketOrder::new(
-                    Uint128::from(50u128),
+                    Uint128::from(25u128),
                     OrderDirection::Bid,
                     sender,
                 )),
             ],
             expected_liquidity: (
-                (OrderDirection::Ask, decimal256_from_u128(75u128)),
+                (OrderDirection::Ask, decimal256_from_u128(50u128)),
                 (OrderDirection::Bid, decimal256_from_u128(0u128)),
             ),
         },

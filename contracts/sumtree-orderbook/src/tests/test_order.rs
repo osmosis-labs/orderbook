@@ -1054,7 +1054,8 @@ fn test_run_market_order_moving_tick() {
                 )),
                 // Fill all limits on tick 0 and 50% of tick 1, leaving tick 0 empty and forcing positive movement
                 OrderOperation::RunMarket(MarketOrder::new(
-                    Uint128::from(15u128),
+                    // We provide 16 here as rounding on the second tick causes this to fill 5 on the second tick
+                    Uint128::from(16u128),
                     OrderDirection::Bid,
                     Addr::unchecked("buyer"),
                 )),
@@ -1295,7 +1296,8 @@ fn test_run_market_order_moving_tick() {
                 )),
                 // Fill entire first tick and 50% of next tick to force negative movement
                 OrderOperation::RunMarket(MarketOrder::new(
-                    Uint128::from(15u128),
+                    // We provide 16 here as rounding on the second tick causes this to fill 5 on the second tick
+                    Uint128::from(16u128),
                     OrderDirection::Ask,
                     Addr::unchecked("buyer"),
                 )),
@@ -1372,7 +1374,8 @@ fn test_run_market_order_moving_tick() {
                 )),
                 // Fill entire first tick and 50% of next tick to force negative movement
                 OrderOperation::RunMarket(MarketOrder::new(
-                    Uint128::from(15u128),
+                    // We provide 16 here as rounding on the second tick causes this to fill 5 on the second tick
+                    Uint128::from(16u128),
                     OrderDirection::Ask,
                     Addr::unchecked("buyer"),
                 )),
@@ -1469,7 +1472,8 @@ fn test_run_market_order_moving_tick() {
                 )),
                 // Fill entire first tick and 50% of second tick to force positive movement
                 OrderOperation::RunMarket(MarketOrder::new(
-                    Uint128::from(15u128),
+                    // We provide 16 here as rounding on the second tick causes this to fill 5 on the second tick
+                    Uint128::from(16u128),
                     OrderDirection::Bid,
                     Addr::unchecked("buyer"),
                 )),

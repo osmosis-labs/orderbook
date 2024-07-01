@@ -3620,7 +3620,7 @@ fn test_batch_claim_order() {
                     owner.clone(),
                 )),
                 OrderOperation::RunMarket(MarketOrder::new(
-                    Uint128::from(50u128),
+                    Uint128::from(51u128),
                     OrderDirection::Bid,
                     owner.clone(),
                 )),
@@ -3648,7 +3648,7 @@ fn test_batch_claim_order() {
                     MsgSend256 {
                         from_address: "cosmos2contract".to_string(),
                         to_address: owner.to_string(),
-                        amount: vec![coin_u256(49u128, QUOTE_DENOM)],
+                        amount: vec![coin_u256(50u128, QUOTE_DENOM)],
                     },
                     REPLY_ID_CLAIM,
                 ),
@@ -3696,7 +3696,7 @@ fn test_batch_claim_order() {
                     owner.clone(),
                 )),
                 OrderOperation::RunMarket(MarketOrder::new(
-                    Uint128::from(50u128),
+                    Uint128::from(51u128),
                     OrderDirection::Bid,
                     owner.clone(),
                 )),
@@ -3716,7 +3716,7 @@ fn test_batch_claim_order() {
                     MsgSend256 {
                         from_address: "cosmos2contract".to_string(),
                         to_address: owner.to_string(),
-                        amount: vec![coin_u256(49u128, QUOTE_DENOM)],
+                        amount: vec![coin_u256(50u128, QUOTE_DENOM)],
                     },
                     REPLY_ID_CLAIM,
                 ),

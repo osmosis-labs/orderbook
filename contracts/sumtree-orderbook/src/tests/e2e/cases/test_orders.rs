@@ -1,3 +1,5 @@
+use std::fmt::format;
+
 use cosmwasm_std::{coin, Decimal256, Uint128};
 use osmosis_test_tube::{Module, OsmosisTestApp};
 
@@ -255,4 +257,66 @@ fn test_tick_extremes() {
         "newuser",
     )
     .unwrap();
+}
+
+/// This test ensures that as ticks are iterated and filled the price is getting worse (as it starts at the best possible price an works towards the worst)
+#[test]
+fn test_decrementing_market_value() {
+    let app = OsmosisTestApp::new();
+    let cp = CosmwasmPool::new(&app);
+    let mut t = setup!(&app, "quote", "base", 0);
+
+    // We want a relatively large market amount to ensure tick moves without a large amount of market orders
+    let market_amount = 1000u128;
+    // We want a relatively small limit amount to help move the tick
+    let limit_amount = 10u128;
+    // We want a relatively large tick step to ensure price is shifting between ticks
+    let tick_step = 10000;
+    let (min_tick, max_tick) = (-4500000, 4500000);
+
+    // Ensure this is true for both directions
+    for direction in [OrderDirection::Ask, OrderDirection::Bid] {
+        // Place a limit order at each tick step between the min and max tick
+        for tick in (min_tick..max_tick).step_by(tick_step as usize) {
+            // We don't care who places the order as we are only checking expected output
+            let username = format!("user{}", tick);
+            t.add_account(
+                &username,
+                vec![
+                    coin(1000000, "base"),
+                    coin(1000000, "quote"),
+                    coin(10000000000, "uosmo"),
+                ],
+            );
+            orders::place_limit(&t, tick, direction, limit_amount, None, &username).unwrap();
+        }
+
+        // Record the current expected output for the first market order
+        let mut prev_expected_output = assert::decrementing_market_order_output(
+            &t,
+            u128::MAX - 1,
+            market_amount,
+            direction.opposite(),
+        );
+
+        // If this is zero then the setup amounts do not work
+        assert!(!prev_expected_output.is_zero());
+
+        let mut iterations = 0;
+        // Place orders while possible (this should loop at least once due to the expected output from above being non-zero)
+        while orders::place_market(&cp, &t, direction.opposite(), market_amount, "user1").is_ok() {
+            iterations += 1;
+            // Assert the expected output is getting worse
+            prev_expected_output = assert::decrementing_market_order_output(
+                &t,
+                prev_expected_output.u128(),
+                market_amount,
+                direction.opposite(),
+            );
+            // Ensure ticks are correct as we iterate
+            assert::tick_invariants(&t);
+        }
+
+        assert!(iterations > 0, "no market orders were placed");
+    }
 }

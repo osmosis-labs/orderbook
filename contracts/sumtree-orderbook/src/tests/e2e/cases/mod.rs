@@ -1,3 +1,3 @@
 mod test_fuzz;
-mod test_orders_success;
+mod test_orders;
 mod utils;

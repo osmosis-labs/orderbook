@@ -82,14 +82,14 @@ pub mod assert {
 
     use crate::{
         msg::{
-            DenomsResponse, GetTotalPoolLiquidityResponse, GetUnrealizedCancelsResponse, QueryMsg,
-            SpotPriceResponse,
+            CalcOutAmtGivenInResponse, DenomsResponse, GetTotalPoolLiquidityResponse,
+            GetUnrealizedCancelsResponse, QueryMsg, SpotPriceResponse,
         },
         tests::e2e::test_env::TestEnv,
         tick_math::{amount_to_value, tick_to_price, RoundingDirection},
         types::{OrderDirection, Orderbook},
     };
-    use cosmwasm_std::{Coin, Coins, Fraction, Uint128};
+    use cosmwasm_std::{Coin, Coins, Decimal, Fraction, Uint128};
     use osmosis_test_tube::{cosmrs::proto::prost::Message, RunnerExecuteResult};
 
     // -- Contract State Assertions
@@ -300,6 +300,49 @@ pub mod assert {
                 max_tick_with_bid.tick_id
             );
         }
+    }
+
+    pub fn decrementing_market_order_output(
+        t: &TestEnv,
+        previous_market_value: u128,
+        amount_to_run: u128,
+        direction: OrderDirection,
+    ) -> Uint128 {
+        let DenomsResponse {
+            quote_denom,
+            base_denom,
+        } = t.contract.get_denoms();
+
+        let token_in_denom = if direction == OrderDirection::Bid {
+            quote_denom.clone()
+        } else {
+            base_denom.clone()
+        };
+        let token_out_denom = if direction == OrderDirection::Bid {
+            base_denom
+        } else {
+            quote_denom
+        };
+
+        let maybe_expected_output = t.contract.query(&QueryMsg::CalcOutAmountGivenIn {
+            token_in: Coin::new(amount_to_run, token_in_denom),
+            token_out_denom,
+            swap_fee: Decimal::zero(),
+        });
+
+        let expected_output = maybe_expected_output
+            .map_or(Uint128::zero(), |r: CalcOutAmtGivenInResponse| {
+                Uint128::from_str(&r.token_out.amount).unwrap()
+            });
+
+        assert!(
+            expected_output.u128() <= previous_market_value,
+            "subsequent market orders increased unexpectedly, got: {}, expected: {}",
+            expected_output,
+            previous_market_value
+        );
+
+        expected_output
     }
 
     /// Asserts that there are no remaining orders in the orderbook

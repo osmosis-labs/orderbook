@@ -24,7 +24,6 @@ use crate::{
 pub(crate) const LARGE_POSITIVE_TICK: i64 = 4500000;
 // Tick Price = 0.00001
 pub(crate) const LARGE_NEGATIVE_TICK: i64 = -4500000;
-// pub(crate) const LARGE_NEGATIVE_TICK: i64 = -5000000;
 
 // Loops over a provided action for the provided duration
 // Tracks the number of operations and iterations

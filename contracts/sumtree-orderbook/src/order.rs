@@ -111,8 +111,7 @@ pub fn place_limit(
 
     tick_values.total_amount_of_liquidity = tick_values
         .total_amount_of_liquidity
-        .checked_add(quant_dec256)
-        .unwrap();
+        .checked_add(quant_dec256)?;
 
     tick_values.cumulative_total_value = tick_values
         .cumulative_total_value

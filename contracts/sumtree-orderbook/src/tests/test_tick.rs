@@ -125,7 +125,7 @@ fn test_sync_tick() {
                 NodeType::leaf_uint256(50u32, 12u32),
                 NodeType::leaf_uint256(62u32, 10u32),
                 NodeType::leaf_uint256(80u32, 28u32),
-                NodeType::leaf_uint256(178u32, 70u32),
+                NodeType::leaf_uint256(128u32, 70u32),
             ],
             unrealized_cancels_ask: vec![],
 
@@ -244,7 +244,7 @@ fn test_sync_tick() {
                 NodeType::leaf_uint256(50u32, 12u32),
                 NodeType::leaf_uint256(62u32, 10u32),
                 NodeType::leaf_uint256(80u32, 28u32),
-                NodeType::leaf_uint256(178u32, 70u32),
+                NodeType::leaf_uint256(128u32, 70u32),
             ],
             unrealized_cancels_bid: vec![],
 

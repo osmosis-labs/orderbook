@@ -72,10 +72,8 @@ impl OrderOperation {
                 Ok(())
             }
             OrderOperation::Claim((tick_id, order_id)) => {
-                match claim_limit(deps, env, info, tick_id, order_id) {
-                    Ok(_) => Ok(()),
-                    Err(err) => Err(err),
-                }
+                claim_limit(deps, env, info, tick_id, order_id)?;
+                Ok(())
             }
             OrderOperation::Cancel((tick_id, order_id)) => {
                 let order = orders()

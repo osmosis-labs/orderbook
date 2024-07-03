@@ -2112,14 +2112,12 @@ fn test_claim_order() {
                 OrderOperation::Cancel((valid_tick_id, 0)),
                 OrderOperation::RunMarket(MarketOrder::new(
                     // Filling 100/100 of the Ask order
-                    // Tick price is 1, 1*100 = 100
                     Uint128::from(100u128),
                     OrderDirection::Bid,
                     Addr::unchecked("buyer"),
                 )),
             ],
             order_id: 1,
-
             tick_id: valid_tick_id,
             expected_bank_msg: Some(SubMsg::reply_on_error(
                 MsgSend256 {

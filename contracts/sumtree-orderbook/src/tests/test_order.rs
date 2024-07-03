@@ -2831,7 +2831,6 @@ fn test_claim_order() {
             BASE_DENOM.to_string(),
         )
         .unwrap();
-        println!("name: {}", test.name);
         // Run setup operations
         for operation in test.operations {
             operation

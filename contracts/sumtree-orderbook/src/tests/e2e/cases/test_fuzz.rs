@@ -350,7 +350,6 @@ impl MixedFuzzOperation {
         order_count: &mut u64,
         tick_bounds: (i64, i64),
     ) -> Result<bool, &'static str> {
-        // println!("operation: {self:?}");
         let username = format!("user{}", iteration);
         match self {
             MixedFuzzOperation::PlaceLimit => {
@@ -517,7 +516,7 @@ fn run_fuzz_mixed(amount_of_orders: u64, tick_bounds: (i64, i64)) {
 
         // We add an escape clause in the case that the test ever gets caught in an infinite loop
         let mut repeated_failures = 0;
-        // println!("iteration: {}", i);
+
         // Repeat randomising operations until a successful one is chosen
         while !operation
             .run(
@@ -678,7 +677,6 @@ fn place_random_market(
             return 0;
         }
     } else if expected_out.is_err() {
-        println!("expected_out: {:?}", expected_out);
         return 0;
     }
 

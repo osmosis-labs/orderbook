@@ -241,8 +241,6 @@ impl<'a> OrderbookContract<'a> {
             SudoMsg::TransferAdmin { new_admin: admin },
         )
         .unwrap();
-        let admin: Option<Addr> = self.query(&QueryMsg::Auth(AuthQueryMsg::Admin {})).unwrap();
-        println!("admin_set: {:?}", admin);
     }
 
     pub fn _set_maker_fee(

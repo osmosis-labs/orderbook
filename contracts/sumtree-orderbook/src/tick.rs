@@ -43,7 +43,6 @@ pub fn sync_tick(
         // If tick state for current order direction is already up to date,
         // skip the check. This saves us from walking the tree for both order directions
         // even though in most cases we will likely only need to sync one.
-
         if tick_value.last_tick_sync_etas == target_etas {
             continue;
         }

@@ -3,7 +3,7 @@ use std::{collections::HashMap, path::PathBuf, str::FromStr};
 use crate::{
     constants::{MAX_TICK, MIN_TICK},
     msg::{
-        AuthExecuteMsg, AuthQueryMsg, DenomsResponse, ExecuteMsg, GetTotalPoolLiquidityResponse,
+        AuthExecuteMsg, DenomsResponse, ExecuteMsg, GetTotalPoolLiquidityResponse,
         GetUnrealizedCancelsResponse, InstantiateMsg, OrdersResponse, QueryMsg, SudoMsg,
         TickIdAndState, TickUnrealizedCancels, TicksResponse,
     },

@@ -10,7 +10,6 @@ use crate::{
     tests::test_utils::decimal256_from_u128,
     tick_math::{amount_to_value, tick_to_price, RoundingDirection},
     types::{LimitOrder, OrderDirection},
-    ContractError,
 };
 
 use cosmwasm_std::{to_json_binary, Addr, Coin, Coins, Decimal, Decimal256, Uint128, Uint256};
@@ -42,28 +41,12 @@ pub struct TestEnv<'a> {
 }
 
 impl<'a> TestEnv<'a> {
-    pub fn add_account(&mut self, username: &str, balance: Vec<Coin>) {
+    pub(crate) fn add_account(&mut self, username: &str, balance: Vec<Coin>) {
         let account = self.app.init_account(&balance).unwrap();
         self.accounts.insert(username.to_string(), account);
     }
 
-    pub fn _assert_account_balances(
-        &self,
-        account: &str,
-        expected_balances: Vec<Coin>,
-        ignore_denoms: Vec<&str>,
-    ) {
-        let account_balances: Vec<Coin> = self
-            ._get_account_balance(account)
-            .iter()
-            .filter(|coin| !ignore_denoms.contains(&coin.denom.as_str()))
-            .cloned()
-            .collect();
-
-        assert_eq!(account_balances, expected_balances);
-    }
-
-    pub fn assert_contract_balances(&self, expected_balances: &[Coin], label: &str) {
+    pub(crate) fn assert_contract_balances(&self, expected_balances: &[Coin], label: &str) {
         let contract_balances: Vec<Coin> = self.get_balance(&self.contract.contract_addr);
 
         assert_eq!(
@@ -73,7 +56,7 @@ impl<'a> TestEnv<'a> {
         );
     }
 
-    pub fn get_balance(&self, address: &str) -> Vec<Coin> {
+    pub(crate) fn get_balance(&self, address: &str) -> Vec<Coin> {
         let account_balances: Vec<Coin> = Bank::new(self.app)
             .query_all_balances(&QueryAllBalancesRequest {
                 address: address.to_string(),
@@ -87,12 +70,6 @@ impl<'a> TestEnv<'a> {
 
         account_balances
     }
-
-    pub fn _get_account_balance(&self, account: &str) -> Vec<Coin> {
-        let account = self.accounts.get(account).unwrap();
-
-        self.get_balance(&account.address())
-    }
 }
 
 pub struct TestEnvBuilder {
@@ -101,23 +78,23 @@ pub struct TestEnvBuilder {
 }
 
 impl TestEnvBuilder {
-    pub fn new() -> Self {
+    pub(crate) fn new() -> Self {
         Self {
             account_balances: HashMap::new(),
             instantiate_msg: None,
         }
     }
 
-    pub fn with_instantiate_msg(mut self, msg: InstantiateMsg) -> Self {
+    pub(crate) fn with_instantiate_msg(mut self, msg: InstantiateMsg) -> Self {
         self.instantiate_msg = Some(msg);
         self
     }
 
-    pub fn with_account(mut self, account: &str, balance: Vec<Coin>) -> Self {
+    pub(crate) fn with_account(mut self, account: &str, balance: Vec<Coin>) -> Self {
         self.account_balances.insert(account.to_string(), balance);
         self
     }
-    pub fn build(self, app: &'_ OsmosisTestApp) -> TestEnv<'_> {
+    pub(crate) fn build(self, app: &'_ OsmosisTestApp) -> TestEnv<'_> {
         let accounts: HashMap<_, _> = self
             .account_balances
             .into_iter()
@@ -157,7 +134,7 @@ pub struct OrderbookContract<'a> {
 }
 
 impl<'a> OrderbookContract<'a> {
-    pub fn deploy(
+    pub(crate) fn deploy(
         app: &'a OsmosisTestApp,
         instantiate_msg: &InstantiateMsg,
         signer: &SigningAccount,
@@ -203,7 +180,7 @@ impl<'a> OrderbookContract<'a> {
         Ok(contract)
     }
 
-    pub fn execute(
+    pub(crate) fn execute(
         &self,
         msg: &ExecuteMsg,
         funds: &[Coin],
@@ -213,7 +190,7 @@ impl<'a> OrderbookContract<'a> {
         wasm.execute(&self.contract_addr, msg, funds, signer)
     }
 
-    pub fn query<Res>(&self, msg: &QueryMsg) -> RunnerResult<Res>
+    pub(crate) fn query<Res>(&self, msg: &QueryMsg) -> RunnerResult<Res>
     where
         Res: ?Sized + DeserializeOwned,
     {
@@ -221,7 +198,7 @@ impl<'a> OrderbookContract<'a> {
         wasm.query(&self.contract_addr, msg)
     }
 
-    pub fn get_wasm_byte_code() -> Vec<u8> {
+    pub(crate) fn get_wasm_byte_code() -> Vec<u8> {
         let manifest_path = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
         std::fs::read(
             manifest_path
@@ -235,7 +212,8 @@ impl<'a> OrderbookContract<'a> {
         .unwrap()
     }
 
-    pub fn _set_admin(&self, app: &OsmosisTestApp, admin: Addr) {
+    // -- Admin Methods --
+    pub(crate) fn _set_admin(&self, app: &OsmosisTestApp, admin: Addr) {
         app.wasm_sudo(
             &self.contract_addr,
             SudoMsg::TransferAdmin { new_admin: admin },
@@ -243,7 +221,7 @@ impl<'a> OrderbookContract<'a> {
         .unwrap();
     }
 
-    pub fn _set_maker_fee(
+    pub(crate) fn _set_maker_fee(
         &self,
         signer: &SigningAccount,
         maker_fee: Decimal256,
@@ -266,91 +244,38 @@ impl<'a> OrderbookContract<'a> {
         .unwrap();
     }
 
-    pub fn get_order_claimable_amount(&self, order: LimitOrder) -> u128 {
-        let TicksResponse { ticks } = self
-            .query(&QueryMsg::AllTicks {
-                start_from: Some(order.tick_id),
-                end_at: None,
-                limit: Some(1),
-            })
-            .unwrap();
-        let tick = ticks.first().unwrap().tick_state.clone();
-        let tick_values: crate::types::TickValues = tick.get_values(order.order_direction);
-        let GetUnrealizedCancelsResponse { ticks } = self
-            .query(&QueryMsg::GetUnrealizedCancels {
-                tick_ids: vec![order.tick_id],
-            })
-            .unwrap();
-        let TickUnrealizedCancels {
-            unrealized_cancels, ..
-        } = ticks.first().unwrap();
-        let cancelled_amount = match order.order_direction {
-            OrderDirection::Bid => unrealized_cancels.bid_unrealized_cancels,
-            OrderDirection::Ask => unrealized_cancels.ask_unrealized_cancels,
-        };
+    // -- Queries --
 
-        let synced_etas = tick_values
-            .effective_total_amount_swapped
-            .checked_add(cancelled_amount)
-            .unwrap();
-        let expected_amount_u256 = synced_etas
-            .saturating_sub(order.etas)
-            .to_uint_floor()
-            .min(Uint256::from(order.quantity.u128()));
-
-        let expected_amount = Uint128::try_from(expected_amount_u256).unwrap();
-        expected_amount.u128()
-    }
-
-    pub fn get_maker_fee(&self) -> Decimal256 {
+    pub(crate) fn get_maker_fee(&self) -> Decimal256 {
         let maker_fee: Decimal256 = self.query(&QueryMsg::GetMakerFee {}).unwrap();
         maker_fee
     }
 
-    pub fn get_denoms(&self) -> DenomsResponse {
+    pub(crate) fn get_denoms(&self) -> DenomsResponse {
         self.query(&QueryMsg::Denoms {}).unwrap()
     }
 
-    pub fn collect_all_ticks(&self) -> Vec<TickIdAndState> {
-        let mut ticks = vec![];
-        let mut min_tick = MIN_TICK;
-        while min_tick <= MAX_TICK {
-            let tick: TicksResponse = self
-                .query(&QueryMsg::AllTicks {
-                    start_from: Some(min_tick),
-                    end_at: Some(MAX_TICK),
-                    limit: Some(300),
-                })
-                .unwrap();
-            if tick.ticks.is_empty() {
-                break;
-            }
-            ticks.extend(tick.ticks.clone());
-            min_tick = tick.ticks.iter().max_by_key(|t| t.tick_id).unwrap().tick_id + 1;
-        }
-        ticks
+    // Calculate the expected output for a given input amount/direction using the CosmWasm pool query
+    pub(crate) fn get_out_given_in(
+        &self,
+        direction: OrderDirection,
+        amount: impl Into<u128>,
+    ) -> RunnerResult<ProtoCoin> {
+        let (token_in_denom, token_out_denom) = if direction == OrderDirection::Bid {
+            (self.get_denoms().quote_denom, self.get_denoms().base_denom)
+        } else {
+            (self.get_denoms().base_denom, self.get_denoms().quote_denom)
+        };
+
+        self.query(&QueryMsg::CalcOutAmountGivenIn {
+            token_in: Coin::new(amount.into(), token_in_denom),
+            token_out_denom,
+            swap_fee: Decimal::zero(),
+        })
+        .map(|r: CalcOutAmtGivenInResponse| r.token_out)
     }
 
-    pub fn collect_all_orders(&self) -> Vec<LimitOrder> {
-        let ticks = self.collect_all_ticks();
-
-        let mut all_orders: Vec<LimitOrder> = vec![];
-        for tick in ticks {
-            let orders: OrdersResponse = self
-                .query(&QueryMsg::OrdersByTick {
-                    tick_id: tick.tick_id,
-                    start_from: None,
-                    end_at: None,
-                    limit: None,
-                })
-                .unwrap();
-            all_orders.extend(orders.orders.clone());
-        }
-
-        all_orders
-    }
-
-    pub fn get_directional_liquidity(&self, order_direction: OrderDirection) -> u128 {
+    pub(crate) fn get_directional_liquidity(&self, order_direction: OrderDirection) -> u128 {
         let GetTotalPoolLiquidityResponse {
             total_pool_liquidity,
         } = self.query(&QueryMsg::GetTotalPoolLiquidity {}).unwrap();
@@ -369,7 +294,12 @@ impl<'a> OrderbookContract<'a> {
         liquidity.u128()
     }
 
-    pub fn get_order(&self, sender: String, tick_id: i64, order_id: u64) -> Option<LimitOrder> {
+    pub(crate) fn get_order(
+        &self,
+        sender: String,
+        tick_id: i64,
+        order_id: u64,
+    ) -> Option<LimitOrder> {
         let OrdersResponse { orders, .. } = self
             .query(&QueryMsg::OrdersByOwner {
                 owner: Addr::unchecked(sender),
@@ -381,11 +311,57 @@ impl<'a> OrderbookContract<'a> {
         orders.first().cloned()
     }
 
-    pub fn get_max_market_amount(&self, direction: OrderDirection) -> u128 {
+    pub(crate) fn collect_all_ticks(&self) -> Vec<TickIdAndState> {
+        let mut ticks = vec![];
+        let mut min_tick = MIN_TICK;
+        while min_tick <= MAX_TICK {
+            let tick: TicksResponse = self
+                .query(&QueryMsg::AllTicks {
+                    start_from: Some(min_tick),
+                    end_at: Some(MAX_TICK),
+                    limit: Some(300),
+                })
+                .unwrap();
+            if tick.ticks.is_empty() {
+                break;
+            }
+            ticks.extend(tick.ticks.clone());
+            // Determine the next tick to start at for the next query loop
+            min_tick = tick.ticks.iter().max_by_key(|t| t.tick_id).unwrap().tick_id + 1;
+        }
+        ticks
+    }
+
+    pub(crate) fn collect_all_orders(&self) -> Vec<LimitOrder> {
+        let ticks = self.collect_all_ticks();
+
+        let mut all_orders: Vec<LimitOrder> = vec![];
+        for tick in ticks {
+            let orders: OrdersResponse = self
+                .query(&QueryMsg::OrdersByTick {
+                    tick_id: tick.tick_id,
+                    start_from: None,
+                    end_at: None,
+                    limit: None,
+                })
+                .unwrap();
+            all_orders.extend(orders.orders.clone());
+        }
+
+        all_orders
+    }
+
+    /// Calculates the max amount for a market order that can be placed
+    /// by iterating over all the ticks, calculating their liquidity and summing
+    ///
+    /// The amount caps at `u128::MAX`
+    pub(crate) fn get_max_market_amount(&self, direction: OrderDirection) -> u128 {
         let mut max_amount: Uint128 = Uint128::zero();
         let ticks = self.collect_all_ticks();
         for tick in ticks {
             let value = tick.tick_state.get_values(direction.opposite());
+
+            // If the tick has no liquidity we can skip this tick
             if value.total_amount_of_liquidity.is_zero() {
                 continue;
             }
@@ -414,37 +390,51 @@ impl<'a> OrderbookContract<'a> {
         max_amount.u128()
     }
 
-    // Calculate the expected output for a given input amount/direction using the CosmWasm pool query
-    pub(crate) fn get_out_given_in(
-        &self,
-        direction: OrderDirection,
-        amount: impl Into<u128>,
-    ) -> RunnerResult<ProtoCoin> {
-        let (token_in_denom, token_out_denom) = if direction == OrderDirection::Bid {
-            (self.get_denoms().quote_denom, self.get_denoms().base_denom)
-        } else {
-            (self.get_denoms().base_denom, self.get_denoms().quote_denom)
+    /// Calculates how much is available for claim for a given order
+    ///
+    /// The amount that is claimable is dependent on a tick sync.
+    /// To account for this we first fetch the amount of unrealized cancels for the tick
+    /// and add it to the current ETAS before computing the difference.
+    pub(crate) fn get_order_claimable_amount(&self, order: LimitOrder) -> u128 {
+        let TicksResponse { ticks } = self
+            .query(&QueryMsg::AllTicks {
+                start_from: Some(order.tick_id),
+                end_at: None,
+                limit: Some(1),
+            })
+            .unwrap();
+
+        // Get current tick values
+        let tick = ticks.first().unwrap().tick_state.clone();
+        let tick_values = tick.get_values(order.order_direction);
+
+        // Get the current unrealized cancels for the tick
+        let GetUnrealizedCancelsResponse { ticks } = self
+            .query(&QueryMsg::GetUnrealizedCancels {
+                tick_ids: vec![order.tick_id],
+            })
+            .unwrap();
+        let TickUnrealizedCancels {
+            unrealized_cancels, ..
+        } = ticks.first().unwrap();
+        let cancelled_amount = match order.order_direction {
+            OrderDirection::Bid => unrealized_cancels.bid_unrealized_cancels,
+            OrderDirection::Ask => unrealized_cancels.ask_unrealized_cancels,
         };
 
-        self.query(&QueryMsg::CalcOutAmountGivenIn {
-            token_in: Coin::new(amount.into(), token_in_denom),
-            token_out_denom,
-            swap_fee: Decimal::zero(),
-        })
-        .map(|r: CalcOutAmtGivenInResponse| r.token_out)
-    }
-}
+        // Add unrealized cancels to the current ETAS
+        let synced_etas = tick_values
+            .effective_total_amount_swapped
+            .checked_add(cancelled_amount)
+            .unwrap();
 
-pub fn _assert_contract_err(expected: ContractError, actual: RunnerError) {
-    match actual {
-        RunnerError::ExecuteError { msg } => {
-            if !msg.contains(&expected.to_string()) {
-                panic!(
-                    "assertion failed:\n\n  must contain \t: \"{}\",\n  actual \t: \"{}\"\n",
-                    expected, msg
-                )
-            }
-        }
-        _ => panic!("unexpected error, expect execute error but got: {}", actual),
-    };
+        // Compute the expected amount as if the tick had been synced
+        let expected_amount_u256 = synced_etas
+            .saturating_sub(order.etas)
+            .to_uint_floor()
+            .min(Uint256::from(order.quantity.u128()));
+
+        let expected_amount = Uint128::try_from(expected_amount_u256).unwrap();
+        expected_amount.u128()
+    }
 }

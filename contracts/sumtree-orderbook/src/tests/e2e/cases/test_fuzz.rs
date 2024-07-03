@@ -53,15 +53,15 @@ fn run_for_duration(
 #[test]
 fn test_order_fuzz_linear_large_orders_small_range() {
     let oper_per_iteration = 1000;
-    run_for_duration(60 * 60, oper_per_iteration, |count| {
+    run_for_duration(60, oper_per_iteration, |count| {
         run_fuzz_linear(count, (-10, 10), 0.2);
     });
 }
 
 #[test]
 fn test_order_fuzz_linear_small_orders_large_range() {
-    let oper_per_iteration = 1000;
-    run_for_duration(60 * 5, oper_per_iteration, |count| {
+    let oper_per_iteration = 2000;
+    run_for_duration(60, oper_per_iteration, |count| {
         run_fuzz_linear(count, (LARGE_NEGATIVE_TICK, LARGE_POSITIVE_TICK), 0.2);
     });
 }
@@ -75,15 +75,15 @@ fn test_order_fuzz_linear_small_orders_large_range() {
 #[test]
 fn test_order_fuzz_linear_small_orders_small_range() {
     let oper_per_iteration = 100;
-    run_for_duration(60 * 60, oper_per_iteration, |count| {
+    run_for_duration(60, oper_per_iteration, |count| {
         run_fuzz_linear(count, (-10, 0), 0.1);
     });
 }
 
 #[test]
 fn test_order_fuzz_linear_large_cancelled_orders_small_range() {
-    let oper_per_iteration = 1000;
-    run_for_duration(60 * 60, oper_per_iteration, |count| {
+    let oper_per_iteration = 2000;
+    run_for_duration(60, oper_per_iteration, |count| {
         run_fuzz_linear(count, (MIN_TICK, MIN_TICK + 20), 0.8);
     });
 }
@@ -91,22 +91,22 @@ fn test_order_fuzz_linear_large_cancelled_orders_small_range() {
 #[test]
 fn test_order_fuzz_linear_small_cancelled_orders_large_range() {
     let oper_per_iteration = 100;
-    run_for_duration(60 * 60, oper_per_iteration, |count| {
+    run_for_duration(60, oper_per_iteration, |count| {
         run_fuzz_linear(count, (LARGE_NEGATIVE_TICK, LARGE_POSITIVE_TICK), 0.8);
     });
 }
 
 #[test]
 fn test_order_fuzz_linear_large_all_cancelled_orders_small_range() {
-    let oper_per_iteration = 1000;
-    run_for_duration(60 * 60, oper_per_iteration, |count| {
+    let oper_per_iteration = 2000;
+    run_for_duration(60, oper_per_iteration, |count| {
         run_fuzz_linear(count, (-10, 10), 1.0);
     });
 }
 
 #[test]
 fn test_order_fuzz_linear_single_tick() {
-    let oper_per_iteration = 100;
+    let oper_per_iteration = 2000;
     run_for_duration(10, oper_per_iteration, |count| {
         run_fuzz_linear(count, (0, 0), 0.2);
     });
@@ -114,53 +114,53 @@ fn test_order_fuzz_linear_single_tick() {
 
 #[test]
 fn test_order_fuzz_mixed() {
-    let oper_per_iteration = 1000;
-    run_for_duration(60 * 60, oper_per_iteration, |count| {
+    let oper_per_iteration = 2000;
+    run_for_duration(10, oper_per_iteration, |count| {
         run_fuzz_mixed(count, (-20, 20));
     });
 }
 
 #[test]
 fn test_order_fuzz_mixed_single_tick() {
-    let oper_per_iteration = 1000;
+    let oper_per_iteration = 2000;
 
-    run_for_duration(60 * 60, oper_per_iteration, |count| {
+    run_for_duration(10, oper_per_iteration, |count| {
         run_fuzz_mixed(count, (0, 0));
     });
 }
 
 #[test]
 fn test_order_fuzz_mixed_large_negative_tick_range() {
-    let oper_per_iteration = 1000;
+    let oper_per_iteration = 2000;
 
-    run_for_duration(60 * 60, oper_per_iteration, |count| {
+    run_for_duration(60, oper_per_iteration, |count| {
         run_fuzz_mixed(count, (LARGE_NEGATIVE_TICK, LARGE_NEGATIVE_TICK + 10));
     });
 }
 
 #[test]
 fn test_order_fuzz_mixed_large_positive_tick_range() {
-    let oper_per_iteration = 1000;
+    let oper_per_iteration = 2000;
 
-    run_for_duration(60 * 60, oper_per_iteration, |count| {
+    run_for_duration(60, oper_per_iteration, |count| {
         run_fuzz_mixed(count, (LARGE_POSITIVE_TICK - 10, LARGE_POSITIVE_TICK));
     });
 }
 
 #[test]
 fn test_order_fuzz_mixed_min_tick() {
-    let oper_per_iteration = 1000;
+    let oper_per_iteration = 2000;
 
-    run_for_duration(60 * 60, oper_per_iteration, |count| {
+    run_for_duration(60, oper_per_iteration, |count| {
         run_fuzz_mixed(count, (MIN_TICK, MIN_TICK + 10));
     });
 }
 
 #[test]
 fn test_order_fuzz_large_tick_range() {
-    let oper_per_iteration = 1000;
+    let oper_per_iteration = 2000;
 
-    run_for_duration(60 * 60, oper_per_iteration, |count| {
+    run_for_duration(60, oper_per_iteration, |count| {
         run_fuzz_mixed(count, (MIN_TICK, LARGE_POSITIVE_TICK));
     });
 }

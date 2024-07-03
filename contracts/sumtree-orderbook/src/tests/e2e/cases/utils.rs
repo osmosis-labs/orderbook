@@ -83,7 +83,7 @@ pub mod assert {
     use crate::{
         msg::{
             CalcOutAmtGivenInResponse, DenomsResponse, GetTotalPoolLiquidityResponse,
-            GetUnrealizedCancelsResponse, QueryMsg, SpotPriceResponse,
+            GetUnrealizedCancelsResponse, QueryMsg, SpotPriceResponse, TickIdAndState,
         },
         tests::e2e::test_env::TestEnv,
         tick_math::{amount_to_value, tick_to_price, RoundingDirection},
@@ -202,6 +202,38 @@ pub mod assert {
         );
     }
 
+    /// Determines if the provided tick has fillable liquidity for the given direction
+    ///
+    /// Fillable liquidity means that after calculating amount to value the amount of liquidity is still non-zero
+    fn has_fillable_liqudity(tick: &TickIdAndState, direction: OrderDirection) -> bool {
+        if tick
+            .tick_state
+            .get_values(direction)
+            .total_amount_of_liquidity
+            .is_zero()
+        {
+            return false;
+        }
+
+        let price = tick_to_price(tick.tick_id).unwrap();
+        let amount_of_liquidity = Uint128::from_str(
+            &tick
+                .tick_state
+                .get_values(direction)
+                .total_amount_of_liquidity
+                .to_string(),
+        )
+        .unwrap();
+        let fillable_amount = amount_to_value(
+            direction,
+            amount_of_liquidity,
+            price,
+            RoundingDirection::Down,
+        )
+        .unwrap();
+        !fillable_amount.is_zero()
+    }
+
     /// Assertions about tick state
     /// 1. All ticks have a cumulative value that is greater than or equal to the effective total amount swapped
     /// 2. The next ask tick is less than or equal to the minimum tick with an ask amount
@@ -209,96 +241,52 @@ pub mod assert {
     ///
     /// This assertion can be run mid test as it must always be true
     pub fn tick_invariants(t: &TestEnv) {
-        let ticks = t.contract.collect_all_ticks();
-
-        assert!(ticks
-            .iter()
-            .all(|t| t.tick_state.ask_values.effective_total_amount_swapped
-                <= t.tick_state.ask_values.cumulative_total_value));
-        assert!(ticks
-            .iter()
-            .all(|t| t.tick_state.bid_values.effective_total_amount_swapped
-                <= t.tick_state.bid_values.cumulative_total_value));
-
-        let ticks_with_bid_amount = ticks.iter().filter(|tick| {
-            if tick
-                .tick_state
-                .get_values(OrderDirection::Bid)
-                .total_amount_of_liquidity
-                .is_zero()
-            {
-                return false;
-            }
-
-            let price = tick_to_price(tick.tick_id).unwrap();
-            let amount_of_liquidity = Uint128::from_str(
-                &tick
-                    .tick_state
-                    .get_values(OrderDirection::Bid)
-                    .total_amount_of_liquidity
-                    .to_string(),
-            )
-            .unwrap();
-            let fillable_amount = amount_to_value(
-                OrderDirection::Bid,
-                amount_of_liquidity,
-                price,
-                RoundingDirection::Down,
-            )
-            .unwrap();
-            !fillable_amount.is_zero()
-        });
-        let ticks_with_ask_amount = ticks.iter().filter(|tick| {
-            if tick
-                .tick_state
-                .get_values(OrderDirection::Ask)
-                .total_amount_of_liquidity
-                .is_zero()
-            {
-                return false;
-            }
-
-            let price = tick_to_price(tick.tick_id).unwrap();
-            let amount_of_liquidity = Uint128::from_str(
-                &tick
-                    .tick_state
-                    .get_values(OrderDirection::Ask)
-                    .total_amount_of_liquidity
-                    .to_string(),
-            )
-            .unwrap();
-            let fillable_amount = amount_to_value(
-                OrderDirection::Ask,
-                amount_of_liquidity,
-                price,
-                RoundingDirection::Down,
-            )
-            .unwrap();
-            !fillable_amount.is_zero()
-        });
-        let max_tick_with_bid = ticks_with_bid_amount.max_by_key(|tick| tick.tick_id);
-        let min_tick_with_ask = ticks_with_ask_amount.min_by_key(|tick| tick.tick_id);
-
         let Orderbook {
             next_ask_tick,
             next_bid_tick,
             ..
         } = t.contract.query(&QueryMsg::OrderbookState {}).unwrap();
-        if let Some(min_tick_with_ask) = min_tick_with_ask {
-            assert!(
-                next_ask_tick <= min_tick_with_ask.tick_id,
-                "ASK TICK: got: {}, expected: {}",
-                next_ask_tick,
-                min_tick_with_ask.tick_id
-            );
-        }
-        if let Some(max_tick_with_bid) = max_tick_with_bid {
-            assert!(
-                next_bid_tick >= max_tick_with_bid.tick_id,
-                "BID TICK: got: {}, expected: {}",
-                next_bid_tick,
-                max_tick_with_bid.tick_id
-            );
+
+        let ticks = t.contract.collect_all_ticks();
+        for direction in [OrderDirection::Bid, OrderDirection::Ask] {
+            // Assert every tick has a cumulative value that is greater than or equal to the effective total amount swapped
+            assert!(ticks.iter().all(|t| t
+                .tick_state
+                .get_values(direction)
+                .effective_total_amount_swapped
+                <= t.tick_state.get_values(direction).cumulative_total_value));
+
+            // Get all ticks with fillable liquidity for the given direction
+            let ticks_with_liquidity = ticks.iter().filter(|t| has_fillable_liqudity(t, direction));
+
+            // Determine the max/min tick with liquidity for the given direction
+            let boundary_tick_with_liquidity = match direction {
+                OrderDirection::Bid => ticks_with_liquidity.max_by_key(|tick| tick.tick_id),
+                OrderDirection::Ask => ticks_with_liquidity.min_by_key(|tick| tick.tick_id),
+            };
+
+            // If the given direction has at least one tick and a boundary exists we compare this with what is
+            // stored in the orderbook to ensure that tick pointers are correctly updated for the current orderbook state
+            if let Some(boundary_tick) = boundary_tick_with_liquidity {
+                match direction {
+                    OrderDirection::Bid => {
+                        assert!(
+                            boundary_tick.tick_id <= next_bid_tick,
+                            "BID TICK: got: {}, expected: {}",
+                            next_bid_tick,
+                            boundary_tick.tick_id
+                        );
+                    }
+                    OrderDirection::Ask => {
+                        assert!(
+                            boundary_tick.tick_id >= next_ask_tick,
+                            "ASK TICK: got: {}, expected: {}",
+                            next_ask_tick,
+                            boundary_tick.tick_id
+                        );
+                    }
+                }
+            }
         }
     }
 
@@ -465,7 +453,7 @@ pub mod assert {
     }
 }
 
-/// Utili functions for interacting with the orderbook
+/// Utility functions for interacting with the orderbook
 pub mod orders {
     use std::str::FromStr;
 

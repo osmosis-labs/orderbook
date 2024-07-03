@@ -8,13 +8,13 @@ use rand::seq::SliceRandom;
 use rand::{Rng, SeedableRng};
 
 use super::super::utils::*;
+use crate::ContractError;
 use crate::{
     constants::MIN_TICK,
     msg::{DenomsResponse, GetTotalPoolLiquidityResponse, QueryMsg},
     setup,
     tests::e2e::modules::cosmwasm_pool::CosmwasmPool,
     tests::e2e::test_env::TestEnv,
-    tick_math::{amount_to_value, tick_to_price, RoundingDirection},
     types::OrderDirection,
 };
 
@@ -269,7 +269,7 @@ fn run_fuzz_linear(amount_limit_orders: u64, tick_range: (i64, i64), cancel_prob
 
     // Attempt to claim & cancel all limit orders
     let (bid_unclaimable_amount, ask_unclaimable_amount) =
-        clear_remaining_orders(&mut t, &mut rng, &mut orders);
+        clear_remaining_orders(&mut t, &mut rng, &orders);
     // At most one order should remain in each direction
     assert!(
         bid_unclaimable_amount <= 1,
@@ -376,6 +376,8 @@ impl MixedFuzzOperation {
 
                 // Determine if the order can be cancelled
                 if amount_claimable > 0 {
+                    let res = orders::cancel_limit(t, &username, tick_id, order_id).unwrap_err();
+                    assert::contract_err(ContractError::CancelFilledOrder, res);
                     return Ok(false);
                 }
 
@@ -406,19 +408,8 @@ impl MixedFuzzOperation {
 
                 // Determine if the order can be claimed
                 if amount_claimable == 0 {
-                    return Ok(false);
-                }
-
-                let price = tick_to_price(order.tick_id).unwrap();
-                let expected_received_u256 = amount_to_value(
-                    order.order_direction,
-                    Uint128::from(amount_claimable),
-                    price,
-                    RoundingDirection::Down,
-                )
-                .unwrap();
-
-                if expected_received_u256.is_zero() {
+                    let res = orders::claim(t, &username, tick_id, order_id).unwrap_err();
+                    assert::contract_err(ContractError::ZeroClaim, res);
                     return Ok(false);
                 }
 
@@ -509,7 +500,8 @@ fn run_fuzz_mixed(amount_of_orders: u64, tick_bounds: (i64, i64)) {
         assert::has_liquidity(&t);
     }
 
-    clear_remaining_orders(&mut t, &mut rng, &mut orders);
+    // Attempt to claim/cancel all remaining orders
+    clear_remaining_orders(&mut t, &mut rng, &orders);
 
     // -- Post test assertions --
 
@@ -669,7 +661,7 @@ fn get_random_market_direction<'a>(
 fn clear_remaining_orders(
     t: &mut TestEnv,
     rng: &mut StdRng,
-    orders: &mut HashMap<u64, (String, i64)>,
+    orders: &HashMap<u64, (String, i64)>,
 ) -> (u64, u64) {
     // Shuffle the order of recorded orders (as liquidity is fully filled (except the possibility of a 1 remainder))
     // every order should be claimable and the order should not matter
@@ -680,7 +672,7 @@ fn clear_remaining_orders(
     let mut bid_unclaimable_amount = 0;
     let mut ask_unclaimable_amount = 0;
 
-    for (order_id, (username, tick_id)) in orders.clone().iter() {
+    for (order_id, (username, tick_id)) in orders_vec.iter().cloned() {
         let maybe_order = t
             .contract
             .get_order(t.accounts[username].address(), *tick_id, *order_id);

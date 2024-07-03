@@ -89,9 +89,10 @@ pub mod assert {
         tests::e2e::test_env::TestEnv,
         tick_math::{amount_to_value, tick_to_price, RoundingDirection},
         types::{OrderDirection, Orderbook},
+        ContractError,
     };
     use cosmwasm_std::{Coin, Coins, Fraction, Uint128};
-    use osmosis_test_tube::{cosmrs::proto::prost::Message, RunnerExecuteResult};
+    use osmosis_test_tube::{cosmrs::proto::prost::Message, RunnerError, RunnerExecuteResult};
 
     // -- Contract State Assertions
 
@@ -435,6 +436,20 @@ pub mod assert {
         }
 
         Ok(result)
+    }
+
+    pub(crate) fn contract_err(expected: ContractError, actual: RunnerError) {
+        match actual {
+            RunnerError::ExecuteError { msg } => {
+                if !msg.contains(&expected.to_string()) {
+                    panic!(
+                        "assertion failed:\n\n  must contain \t: \"{}\",\n  actual \t: \"{}\"\n",
+                        expected, msg
+                    )
+                }
+            }
+            _ => panic!("unexpected error, expect execute error but got: {}", actual),
+        };
     }
 }
 

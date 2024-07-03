@@ -2,13 +2,15 @@
 #[macro_export]
 macro_rules! setup {
     ($($app:expr, $quote_denom:expr, $base_denom:expr, $maker_fee:expr),* ) => {{
+        // -- Setup --
+        // Ensure both denoms are present in the app
         $($app.init_account(&[
             cosmwasm_std::Coin::new(1, $quote_denom),
             cosmwasm_std::Coin::new(1, $base_denom),
         ])
         .unwrap();
 
-
+        // Create two user accounts, an account for contract admin and one to be the recipient for the marker fee
         let t = $crate::tests::e2e::test_env::TestEnvBuilder::new()
             .with_account(
                 "user1",
@@ -38,6 +40,7 @@ macro_rules! setup {
             })
             .build(&$app);
 
+        // -- Assert Contract State --
         let $crate::msg::DenomsResponse {
             quote_denom,
             base_denom,
@@ -52,7 +55,6 @@ macro_rules! setup {
             .contract
             .query(&$crate::msg::QueryMsg::GetTotalPoolLiquidity {})
             .unwrap();
-
         assert_eq!(
             total_pool_liquidity,
             vec![
@@ -62,7 +64,6 @@ macro_rules! setup {
         );
 
         let is_active: bool = t.contract.query(&$crate::msg::QueryMsg::IsActive {}).unwrap();
-
         assert!(is_active);
 
         // NOTE: wasm_sudo does not currently maintain state so these calls will not work
@@ -95,7 +96,7 @@ pub mod assert {
     // -- Contract State Assertions
 
     /// Asserts that the orderbook's current liquidity matches what is provided
-    pub fn pool_liquidity(
+    pub(crate) fn pool_liquidity(
         t: &TestEnv,
         base_liquidity: impl Into<u128>,
         quote_liquidity: impl Into<u128>,
@@ -123,7 +124,7 @@ pub mod assert {
     }
 
     /// Asserts that the contract's balance matches what is provided
-    pub fn pool_balance(
+    pub(crate) fn pool_balance(
         t: &TestEnv,
         base_liquidity: impl Into<u128>,
         quote_liquidity: impl Into<u128>,
@@ -148,7 +149,7 @@ pub mod assert {
     }
 
     /// Asserts that the orderbook spot price matches what is provided
-    pub fn spot_price(t: &TestEnv, bid_tick: i64, ask_tick: i64, label: &str) {
+    pub(crate) fn spot_price(t: &TestEnv, bid_tick: i64, ask_tick: i64, label: &str) {
         let bid_price = tick_to_price(bid_tick).unwrap();
         let ask_price = tick_to_price(ask_tick).unwrap();
         let DenomsResponse {
@@ -180,7 +181,7 @@ pub mod assert {
 
     /// Asserts that the contract balance is greater than or equal to what is recorded in the orderbook directional liquidity state
     /// If this assertion is ever false then the orderbook is "out of balance" and cannot provide liquidity for future orders
-    pub fn has_liquidity(t: &TestEnv) {
+    pub(crate) fn has_liquidity(t: &TestEnv) {
         let bid_liquidity = t.contract.get_directional_liquidity(OrderDirection::Bid);
         let ask_liquidity = t.contract.get_directional_liquidity(OrderDirection::Ask);
 
@@ -240,7 +241,7 @@ pub mod assert {
     /// 3. The next bid tick is greater than or equal to the maximum tick with a bid amount
     ///
     /// This assertion can be run mid test as it must always be true
-    pub fn tick_invariants(t: &TestEnv) {
+    pub(crate) fn tick_invariants(t: &TestEnv) {
         let Orderbook {
             next_ask_tick,
             next_bid_tick,
@@ -290,7 +291,7 @@ pub mod assert {
         }
     }
 
-    pub fn decrementing_market_order_output(
+    pub(crate) fn decrementing_market_order_output(
         t: &TestEnv,
         previous_market_value: u128,
         amount_to_run: u128,
@@ -334,7 +335,7 @@ pub mod assert {
     }
 
     /// Asserts that there are no remaining orders in the orderbook
-    pub fn no_remaining_orders(t: &TestEnv) {
+    pub(crate) fn no_remaining_orders(t: &TestEnv) {
         let all_orders = t.contract.collect_all_orders();
         assert_eq!(all_orders.len(), 0);
     }
@@ -342,7 +343,7 @@ pub mod assert {
     /// Asserts that all ticks are fully synced
     ///
     /// **Should be run AFTER a fuzz test**
-    pub fn clean_ticks(t: &TestEnv) {
+    pub(crate) fn clean_ticks(t: &TestEnv) {
         let all_ticks = t.contract.collect_all_ticks();
         for tick in all_ticks {
             let GetUnrealizedCancelsResponse { ticks } = t
@@ -392,7 +393,7 @@ pub mod assert {
 
     /// An assertion that records balances before an action and compares the balances after the provided action
     /// Comparisons are only done for the vector of addresses provided in the second parameter
-    pub fn balance_changes<T: Message + Default>(
+    pub(crate) fn balance_changes<T: Message + Default>(
         t: &TestEnv,
         changes: &[(&str, Vec<Coin>)],
         action: impl FnOnce() -> RunnerExecuteResult<T>,
@@ -476,7 +477,7 @@ pub mod orders {
 
     use super::assert;
 
-    pub fn place_limit(
+    pub(crate) fn place_limit(
         t: &TestEnv,
         tick_id: i64,
         order_direction: OrderDirection,
@@ -509,7 +510,7 @@ pub mod orders {
         )
     }
 
-    pub fn place_market(
+    pub(crate) fn place_market(
         cp: &CosmwasmPool<OsmosisTestApp>,
         t: &TestEnv,
         order_direction: OrderDirection,
@@ -523,15 +524,11 @@ pub mod orders {
             quote_denom,
         } = t.contract.query(&QueryMsg::Denoms {}).unwrap();
 
-        let token_out_denom = if order_direction == OrderDirection::Bid {
-            base_denom.clone()
+        // Determine denom ordering based on order direction
+        let (token_in_denom, token_out_denom) = if order_direction == OrderDirection::Bid {
+            (quote_denom.clone(), base_denom.clone())
         } else {
-            quote_denom.clone()
-        };
-        let token_in_denom = if order_direction == OrderDirection::Bid {
-            quote_denom
-        } else {
-            base_denom
+            (base_denom.clone(), quote_denom.clone())
         };
 
         cp.swap_exact_amount_in(
@@ -551,7 +548,7 @@ pub mod orders {
     /// Places a market order and asserts that the sender's balance changes correctly
     ///
     /// Note: this check has some circularity to it as the expected out depends on the `CalcOutAmtGivenInResponse`
-    pub fn place_market_and_assert_balance(
+    pub(crate) fn place_market_and_assert_balance(
         cp: &CosmwasmPool<OsmosisTestApp>,
         t: &TestEnv,
         order_direction: OrderDirection,
@@ -564,17 +561,14 @@ pub mod orders {
             quote_denom,
         } = t.contract.query(&QueryMsg::Denoms {}).unwrap();
 
-        let token_out_denom = if order_direction == OrderDirection::Bid {
-            base_denom.clone()
+        // Determine denom ordering based on order direction
+        let (token_in_denom, token_out_denom) = if order_direction == OrderDirection::Bid {
+            (quote_denom.clone(), base_denom.clone())
         } else {
-            quote_denom.clone()
-        };
-        let token_in_denom = if order_direction == OrderDirection::Bid {
-            quote_denom
-        } else {
-            base_denom
+            (base_denom.clone(), quote_denom.clone())
         };
 
+        // DEV NOTE: is there a way to remove circular dependency for output expectancy?
         let CalcOutAmtGivenInResponse { token_out } = t
             .contract
             .query(&QueryMsg::CalcOutAmountGivenIn {
@@ -600,7 +594,7 @@ pub mod orders {
         )
     }
 
-    pub fn claim(
+    pub(crate) fn claim(
         t: &TestEnv,
         sender: &str,
         tick_id: i64,
@@ -616,7 +610,7 @@ pub mod orders {
     /// Claims a given order using the provided sender account name
     ///
     /// Asserts that the sender and order owner's balances change correctly
-    pub fn claim_and_assert_balance(
+    pub(crate) fn claim_and_assert_balance(
         t: &TestEnv,
         sender: &str,
         owner: &str,
@@ -716,7 +710,7 @@ pub mod orders {
         )
     }
 
-    pub fn cancel_limit(
+    pub(crate) fn cancel_limit(
         t: &TestEnv,
         sender: &str,
         tick_id: i64,
@@ -730,7 +724,7 @@ pub mod orders {
     }
 
     /// Cancels a limit order and asserts that the owner receives back the remaining order quantity (may be partially filled)
-    pub fn cancel_limit_and_assert_balance(
+    pub(crate) fn cancel_limit_and_assert_balance(
         t: &TestEnv,
         sender: &str,
         tick_id: i64,

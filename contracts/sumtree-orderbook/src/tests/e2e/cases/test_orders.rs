@@ -1,7 +1,7 @@
 use cosmwasm_std::{coin, Decimal256, Uint128};
 use osmosis_test_tube::{Module, OsmosisTestApp};
 
-use super::utils::{assert, orders};
+use super::super::utils::*;
 use crate::{
     constants::{MAX_TICK, MIN_TICK},
     setup,

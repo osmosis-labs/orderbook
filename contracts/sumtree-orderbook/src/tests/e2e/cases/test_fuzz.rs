@@ -1,22 +1,20 @@
 use std::collections::HashMap;
 use std::time::{Duration, SystemTime};
 
-use cosmwasm_std::Coin;
-use cosmwasm_std::{Decimal256, Uint128};
+use cosmwasm_std::{Coin, Decimal256, Uint128};
 use osmosis_test_tube::{Account, Module, OsmosisTestApp};
+use rand::rngs::StdRng;
 use rand::seq::SliceRandom;
-use rand::Rng;
-use rand::{rngs::StdRng, SeedableRng};
+use rand::{Rng, SeedableRng};
 
-use super::utils::{assert, orders};
-use crate::constants::MIN_TICK;
-use crate::msg::QueryMsg;
-use crate::tests::e2e::modules::cosmwasm_pool::CosmwasmPool;
-use crate::tick_math::{amount_to_value, tick_to_price, RoundingDirection};
+use super::super::utils::*;
 use crate::{
-    msg::{DenomsResponse, GetTotalPoolLiquidityResponse},
+    constants::MIN_TICK,
+    msg::{DenomsResponse, GetTotalPoolLiquidityResponse, QueryMsg},
     setup,
+    tests::e2e::modules::cosmwasm_pool::CosmwasmPool,
     tests::e2e::test_env::TestEnv,
+    tick_math::{amount_to_value, tick_to_price, RoundingDirection},
     types::OrderDirection,
 };
 
@@ -105,8 +103,8 @@ fn test_order_fuzz_linear_large_all_cancelled_orders_small_range() {
 
 #[test]
 fn test_order_fuzz_linear_single_tick() {
-    let oper_per_iteration = 2000;
-    run_for_duration(10, oper_per_iteration, |count| {
+    let oper_per_iteration = 1000;
+    run_for_duration(60, oper_per_iteration, |count| {
         run_fuzz_linear(count, (0, 0), 0.2);
     });
 }
@@ -114,7 +112,7 @@ fn test_order_fuzz_linear_single_tick() {
 #[test]
 fn test_order_fuzz_mixed() {
     let oper_per_iteration = 2000;
-    run_for_duration(10, oper_per_iteration, |count| {
+    run_for_duration(60, oper_per_iteration, |count| {
         run_fuzz_mixed(count, (-20, 20));
     });
 }
@@ -123,7 +121,7 @@ fn test_order_fuzz_mixed() {
 fn test_order_fuzz_mixed_single_tick() {
     let oper_per_iteration = 2000;
 
-    run_for_duration(10, oper_per_iteration, |count| {
+    run_for_duration(60, oper_per_iteration, |count| {
         run_fuzz_mixed(count, (0, 0));
     });
 }
@@ -178,7 +176,7 @@ fn run_fuzz_linear(amount_limit_orders: u64, tick_range: (i64, i64), cancel_prob
     let cp = CosmwasmPool::new(&app);
     let mut t = setup!(&app, "quote", "base", 1);
 
-    let mut orders = vec![];
+    let mut orders: HashMap<u64, (String, i64)> = HashMap::new();
 
     // -- System Under Test --
 
@@ -195,13 +193,13 @@ fn run_fuzz_linear(amount_limit_orders: u64, tick_range: (i64, i64), cancel_prob
         if is_cancelled {
             orders::cancel_limit_and_assert_balance(&t, &username, chosen_tick, i).unwrap();
         } else {
-            orders.push((username, chosen_tick, i));
+            orders.insert(i, (username, chosen_tick));
         }
 
         assert::tick_invariants(&t);
     }
 
-    // -- Step 2: Place Market Orders --
+    // -- Step 2: Place Market Orders & Fill Liquidity --
 
     // For both directions fill the entire amount of liquidity available using market orders
     // For certain cases it is not possible to fill the entire liquidity so a remainder of 1 may occur
@@ -214,6 +212,8 @@ fn run_fuzz_linear(amount_limit_orders: u64, tick_range: (i64, i64), cancel_prob
         // A counter to track the current user ID
         let mut user_id = 0;
 
+        // Record starting expected output
+        // Provide max as previous to ensure we start with a valid expected output
         let mut previous_expected_out =
             assert::decrementing_market_order_output(&t, u128::MAX, 10000000u128, order_direction);
 
@@ -223,8 +223,6 @@ fn run_fuzz_linear(amount_limit_orders: u64, tick_range: (i64, i64), cancel_prob
             let placed_amount =
                 place_random_market(&cp, &mut t, &mut rng, &username, order_direction);
 
-            // Increment the username of the order placer
-            user_id += 1;
             if placed_amount == 0 {
                 // In the case that the last order cannot be filled we want an exit condition
                 // If there are 100 consecutive zero amount returns we will break
@@ -234,6 +232,9 @@ fn run_fuzz_linear(amount_limit_orders: u64, tick_range: (i64, i64), cancel_prob
                 }
                 continue;
             }
+
+            // Increment the username of the order placer
+            user_id += 1;
 
             // Reset counter as order was placed
             zero_amount_returns = 0;
@@ -264,47 +265,20 @@ fn run_fuzz_linear(amount_limit_orders: u64, tick_range: (i64, i64), cancel_prob
         .unwrap();
     println!("Total remaining pool liquidity: {:?}", total_pool_liquidity);
 
-    // -- Step 3: Claim Orders --
+    // -- Step 3: Claim & Cancel Orders --
 
-    // Shuffle the order of recorded orders (as liquidity is fully filled (except the possibility of a 1 remainder))
-    // every order should be claimable and the order should not matter
-    orders.shuffle(&mut rng);
-
-    for (username, tick_id, order_id) in orders.iter() {
-        // If the order has a claim bounty we will use a separate sender to verify that the bounty is claimed correctly
-        // Otherwise we will use the original sender to verify that the order is claimed correctly
-        t.add_account(
-            "claimant",
-            vec![
-                Coin::new(1, "base"),
-                Coin::new(1, "quote"),
-                Coin::new(1000000000000u128, "uosmo"),
-            ],
-        );
-        let order = t
-            .contract
-            .get_order(t.accounts[username].address(), *tick_id, *order_id)
-            .unwrap();
-        let sender = if order.claim_bounty.is_some() {
-            "claimant"
-        } else {
-            username
-        };
-
-        orders::claim_and_assert_balance(&t, sender, username, order.tick_id, order.order_id)
-            .unwrap();
-
-        // For the situation that the order has the 1 remainder we record this for assertions
-        let maybe_order = t.contract.get_order(
-            t.accounts[username].address(),
-            order.tick_id,
-            order.order_id,
-        );
-        if let Some(order) = maybe_order {
-            orders::cancel_limit_and_assert_balance(&t, username, order.tick_id, order.order_id)
-                .unwrap();
-        }
-    }
+    // Attempt to claim & cancel all limit orders
+    let (bid_unclaimable_amount, ask_unclaimable_amount) =
+        clear_remaining_orders(&mut t, &mut rng, &mut orders);
+    // At most one order should remain in each direction
+    assert!(
+        bid_unclaimable_amount <= 1,
+        "bid_unclaimable_amount is greater than 1"
+    );
+    assert!(
+        ask_unclaimable_amount <= 1,
+        "ask_unclaimable_amount is greater than 1"
+    );
 
     // -- Post Test Assertions --
     assert::clean_ticks(&t);
@@ -542,29 +516,7 @@ fn run_fuzz_mixed(amount_of_orders: u64, tick_bounds: (i64, i64)) {
         assert::has_liquidity(&t);
     }
 
-    for (order_id, (username, tick_id)) in orders.clone().iter() {
-        let _ = orders::claim_and_assert_balance(&t, username, username, *tick_id, *order_id);
-
-        // Order may be cleared by fully claiming, in which case we want to continue to the next order
-        if t.contract
-            .get_order(t.accounts[username.as_str()].address(), *tick_id, *order_id)
-            .is_none()
-        {
-            continue;
-        }
-
-        // If cancelling is a success we can continue to the next order
-        if orders::cancel_limit_and_assert_balance(&t, username, *tick_id, *order_id).is_ok() {
-            continue;
-        }
-
-        // If an order cannot be claimed or cancelled something has gone wrong
-        let order = t.contract.get_order(username.clone(), *tick_id, *order_id);
-        assert!(
-            order.is_none(),
-            "order was not cleaned from state: {order:?}"
-        );
-    }
+    clear_remaining_orders(&mut t, &mut rng, &mut orders);
 
     // -- Post test assertions --
 
@@ -654,7 +606,6 @@ fn place_random_market(
     };
 
     // Select a random amount of the token in to swap
-    // let liquidity_at_price = Uint128::try_from(liquidity_at_price_u256).unwrap();
     let max_amount = t.contract.get_max_market_amount(order_direction);
     let amount = rng.gen_range(0..=max_amount);
 
@@ -716,4 +667,65 @@ fn get_random_market_direction<'a>(
     } else {
         Ok(OrderDirection::Ask)
     }
+}
+
+/// Attempts to clear the remaining orders by first attempting to claim the order.
+/// If the order is claimed but not removed (not fully filled) it is then cancelled.
+///
+/// If neither/both succeed and the order is still in state then something is wrong.
+fn clear_remaining_orders(
+    t: &mut TestEnv,
+    rng: &mut StdRng,
+    orders: &mut HashMap<u64, (String, i64)>,
+) -> (u64, u64) {
+    // Shuffle the order of recorded orders (as liquidity is fully filled (except the possibility of a 1 remainder))
+    // every order should be claimable and the order should not matter
+    let mut orders_vec = orders.iter().collect::<Vec<(&u64, &(String, i64))>>();
+    orders_vec.shuffle(rng);
+
+    // We track how many orders were not fully claimable for future assertions
+    let mut bid_unclaimable_amount = 0;
+    let mut ask_unclaimable_amount = 0;
+
+    for (order_id, (username, tick_id)) in orders.clone().iter() {
+        let maybe_order = t
+            .contract
+            .get_order(t.accounts[username].address(), *tick_id, *order_id);
+
+        if maybe_order.is_none() {
+            continue;
+        }
+
+        let _ = orders::claim_and_assert_balance(t, username, username, *tick_id, *order_id);
+
+        // Order may be cleared by fully claiming, in which case we want to continue to the next order
+        if t.contract
+            .get_order(t.accounts[username.as_str()].address(), *tick_id, *order_id)
+            .is_none()
+        {
+            continue;
+        }
+
+        let order = maybe_order.unwrap();
+        match order.order_direction {
+            OrderDirection::Bid => bid_unclaimable_amount += 1,
+            OrderDirection::Ask => ask_unclaimable_amount += 1,
+        }
+
+        // If cancelling is a success we can continue to the next order
+        if orders::cancel_limit_and_assert_balance(t, username, *tick_id, *order_id).is_ok() {
+            continue;
+        }
+
+        // If an order cannot be claimed or cancelled something has gone wrong
+        let order = t
+            .contract
+            .get_order(t.accounts[username].address(), *tick_id, *order_id);
+        assert!(
+            order.is_none(),
+            "order was not cleaned from state: {order:?}"
+        );
+    }
+
+    (bid_unclaimable_amount, ask_unclaimable_amount)
 }

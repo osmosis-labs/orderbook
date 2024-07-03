@@ -340,8 +340,9 @@ pub mod assert {
                 let values = tick.tick_state.get_values(direction);
                 assert!(
                     values.total_amount_of_liquidity.is_zero(),
-                    "tick {} has liquidity",
-                    tick.tick_id
+                    "tick {} has {} liquidity",
+                    tick.tick_id,
+                    values.total_amount_of_liquidity
                 );
 
                 let unrealized_cancels = match direction {

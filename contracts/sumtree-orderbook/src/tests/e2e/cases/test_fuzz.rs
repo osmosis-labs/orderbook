@@ -430,23 +430,16 @@ impl MixedFuzzOperation {
                 };
 
                 // Claim the order
-                match orders::claim_and_assert_balance(t, claimant, &username, tick_id, order_id) {
-                    Ok(_) => {
-                        let order = t.contract.get_order(
-                            t.accounts[&username].address(),
-                            tick_id,
-                            order_id,
-                        );
-                        if order.is_none() {
-                            // Remove the order once we know its claimable
-                            orders.remove(&order_id).unwrap();
-                        }
-                        Ok(true)
-                    }
-                    Err(e) => {
-                        panic!("{e}")
-                    }
+                orders::claim_and_assert_balance(t, claimant, &username, tick_id, order_id)
+                    .unwrap();
+                let order =
+                    t.contract
+                        .get_order(t.accounts[&username].address(), tick_id, order_id);
+                if order.is_none() {
+                    // Remove the order once we know its claimable
+                    orders.remove(&order_id).unwrap();
                 }
+                Ok(true)
             }
         }
     }

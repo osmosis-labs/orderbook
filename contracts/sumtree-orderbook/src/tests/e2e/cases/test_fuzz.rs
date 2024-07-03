@@ -1,7 +1,7 @@
 use std::collections::HashMap;
 use std::time::{Duration, SystemTime};
 
-use cosmwasm_std::{Coin, Decimal};
+use cosmwasm_std::Coin;
 use cosmwasm_std::{Decimal256, Uint128};
 use osmosis_test_tube::{Account, Module, OsmosisTestApp};
 use rand::seq::SliceRandom;
@@ -10,7 +10,7 @@ use rand::{rngs::StdRng, SeedableRng};
 
 use super::utils::{assert, orders};
 use crate::constants::MIN_TICK;
-use crate::msg::{CalcOutAmtGivenInResponse, QueryMsg};
+use crate::msg::QueryMsg;
 use crate::tests::e2e::modules::cosmwasm_pool::CosmwasmPool;
 use crate::tick_math::{amount_to_value, tick_to_price, RoundingDirection};
 use crate::{
@@ -647,10 +647,10 @@ fn place_random_market(
     order_direction: OrderDirection,
 ) -> u128 {
     // Get the appropriate denom for the chosen direction
-    let (token_in_denom, token_out_denom) = if order_direction == OrderDirection::Bid {
-        ("quote", "base")
+    let token_in_denom = if order_direction == OrderDirection::Bid {
+        "quote"
     } else {
-        ("base", "quote")
+        "base"
     };
 
     // Select a random amount of the token in to swap
@@ -663,16 +663,10 @@ fn place_random_market(
     }
 
     // Calculate the expected amount of token out
-    let expected_out =
-        t.contract
-            .query::<CalcOutAmtGivenInResponse>(&QueryMsg::CalcOutAmountGivenIn {
-                token_in: Coin::new(amount, token_in_denom.to_string()),
-                token_out_denom: token_out_denom.to_string(),
-                swap_fee: Decimal::zero(),
-            });
+    let expected_out = t.contract.get_out_given_in(order_direction, amount);
 
     if let Ok(expected_out) = expected_out {
-        if expected_out.token_out.amount == "0" {
+        if expected_out.amount == "0" {
             return 0;
         }
     } else if expected_out.is_err() {

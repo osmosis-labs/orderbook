@@ -3,9 +3,9 @@ use std::{collections::HashMap, path::PathBuf, str::FromStr};
 use crate::{
     constants::{MAX_TICK, MIN_TICK},
     msg::{
-        AuthExecuteMsg, DenomsResponse, ExecuteMsg, GetTotalPoolLiquidityResponse,
-        GetUnrealizedCancelsResponse, InstantiateMsg, OrdersResponse, QueryMsg, SudoMsg,
-        TickIdAndState, TickUnrealizedCancels, TicksResponse,
+        AuthExecuteMsg, CalcOutAmtGivenInResponse, DenomsResponse, ExecuteMsg,
+        GetTotalPoolLiquidityResponse, GetUnrealizedCancelsResponse, InstantiateMsg,
+        OrdersResponse, QueryMsg, SudoMsg, TickIdAndState, TickUnrealizedCancels, TicksResponse,
     },
     tests::test_utils::decimal256_from_u128,
     tick_math::{amount_to_value, tick_to_price, RoundingDirection},
@@ -13,9 +13,9 @@ use crate::{
     ContractError,
 };
 
-use cosmwasm_std::{to_json_binary, Addr, Coin, Coins, Decimal256, Uint128, Uint256};
+use cosmwasm_std::{to_json_binary, Addr, Coin, Coins, Decimal, Decimal256, Uint128, Uint256};
 use osmosis_std::types::{
-    cosmos::bank::v1beta1::QueryAllBalancesRequest,
+    cosmos::{bank::v1beta1::QueryAllBalancesRequest, base::v1beta1::Coin as ProtoCoin},
     cosmwasm::wasm::v1::MsgExecuteContractResponse,
     osmosis::cosmwasmpool::v1beta1::{
         ContractInfoByPoolIdRequest, ContractInfoByPoolIdResponse, MsgCreateCosmWasmPool,
@@ -412,6 +412,26 @@ impl<'a> OrderbookContract<'a> {
             max_amount = max_amount.saturating_add(amount);
         }
         max_amount.u128()
+    }
+
+    // Calculate the expected output for a given input amount/direction using the CosmWasm pool query
+    pub(crate) fn get_out_given_in(
+        &self,
+        direction: OrderDirection,
+        amount: impl Into<u128>,
+    ) -> RunnerResult<ProtoCoin> {
+        let (token_in_denom, token_out_denom) = if direction == OrderDirection::Bid {
+            (self.get_denoms().quote_denom, self.get_denoms().base_denom)
+        } else {
+            (self.get_denoms().base_denom, self.get_denoms().quote_denom)
+        };
+
+        self.query(&QueryMsg::CalcOutAmountGivenIn {
+            token_in: Coin::new(amount.into(), token_in_denom),
+            token_out_denom,
+            swap_fee: Decimal::zero(),
+        })
+        .map(|r: CalcOutAmtGivenInResponse| r.token_out)
     }
 }
 

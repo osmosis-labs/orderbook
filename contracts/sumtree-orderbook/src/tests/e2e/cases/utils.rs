@@ -83,14 +83,14 @@ pub mod assert {
 
     use crate::{
         msg::{
-            CalcOutAmtGivenInResponse, DenomsResponse, GetTotalPoolLiquidityResponse,
-            GetUnrealizedCancelsResponse, QueryMsg, SpotPriceResponse, TickIdAndState,
+            DenomsResponse, GetTotalPoolLiquidityResponse, GetUnrealizedCancelsResponse, QueryMsg,
+            SpotPriceResponse, TickIdAndState,
         },
         tests::e2e::test_env::TestEnv,
         tick_math::{amount_to_value, tick_to_price, RoundingDirection},
         types::{OrderDirection, Orderbook},
     };
-    use cosmwasm_std::{Coin, Coins, Decimal, Fraction, Uint128};
+    use cosmwasm_std::{Coin, Coins, Fraction, Uint128};
     use osmosis_test_tube::{cosmrs::proto::prost::Message, RunnerExecuteResult};
 
     // -- Contract State Assertions
@@ -291,39 +291,21 @@ pub mod assert {
         }
     }
 
+    // Asserts that a new market order will return a lower or equal expected amount that a previous market expected output
     pub(crate) fn decrementing_market_order_output(
         t: &TestEnv,
         previous_market_value: u128,
         amount_to_run: u128,
         direction: OrderDirection,
     ) -> Uint128 {
-        let DenomsResponse {
-            quote_denom,
-            base_denom,
-        } = t.contract.get_denoms();
+        // Calculate the expected output for a market order of the given amount
+        let maybe_expected_output = t.contract.get_out_given_in(direction, amount_to_run);
 
-        let token_in_denom = if direction == OrderDirection::Bid {
-            quote_denom.clone()
-        } else {
-            base_denom.clone()
-        };
-        let token_out_denom = if direction == OrderDirection::Bid {
-            base_denom
-        } else {
-            quote_denom
-        };
-
-        let maybe_expected_output = t.contract.query(&QueryMsg::CalcOutAmountGivenIn {
-            token_in: Coin::new(amount_to_run, token_in_denom),
-            token_out_denom,
-            swap_fee: Decimal::zero(),
-        });
-
+        // If the expected output errors we return zero
         let expected_output = maybe_expected_output
-            .map_or(Uint128::zero(), |r: CalcOutAmtGivenInResponse| {
-                Uint128::from_str(&r.token_out.amount).unwrap()
-            });
+            .map_or(Uint128::zero(), |r| Uint128::from_str(&r.amount).unwrap());
 
+        // Assert that the expected output is less than or equal to the previous market value
         assert!(
             expected_output.u128() <= previous_market_value,
             "subsequent market orders increased unexpectedly, got: {}, expected: {}",
@@ -331,6 +313,7 @@ pub mod assert {
             previous_market_value
         );
 
+        // Return the expected output
         expected_output
     }
 
@@ -458,7 +441,7 @@ pub mod assert {
 pub mod orders {
     use std::str::FromStr;
 
-    use cosmwasm_std::{coins, Coin, Decimal, Decimal256, Uint128, Uint256};
+    use cosmwasm_std::{coins, Coin, Decimal256, Uint128, Uint256};
 
     use osmosis_std::types::{
         cosmwasm::wasm::v1::MsgExecuteContractResponse,
@@ -469,7 +452,7 @@ pub mod orders {
     use osmosis_test_tube::{Account, OsmosisTestApp, RunnerExecuteResult};
 
     use crate::{
-        msg::{CalcOutAmtGivenInResponse, DenomsResponse, ExecuteMsg, QueryMsg},
+        msg::{DenomsResponse, ExecuteMsg, QueryMsg},
         tests::e2e::{modules::cosmwasm_pool::CosmwasmPool, test_env::TestEnv},
         tick_math::{amount_to_value, tick_to_price, RoundingDirection},
         types::{LimitOrder, OrderDirection},
@@ -556,26 +539,11 @@ pub mod orders {
         sender: &str,
     ) -> RunnerExecuteResult<MsgSwapExactAmountInResponse> {
         let quantity_u128: Uint128 = quantity.clone().into();
-        let DenomsResponse {
-            base_denom,
-            quote_denom,
-        } = t.contract.query(&QueryMsg::Denoms {}).unwrap();
-
-        // Determine denom ordering based on order direction
-        let (token_in_denom, token_out_denom) = if order_direction == OrderDirection::Bid {
-            (quote_denom.clone(), base_denom.clone())
-        } else {
-            (base_denom.clone(), quote_denom.clone())
-        };
 
         // DEV NOTE: is there a way to remove circular dependency for output expectancy?
-        let CalcOutAmtGivenInResponse { token_out } = t
+        let token_out = t
             .contract
-            .query(&QueryMsg::CalcOutAmountGivenIn {
-                token_in: Coin::new(quantity_u128.u128(), token_in_denom.clone()),
-                token_out_denom,
-                swap_fee: Decimal::zero(),
-            })
+            .get_out_given_in(order_direction, quantity_u128.u128())
             .unwrap();
 
         assert::balance_changes(

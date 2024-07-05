@@ -242,7 +242,7 @@ fn test_get_orders_by_owner_with_pagination() {
         start_after = Some(
             owner_orders
                 .last()
-                .map(|order| (order.tick_id, order.order_id))
+                .map(|order| (order.tick_id, order.order_id + 1))
                 .unwrap(),
         );
     }

@@ -91,8 +91,8 @@ pub fn sync_tick(
     }
 
     // Write updated tick values to state
-    tick_state.set_values(OrderDirection::Bid, bid_values);
-    tick_state.set_values(OrderDirection::Ask, ask_values);
+    tick_state.set_values(OrderDirection::Bid, bid_values.clone());
+    tick_state.set_values(OrderDirection::Ask, ask_values.clone());
     TICK_STATE.save(storage, tick_id, &tick_state)?;
 
     Ok(())

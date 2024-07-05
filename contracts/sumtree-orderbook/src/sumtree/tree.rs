@@ -64,6 +64,7 @@ pub fn get_prefix_sum(
 // Since the longest path this function can walk is from the root to a leaf, it runs in O(log(N)) time. Given
 // how it is able to terminate early using our sumtree's range properties, in many cases it will likely run
 // in much less.
+
 fn prefix_sum_walk(
     storage: &dyn Storage,
     node: &TreeNode,

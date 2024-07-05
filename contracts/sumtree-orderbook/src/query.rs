@@ -18,7 +18,7 @@ use crate::{
     sudo::ensure_swap_fee,
     sumtree::tree::{get_prefix_sum, get_root_node},
     tick_math::tick_to_price,
-    types::{FilterOwnerOrders, LimitOrder, MarketOrder, OrderDirection, TickState},
+    types::{FilterOwnerOrders, MarketOrder, OrderDirection, Orderbook, TickState},
     ContractError,
 };
 
@@ -60,8 +60,8 @@ pub(crate) fn spot_price(
     let price = tick_to_price(next_tick)?;
 
     let spot_price = match direction {
-        OrderDirection::Ask => price.inv().unwrap(),
-        OrderDirection::Bid => price,
+        OrderDirection::Ask => price,
+        OrderDirection::Bid => price.inv().unwrap(),
     };
 
     Ok(SpotPriceResponse {
@@ -205,7 +205,13 @@ pub(crate) fn orders_by_owner(
     start_from: Option<(i64, u64)>,
     end_at: Option<(i64, u64)>,
     limit: Option<u64>,
-) -> ContractResult<Vec<LimitOrder>> {
+) -> ContractResult<OrdersResponse> {
+    let count = orders()
+        .idx
+        .owner
+        .prefix(owner.clone())
+        .keys(deps.storage, None, None, Order::Ascending)
+        .count();
     let orders = get_orders_by_owner(
         deps.storage,
         FilterOwnerOrders::all(owner),
@@ -213,7 +219,11 @@ pub(crate) fn orders_by_owner(
         end_at,
         limit,
     )?;
-    Ok(orders)
+
+    Ok(OrdersResponse {
+        count: count as u64,
+        orders,
+    })
 }
 
 pub(crate) fn denoms(deps: Deps) -> ContractResult<DenomsResponse> {
@@ -222,6 +232,11 @@ pub(crate) fn denoms(deps: Deps) -> ContractResult<DenomsResponse> {
         quote_denom: orderbook.quote_denom,
         base_denom: orderbook.base_denom,
     })
+}
+
+pub(crate) fn orderbook_state(deps: Deps) -> ContractResult<Orderbook> {
+    let orderbook = ORDERBOOK.load(deps.storage)?;
+    Ok(orderbook)
 }
 
 pub(crate) fn ticks_by_id(deps: Deps, tick_ids: Vec<i64>) -> ContractResult<TicksResponse> {

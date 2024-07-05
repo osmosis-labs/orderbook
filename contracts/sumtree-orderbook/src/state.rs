@@ -83,7 +83,7 @@ pub fn get_orders_by_owner(
     page_size: Option<u64>,
 ) -> StdResult<Vec<LimitOrder>> {
     let page_size = page_size.unwrap_or(DEFAULT_PAGE_SIZE) as usize;
-    let min = min.map(Bound::exclusive);
+    let min = min.map(Bound::inclusive);
     let max = max.map(Bound::inclusive);
 
     // Define the prefix iterator based on the filter

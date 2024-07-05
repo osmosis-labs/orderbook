@@ -109,7 +109,7 @@ pub enum QueryMsg {
     #[returns(bool)]
     IsActive {},
 
-    #[returns(Vec<crate::types::LimitOrder>)]
+    #[returns(OrdersResponse)]
     OrdersByOwner {
         // The address of the order maker
         owner: Addr,
@@ -128,6 +128,9 @@ pub enum QueryMsg {
         end_at: Option<u64>,
         limit: Option<u64>,
     },
+
+    #[returns(crate::types::Orderbook)]
+    OrderbookState {},
 
     #[returns(DenomsResponse)]
     Denoms {},

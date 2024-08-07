@@ -13,7 +13,6 @@ $adjustedPrice = {price * 10^{quoteDecimals - baseDecimals}}$
 For example when placing an order on a WBTC/USDC orderbook there is a difference of 2 decimal places so the calculation would be at a price of $64,000 would be:
 
 $adjustPrice = {64000 * 10^{6 - 8}} = 64000 / 100 = 640$
-$adjustPrice = {64000 * 10^{6 - 8}} = 64000 / 100 = 640$
 
 So the order would be placed on the tick that represents the price of 640.
 

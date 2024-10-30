@@ -79,6 +79,13 @@ pub enum QueryMsg {
         token_out_denom: String,
         swap_fee: Decimal,
     },
+    // Duplicate of the above, but for compatibility CosmWasm Pool module
+    #[returns(CalcOutAmtGivenInResponse)]
+    CalcOutAmtGivenIn {
+        token_in: Coin,
+        token_out_denom: String,
+        swap_fee: Decimal,
+    },
     #[returns(GetTotalPoolLiquidityResponse)]
     GetTotalPoolLiquidity {},
     /// NO-OP QUERY

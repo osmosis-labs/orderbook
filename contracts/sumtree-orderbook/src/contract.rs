@@ -122,6 +122,16 @@ pub fn query(deps: Deps, _env: Env, msg: QueryMsg) -> ContractResult<Binary> {
             token_out_denom,
             swap_fee,
         )?)?),
+        QueryMsg::CalOutAmtGivenIn {
+            token_in,
+            token_out_denom,
+            swap_fee,
+        } => Ok(to_json_binary(&query::calc_out_amount_given_in(
+            deps,
+            token_in,
+            token_out_denom,
+            swap_fee,
+        )?)?),
         QueryMsg::GetTotalPoolLiquidity {} => {
             Ok(to_json_binary(&query::total_pool_liquidity(deps)?)?)
         }

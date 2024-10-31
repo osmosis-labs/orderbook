@@ -122,7 +122,7 @@ pub fn query(deps: Deps, _env: Env, msg: QueryMsg) -> ContractResult<Binary> {
             token_out_denom,
             swap_fee,
         )?)?),
-        QueryMsg::CalOutAmtGivenIn {
+        QueryMsg::CalcOutAmtGivenIn {
             token_in,
             token_out_denom,
             swap_fee,
